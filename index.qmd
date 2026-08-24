@@ -1,0 +1,29 @@
+---
+title: "Covariate balance in experimental design"
+listing:
+  contents: posts
+  type: default
+  sort: "order asc"
+  fields: [title, description, date]
+  sort-ui: false
+  filter-ui: false
+page-layout: full
+title-block-banner: false
+toc: false
+---
+
+A short series on how to split a sample into groups that look alike. Four
+articles, building on each other: the first sets up the distance, the middle two
+cover the two classical ways of using it to construct groups, and the last one
+covers rerandomization.
+
+All the code is Python, every figure is reproducible from the source, and the
+whole thing lives in
+[the repository](https://github.com/AlexanderDBolton/BoostSampleSize).
+
+::: {.callout-note collapse="false"}
+## Series status
+
+*The Mahalanobis distance* is complete. *Stratification*, *Pairwise matching*
+and *Rerandomization* are drafted as outlines and not yet published.
+:::

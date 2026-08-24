@@ -1,0 +1,61 @@
+---
+title: "Rerandomization"
+description: >
+  Drawing, checking, and redrawing until the covariates balance — thresholds,
+  tiers, the cost in draws, and how to analyse the experiment afterwards.
+date: 2026-08-24
+order: 4
+categories: [rerandomization, design, inference]
+draft: true
+jupyter: python3
+---
+
+::: {.callout-important}
+## Draft
+
+This article is a stub. Remove `draft: true` from the front matter to publish it.
+
+The criterion itself, the acceptance ellipse, the threshold table and the
+variance-reduction factor are all derived in
+[The Mahalanobis distance](../mahalanobis-distance/#rerandomization-the-distance-becomes-an-acceptance-region).
+This article picks up where that section stops.
+:::
+
+## Planned outline
+
+1. **Recap of the criterion.** $M = \frac{N}{4} d^{\top}S^{-1}d$, threshold
+   $a = F^{-1}_{\chi^2_p}(p_a)$, expected draws $1/p_a$.
+
+2. **Choosing $p_a$ properly.** The trade-off is not really compute time — it is
+   that a smaller $p_a$ shrinks the set of acceptable assignments, which
+   matters for randomisation inference. Feasibility bound
+   $p_a\binom{N}{N/2} \gg 1$.
+
+3. **Tiered rerandomization.** Morgan and Rubin (2015): separate thresholds for
+   tiers of covariates in order of importance, for when affine invariance's
+   "all covariates are equal" assumption is wrong.
+
+4. **Inference after rerandomization.** The Li–Ding–Rubin asymptotic
+   distribution, why the $t$-test is conservative, and how to run a
+   randomisation test that respects the acceptance rule. This is the part that
+   is most often got wrong in practice.
+
+5. **Covariate adjustment as an alternative.** Rerandomizing then regressing;
+   what each buys, and the argument that design-stage balance is worth having
+   even when you plan to adjust.
+
+6. **Head-to-head simulation** against complete randomisation, stratification
+   and pairwise matching, over a few outcome models — linear, non-linear, and
+   one where the covariates are irrelevant.
+
+## References
+
+- Morgan, K. L. and Rubin, D. B. (2012).
+  [Rerandomization to improve covariate balance in experiments](https://doi.org/10.1214/12-AOS1008).
+  *The Annals of Statistics*, 40(2), 1263–1282.
+- Morgan, K. L. and Rubin, D. B. (2015).
+  [Rerandomization to balance tiers of covariates](https://doi.org/10.1080/01621459.2015.1079528).
+  *JASA*, 110(512), 1412–1421.
+- Li, X., Ding, P. and Rubin, D. B. (2018).
+  [Asymptotic theory of rerandomization in treatment–control experiments](https://doi.org/10.1073/pnas.1808191115).
+  *PNAS*, 115(37), 9157–9162.

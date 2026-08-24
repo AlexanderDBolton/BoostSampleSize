@@ -1,0 +1,45 @@
+project:
+  type: website
+  output-dir: docs
+  resources:
+    - .nojekyll
+
+website:
+  title: "BoostSampleSize"
+  description: "Notes on covariate balance in experimental design."
+  site-url: https://alexanderdbolton.github.io/BoostSampleSize
+  repo-url: https://github.com/AlexanderDBolton/BoostSampleSize
+  navbar:
+    background: primary
+    left:
+      - href: index.qmd
+        text: Articles
+    right:
+      - icon: github
+        href: https://github.com/AlexanderDBolton/BoostSampleSize
+        aria-label: GitHub
+  page-footer:
+    left: "Alexander Bolton"
+    right: "Built with [Quarto](https://quarto.org)"
+
+format:
+  html:
+    theme: [cosmo, styles.scss]
+    toc: true
+    toc-depth: 3
+    toc-expand: 2
+    code-fold: true
+    code-summary: "Show the code"
+    code-tools: true
+    code-overflow: wrap
+    fig-width: 7.5
+    fig-height: 4.6
+    fig-dpi: 170
+    fig-align: center
+    df-print: kable
+    citations-hover: true
+    link-external-newwindow: true
+
+execute:
+  warning: false
+  message: false

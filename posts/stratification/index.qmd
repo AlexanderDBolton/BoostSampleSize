@@ -1,0 +1,49 @@
+---
+title: "Stratification"
+description: >
+  Blocking on covariates before randomising: how to choose strata, what
+  happens to the variance, and where it stops working.
+date: 2026-08-24
+order: 2
+categories: [stratification, design]
+draft: true
+jupyter: python3
+---
+
+::: {.callout-important}
+## Draft
+
+This article is a stub. Remove `draft: true` from the front matter to publish it.
+:::
+
+## Planned outline
+
+1. **The idea.** Partition the sample into strata that are homogeneous in the
+   covariates, then randomise within each stratum. Balance is enforced by
+   construction rather than by rejection.
+
+2. **Exact balance on what you stratify on.** Within-stratum randomisation makes
+   the stratifying variable balanced up to integer rounding. Contrast with
+   rerandomization, which balances everything approximately.
+
+3. **Choosing strata from continuous covariates.** Quantile cuts, the
+   bias–variance trade-off in the number of strata, and the classic
+   five-strata result from Cochran (1968).
+
+4. **Variance of the estimator.** The stratified difference in means, its
+   variance relative to complete randomisation, and why the gain is governed by
+   the between-stratum share of outcome variance.
+
+5. **Where it breaks.** The curse of dimensionality: $k$ covariates cut into $m$
+   bins each gives $m^k$ strata, most of them empty or containing a single unit.
+   This is the motivation for the propensity score and for matching.
+
+6. **Connection to [the Mahalanobis distance](../mahalanobis-distance/).**
+   Stratifying on a one-dimensional summary — a propensity score or a
+   Mahalanobis distance from a reference point — as a way out of the
+   dimensionality problem.
+
+## References
+
+- Cochran, W. G. (1968). The effectiveness of adjustment by subclassification in
+  removing bias in observational studies. *Biometrics*, 24(2), 295–313.

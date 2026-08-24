@@ -1,0 +1,53 @@
+---
+title: "Pairwise matching"
+description: >
+  Forming matched pairs on Mahalanobis distance and splitting within each pair,
+  including the optimal non-bipartite matching that makes it work.
+date: 2026-08-24
+order: 3
+categories: [matching, design]
+draft: true
+jupyter: python3
+---
+
+::: {.callout-important}
+## Draft
+
+This article is a stub. Remove `draft: true` from the front matter to publish it.
+:::
+
+## Planned outline
+
+1. **The idea.** Take stratification to its limit: strata of size two. Pair each
+   unit with its nearest neighbour in covariate space, then randomise one unit
+   of each pair to treatment. Balance holds at the finest possible resolution.
+
+2. **The distance.** Pair on the
+   [Mahalanobis distance](../mahalanobis-distance/) between units,
+   $D^2(x_i, x_j) = (x_i - x_j)^{\top}S^{-1}(x_i - x_j)$ — the same quadratic
+   form, now applied to a difference between two units rather than a deviation
+   from the mean. Everything from that article carries over: affine invariance,
+   correlated columns not double-counted, categorical handling.
+
+3. **Non-bipartite matching.** Splitting one sample into two halves means
+   matching units to each other, not treated to control. This is optimal
+   non-bipartite matching, solved by Derigs' algorithm rather than by the
+   Hungarian algorithm. Greedy nearest-neighbour matching is easy and
+   noticeably worse; show the gap.
+
+4. **Odd $N$, and units with no good match.** Sinks and calipers.
+
+5. **Variance.** The paired estimator, why the analysis has to respect the
+   pairing, and the trade-off against degrees of freedom.
+
+6. **Matching vs. rerandomization.** Matching balances the joint distribution;
+   rerandomization balances the means. Which one you want depends on whether
+   you expect non-linearity in the outcome model. Include a head-to-head
+   simulation.
+
+## References
+
+- Greevy, R., Lu, B., Silber, J. H. and Rosenbaum, P. (2004). Optimal multivariate
+  matching before randomization. *Biostatistics*, 5(2), 263–275.
+- Lu, B., Greevy, R., Xu, X. and Beck, C. (2011). Optimal nonbipartite matching
+  and its statistical applications. *The American Statistician*, 65(1), 21–30.

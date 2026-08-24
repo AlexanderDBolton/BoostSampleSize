@@ -1,0 +1,68 @@
+/*-- scss:defaults --*/
+
+$font-family-sans-serif: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !default;
+$font-family-monospace: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace !default;
+
+$primary:   #2c4a63 !default;
+$body-color: #21252b !default;
+$link-color: #1f6f8b !default;
+
+$font-size-root: 17px !default;
+$toc-font-size:  0.85rem !default;
+
+/*-- scss:rules --*/
+
+body {
+  line-height: 1.65;
+}
+
+#quarto-content main {
+  max-width: 52rem;
+}
+
+h2 {
+  margin-top: 2.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #e4e7ea;
+  font-weight: 600;
+}
+
+h3 {
+  margin-top: 1.8rem;
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+/* Callouts a touch quieter than the Bootstrap default */
+div.callout {
+  margin-top: 1.4rem;
+  margin-bottom: 1.4rem;
+}
+
+/* Key-result box used for the boxed identities in the articles */
+.keybox {
+  background: #f6f8fa;
+  border-left: 4px solid #2c4a63;
+  padding: 0.9rem 1.1rem;
+  margin: 1.4rem 0;
+  border-radius: 3px;
+}
+
+/* Tables: lighter, no zebra stripes */
+table {
+  font-size: 0.92rem;
+}
+
+.cell-output pre {
+  font-size: 0.85rem;
+}
+
+figure figcaption {
+  font-size: 0.86rem;
+  color: #5b6570;
+}
+
+/* Listing on the front page */
+.quarto-listing {
+  margin-top: 1.5rem;
+}
