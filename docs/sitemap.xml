@@ -2,10 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://alexanderdbolton.github.io/BoostSampleSize/index.html</loc>
-    <lastmod>2026-08-24T21:24:17.975Z</lastmod>
+    <lastmod>2026-08-25T21:12:19.320Z</lastmod>
   </url>
   <url>
     <loc>https://alexanderdbolton.github.io/BoostSampleSize/posts/mahalanobis-distance/index.html</loc>
-    <lastmod>2026-08-24T21:21:25.786Z</lastmod>
+    <lastmod>2026-08-25T21:10:42.645Z</lastmod>
+  </url>
+  <url>
+    <loc>https://alexanderdbolton.github.io/BoostSampleSize/posts/rerandomization/index.html</loc>
+    <lastmod>2026-08-25T21:12:12.533Z</lastmod>
   </url>
 </urlset>

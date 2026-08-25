@@ -24,6 +24,6 @@ whole thing lives in
 ::: {.callout-note collapse="false"}
 ## Series status
 
-*The Mahalanobis distance* is complete. *Stratification*, *Pairwise matching*
-and *Rerandomization* are drafted as outlines and not yet published.
+*The Mahalanobis distance* and *Rerandomization* are written. *Stratification*
+and *Pairwise matching* exist as outlines and are not yet published.
 :::

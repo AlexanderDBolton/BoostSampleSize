@@ -48,6 +48,25 @@ div.callout {
   border-radius: 3px;
 }
 
+/* Figures must never force the page to scroll sideways. Quarto's own rules
+   miss some of the Jupyter output wrappers, so pin every one of them. */
+main img,
+figure img,
+.cell-output img,
+.cell-output-display img,
+.quarto-figure img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Wide code output and tables scroll inside their own box instead. */
+.cell-output pre,
+.cell-output-display > table,
+div.table-responsive {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* Tables: lighter, no zebra stripes */
 table {
   font-size: 0.92rem;

@@ -1,2 +1,1816 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"></html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.18">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-08-24">
+<meta name="description" content="Drawing, checking, and redrawing until the covariates balance — the Mahalanobis criterion, the acceptance ellipse, how much it buys you, and how to compute it efficiently.">
+
+<title>Rerandomization – BoostSampleSize</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-6bc2510a377bfbe78f0e93c5094f7fd0.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-a6cd88c6aac6019f165d1d7af660f1cf.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">BoostSampleSize</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Articles</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/AlexanderDBolton/BoostSampleSize"> <i class="bi bi-github" role="img" aria-label="GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="2">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#the-criterion" id="toc-the-criterion" class="nav-link active" data-scroll-target="#the-criterion">The criterion</a></li>
+  <li><a href="#choosing-the-threshold" id="toc-choosing-the-threshold" class="nav-link" data-scroll-target="#choosing-the-threshold">Choosing the threshold</a></li>
+  <li><a href="#the-acceptance-region-is-an-ellipse" id="toc-the-acceptance-region-is-an-ellipse" class="nav-link" data-scroll-target="#the-acceptance-region-is-an-ellipse">The acceptance region is an ellipse</a></li>
+  <li><a href="#why-an-ellipse-and-not-a-circle" id="toc-why-an-ellipse-and-not-a-circle" class="nav-link" data-scroll-target="#why-an-ellipse-and-not-a-circle">Why an ellipse and not a circle</a></li>
+  <li><a href="#how-much-does-it-buy-you" id="toc-how-much-does-it-buy-you" class="nav-link" data-scroll-target="#how-much-does-it-buy-you">How much does it buy you?</a></li>
+  <li><a href="#doing-it-efficiently" id="toc-doing-it-efficiently" class="nav-link" data-scroll-target="#doing-it-efficiently">Doing it efficiently</a></li>
+  <li><a href="#practical-notes-and-failure-modes" id="toc-practical-notes-and-failure-modes" class="nav-link" data-scroll-target="#practical-notes-and-failure-modes">Practical notes and failure modes</a></li>
+  <li><a href="#still-to-write" id="toc-still-to-write" class="nav-link" data-scroll-target="#still-to-write">Still to write</a></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Rerandomization</h1><button type="button" class="btn code-tools-button dropdown-toggle" id="quarto-code-tools-menu" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi"></i> Code</button><ul class="dropdown-menu dropdown-menu-end" aria-labelelledby="quarto-code-tools-menu"><li><a id="quarto-show-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Show All Code</a></li><li><a id="quarto-hide-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Hide All Code</a></li><li><hr class="dropdown-divider"></li><li><a id="quarto-view-source" class="dropdown-item" href="javascript:void(0)" role="button">View Source</a></li></ul></div></div>
+  <div class="quarto-categories">
+    <div class="quarto-category">rerandomization</div>
+    <div class="quarto-category">design</div>
+    <div class="quarto-category">inference</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    <p>Drawing, checking, and redrawing until the covariates balance — the Mahalanobis criterion, the acceptance ellipse, how much it buys you, and how to compute it efficiently.</p>
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">August 24, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>You have <span class="math inline">\(N\)</span> units with covariate matrix <span class="math inline">\(X\)</span> (<span class="math inline">\(N \times p\)</span>), and you want to split them into two equal groups of <span class="math inline">\(n = N/2\)</span> such that the covariates are balanced. The plan is <em>rerandomization</em>: draw a random split, measure imbalance, and redraw if the imbalance is too large.</p>
+<p>The measure of imbalance is a Mahalanobis distance. This article assumes the <a href="../mahalanobis-distance/">previous one</a>, and in particular that <span class="math inline">\(D^2 =
+(x-\mu)^{\top}\Sigma^{-1}(x-\mu)\)</span> is affine invariant, discounts correlated columns rather than double-counting them, and handles categorical covariates via a dropped baseline or a pseudo-inverse.</p>
+<section id="the-criterion" class="level2">
+<h2 class="anchored" data-anchor-id="the-criterion">The criterion</h2>
+<p>The natural summary of imbalance is the vector of covariate mean differences,</p>
+<p><span class="math display">\[
+d \;=\; \bar{X}_T - \bar{X}_C \;\in\; \mathbb{R}^p .
+\]</span></p>
+<p>Under complete randomization into equal halves, <span class="math inline">\(\mathbb{E}[d] = 0\)</span> and</p>
+<p><span class="math display">\[
+\operatorname{Cov}(d)
+  = \Big(\tfrac{1}{n_T} + \tfrac{1}{n_C}\Big) S
+  = \frac{4}{N}\,S ,
+\]</span></p>
+<p>where <span class="math inline">\(S\)</span> is the sample covariance matrix of the covariates. So <span class="math inline">\(d\)</span> is a random vector with a known mean and a known covariance, and the obvious way to say “<span class="math inline">\(d\)</span> is too far from zero” is its Mahalanobis distance from <span class="math inline">\(0\)</span>:</p>
+<div class="keybox">
+<p><span class="math display">\[
+M \;=\; d^{\!\top}\big[\operatorname{Cov}(d)\big]^{-1} d
+    \;=\; \frac{N}{4}\; d^{\!\top} S^{-1} d .
+\]</span></p>
+</div>
+<p>This is exactly the criterion Morgan and Rubin proposed in 2012. Everything from the Mahalanobis article applies verbatim: <span class="math inline">\(M\)</span> is affine invariant (so the units of your covariates are irrelevant and you need not standardise first), correlated covariates are not double-counted, and categorical covariates are handled by dropping a baseline or using <span class="math inline">\(S^{+}\)</span>.</p>
+<div id="rerand-setup" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>n_T <span class="op">=</span> N <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Two covariates so the acceptance region can be drawn.</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Xrr <span class="op">=</span> rng.multivariate_normal(mu_hw, S_hw, N)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>S_rr <span class="op">=</span> np.cov(Xrr, rowvar<span class="op">=</span><span class="va">False</span>, ddof<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>cov_d <span class="op">=</span> (<span class="dv">4</span> <span class="op">/</span> N) <span class="op">*</span> S_rr</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> draw_splits(B, N, n_T, rng):</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""B random equal splits, as a B x N matrix of +1 (treated) / -1 (control)."""</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    idx <span class="op">=</span> np.argsort(rng.random((B, N)), axis<span class="op">=</span><span class="dv">1</span>)[:, :n_T]</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> <span class="op">-</span>np.ones((B, N))</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    np.put_along_axis(s, idx, <span class="fl">1.0</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> s</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>B <span class="op">=</span> <span class="dv">40_000</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>s_mat <span class="op">=</span> draw_splits(B, N, n_T, rng)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>d_all <span class="op">=</span> (<span class="dv">2</span> <span class="op">/</span> N) <span class="op">*</span> (s_mat <span class="op">@</span> Xrr)                       <span class="co"># B x 2 mean differences</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>M_all <span class="op">=</span> np.einsum(<span class="st">"bi,ij,bj-&gt;b"</span>, d_all, np.linalg.inv(cov_d), d_all)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"empirical Cov(d) / theoretical (4/N)S:</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">round</span>(np.cov(d_all, rowvar<span class="op">=</span><span class="va">False</span>) <span class="op">/</span> cov_d, <span class="dv">3</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">mean of M : </span><span class="sc">{</span>M_all<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">   (chi-square with p=2 has mean 2)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>empirical Cov(d) / theoretical (4/N)S:
+[[1.003 1.011]
+ [1.011 1.013]]
+
+mean of M : 2.0107   (chi-square with p=2 has mean 2)</code></pre>
+</div>
+</div>
+</section>
+<section id="choosing-the-threshold" class="level2">
+<h2 class="anchored" data-anchor-id="choosing-the-threshold">Choosing the threshold</h2>
+<p>Since <span class="math inline">\(M\)</span> is a squared Mahalanobis distance of an (approximately normal) <span class="math inline">\(p\)</span>-vector, <span class="math inline">\(M \sim \chi^2_p\)</span>. That gives you the threshold directly. To accept a proportion <span class="math inline">\(p_a\)</span> of draws, set</p>
+<p><span class="math display">\[
+a = F^{-1}_{\chi^2_p}(p_a), \qquad \text{accept iff } M \le a .
+\]</span></p>
+<p>The expected number of draws before acceptance is <span class="math inline">\(1/p_a\)</span>. Note that thresholding <span class="math inline">\(M\)</span> at <span class="math inline">\(a\)</span> is the same as thresholding the <em>distance</em> <span class="math inline">\(\sqrt{M}\)</span> at <span class="math inline">\(\sqrt{a}\)</span>; the squared scale is the convenient one because it is the scale on which the <span class="math inline">\(\chi^2\)</span> table is written.</p>
+<div class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p_a_ <span class="kw">in</span> [<span class="fl">0.5</span>, <span class="fl">0.1</span>, <span class="fl">0.05</span>, <span class="fl">0.01</span>, <span class="fl">0.001</span>, <span class="fl">0.0001</span>]:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> pp_ <span class="kw">in</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>]:</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        rows.append({<span class="st">"p_a"</span>: p_a_, <span class="st">"p (covariates)"</span>: pp_,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"threshold a"</span>: stats.chi2.ppf(p_a_, pp_)})</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>thr <span class="op">=</span> pd.DataFrame(rows).pivot(index<span class="op">=</span><span class="st">"p_a"</span>, columns<span class="op">=</span><span class="st">"p (covariates)"</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>                               values<span class="op">=</span><span class="st">"threshold a"</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>thr[<span class="st">"expected draws"</span>] <span class="op">=</span> [<span class="dv">1</span> <span class="op">/</span> x <span class="cf">for</span> x <span class="kw">in</span> thr.index]</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>thr.<span class="bu">round</span>(<span class="dv">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-thresholds" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-thresholds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1
+</figcaption>
+<div aria-describedby="tbl-thresholds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="3">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th">p (covariates)</th>
+<th data-quarto-table-cell-role="th">2</th>
+<th data-quarto-table-cell-role="th">5</th>
+<th data-quarto-table-cell-role="th">10</th>
+<th data-quarto-table-cell-role="th">expected draws</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">p_a</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0.0001</th>
+<td>0.000</td>
+<td>0.082</td>
+<td>0.889</td>
+<td>10000.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0.0010</th>
+<td>0.002</td>
+<td>0.210</td>
+<td>1.479</td>
+<td>1000.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0.0100</th>
+<td>0.020</td>
+<td>0.554</td>
+<td>2.558</td>
+<td>100.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0.0500</th>
+<td>0.103</td>
+<td>1.145</td>
+<td>3.940</td>
+<td>20.0</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0.1000</th>
+<td>0.211</td>
+<td>1.610</td>
+<td>4.865</td>
+<td>10.0</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0.5000</th>
+<td>1.386</td>
+<td>4.351</td>
+<td>9.342</td>
+<td>2.0</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+</section>
+<section id="the-acceptance-region-is-an-ellipse" class="level2">
+<h2 class="anchored" data-anchor-id="the-acceptance-region-is-an-ellipse">The acceptance region is an ellipse</h2>
+<p>For <span class="math inline">\(p = 2\)</span> you can draw it. The set <span class="math inline">\(\{d : M(d) \le a\}\)</span> is an ellipse centred at the origin, and its shape is set by <span class="math inline">\(S\)</span> — it is elongated in exactly the direction in which imbalance naturally occurs.</p>
+<div id="cell-fig-acceptance-ellipse" class="cell" data-fig-height="8.4" data-execution_count="4">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>p_a <span class="op">=</span> <span class="fl">0.05</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>a_thr <span class="op">=</span> stats.chi2.ppf(p_a, <span class="dv">2</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>accept <span class="op">=</span> M_all <span class="op">&lt;=</span> a_thr</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>sd_d <span class="op">=</span> np.sqrt(np.diag(cov_d))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>theta <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span> <span class="op">*</span> np.pi, <span class="dv">400</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>L_rr <span class="op">=</span> np.linalg.cholesky(cov_d)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ellipse(a):</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Boundary {d : M(d) = a} in raw mean-difference units."""</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (np.sqrt(a) <span class="op">*</span> L_rr <span class="op">@</span> np.vstack([np.cos(theta), np.sin(theta)])).T</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>fig, (axL, axR) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">8.4</span>))</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- top: the whole cloud, with nested acceptance regions ----</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>axL.scatter(d_all[<span class="op">~</span>accept, <span class="dv">0</span>], d_all[<span class="op">~</span>accept, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.22</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"rejected"</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>axL.scatter(d_all[accept, <span class="dv">0</span>], d_all[accept, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"green"</span>], alpha<span class="op">=</span><span class="fl">0.85</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="ss">f"accepted ($p_a$=</span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pa_, ls_ <span class="kw">in</span> [(<span class="fl">0.50</span>, <span class="st">":"</span>), (<span class="fl">0.20</span>, <span class="st">"-."</span>), (<span class="fl">0.05</span>, <span class="st">"-"</span>), (<span class="fl">0.01</span>, <span class="st">"--"</span>)]:</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    e <span class="op">=</span> ellipse(stats.chi2.ppf(pa_, <span class="dv">2</span>))</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    axL.plot(e[:, <span class="dv">0</span>], e[:, <span class="dv">1</span>], color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">1.6</span>, ls<span class="op">=</span>ls_, zorder<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>             label<span class="op">=</span><span class="ss">f"$p_a$ = </span><span class="sc">{</span>pa_<span class="sc">:.0%}</span><span class="ss">"</span>)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>axL.scatter(<span class="dv">0</span>, <span class="dv">0</span>, marker<span class="op">=</span><span class="st">"+"</span>, s<span class="op">=</span><span class="dv">130</span>, color<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="fl">1.7</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>ZOOM <span class="op">=</span> <span class="fl">0.5</span>                                     <span class="co"># zoom half-width, in sd of d</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>axL.add_patch(plt.Rectangle((<span class="op">-</span>ZOOM <span class="op">*</span> sd_d[<span class="dv">0</span>], <span class="op">-</span>ZOOM <span class="op">*</span> sd_d[<span class="dv">1</span>]),</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>                            <span class="dv">2</span> <span class="op">*</span> ZOOM <span class="op">*</span> sd_d[<span class="dv">0</span>], <span class="dv">2</span> <span class="op">*</span> ZOOM <span class="op">*</span> sd_d[<span class="dv">1</span>],</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>                            fill<span class="op">=</span><span class="va">False</span>, ec<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">1.3</span>, zorder<span class="op">=</span><span class="dv">7</span>))</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>axL.set_xlabel(<span class="vs">r"</span><span class="dv">$\b</span><span class="vs">ar{X}_T - </span><span class="dv">\b</span><span class="vs">ar{X}_C</span><span class="dv">$</span><span class="vs">  for height </span><span class="kw">(</span><span class="vs">cm</span><span class="kw">)</span><span class="vs">"</span>)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>axL.set_ylabel(<span class="vs">r"</span><span class="dv">$\b</span><span class="vs">ar{X}_T - </span><span class="dv">\b</span><span class="vs">ar{X}_C</span><span class="dv">$</span><span class="vs">  for weight </span><span class="kw">(</span><span class="vs">kg</span><span class="kw">)</span><span class="vs">"</span>)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>axL.set_title(<span class="st">"Acceptance regions for four values of $p_a$"</span>)</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>axL.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, markerscale<span class="op">=</span><span class="fl">2.2</span>, fontsize<span class="op">=</span><span class="dv">9</span>, ncol<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>axL.grid(<span class="va">False</span>)</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- bottom: zoom, Mahalanobis ellipse vs per-covariate circle ----</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>z_all <span class="op">=</span> d_all <span class="op">/</span> sd_d</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Naive criterion: sum of squared standardised mean differences, calibrated</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="co"># empirically to the SAME acceptance rate.</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>M_naive <span class="op">=</span> np.<span class="bu">sum</span>(z_all <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>c_thr <span class="op">=</span> np.quantile(M_naive, p_a)</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>accept_naive <span class="op">=</span> M_naive <span class="op">&lt;=</span> c_thr</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>both       <span class="op">=</span> accept <span class="op">&amp;</span> accept_naive</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>only_maha  <span class="op">=</span> accept <span class="op">&amp;</span> <span class="op">~</span>accept_naive</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>only_naive <span class="op">=</span> accept_naive <span class="op">&amp;</span> <span class="op">~</span>accept</span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>neither    <span class="op">=</span> <span class="op">~</span>accept <span class="op">&amp;</span> <span class="op">~</span>accept_naive</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[neither, <span class="dv">0</span>], z_all[neither, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.18</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[both, <span class="dv">0</span>], z_all[both, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">9</span>, color<span class="op">=</span>C[<span class="st">"green"</span>],</span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.8</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"accepted by both"</span>)</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[only_maha, <span class="dv">0</span>], z_all[only_maha, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">11</span>, color<span class="op">=</span>C[<span class="st">"blue"</span>],</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.95</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"Mahalanobis only"</span>)</span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[only_naive, <span class="dv">0</span>], z_all[only_naive, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">11</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>],</span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.95</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"per-covariate only"</span>)</span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>e <span class="op">=</span> ellipse(a_thr)</span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>axR.plot(e[:, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], e[:, <span class="dv">1</span>] <span class="op">/</span> sd_d[<span class="dv">1</span>], color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">2.2</span>,</span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>         zorder<span class="op">=</span><span class="dv">6</span>, label<span class="op">=</span><span class="st">"Mahalanobis boundary"</span>)</span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>axR.plot(np.sqrt(c_thr) <span class="op">*</span> np.cos(theta), np.sqrt(c_thr) <span class="op">*</span> np.sin(theta),</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>         color<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">2.0</span>, ls<span class="op">=</span><span class="st">"--"</span>, zorder<span class="op">=</span><span class="dv">6</span>, label<span class="op">=</span><span class="st">"circle boundary"</span>)</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>axR.set_xlim(<span class="op">-</span>ZOOM, ZOOM)</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>axR.set_ylim(<span class="op">-</span>ZOOM, ZOOM)</span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>axR.set_aspect(<span class="st">"equal"</span>)</span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>axR.set_xlabel(<span class="st">"standardised imbalance, height"</span>)</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>axR.set_ylabel(<span class="st">"standardised imbalance, weight"</span>)</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>axR.set_title(<span class="st">"Zoom: same acceptance rate, different region"</span>)</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>axR.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, markerscale<span class="op">=</span><span class="fl">1.5</span>, fontsize<span class="op">=</span><span class="fl">8.5</span>)</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>axR.grid(<span class="va">False</span>)</span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by both             : </span><span class="sc">{</span>both<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">"</span>)</span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by Mahalanobis only : </span><span class="sc">{</span>only_maha<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">  "</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>only_maha<span class="sc">.</span><span class="bu">sum</span>() <span class="op">/</span> accept<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.1%}</span><span class="ss"> of all accepted splits)"</span>)</span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by the circle only  : </span><span class="sc">{</span>only_naive<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-acceptance-ellipse" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-acceptance-ellipse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-acceptance-ellipse-output-1.png" width="1064" height="1406" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-acceptance-ellipse-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Left: 40,000 random equal splits, each a dot at its (height, weight) mean-difference, with the nested acceptance ellipses for four values of p_a. Note how small the accepted region already is at 5%. Right: a zoom on the boxed area, in standardised coordinates, comparing the Mahalanobis ellipse against the circle from a naive per-covariate criterion calibrated to accept the same 5%. The blue and orange points are the splits the two criteria disagree about.
+</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>accepted by both             :  1474
+accepted by Mahalanobis only :   539  (26.8% of all accepted splits)
+accepted by the circle only  :   526</code></pre>
+</div>
+</div>
+</section>
+<section id="why-an-ellipse-and-not-a-circle" class="level2">
+<h2 class="anchored" data-anchor-id="why-an-ellipse-and-not-a-circle">Why an ellipse and not a circle</h2>
+<p>The ellipse leans along the positive correlation between height and weight, which at first looks backwards: it is <em>more permissive</em> about splits where both covariates are imbalanced in the same direction. That is the correct behaviour, for the same reason correlated columns are not double-counted. Height and weight are correlated at <span class="math inline">\(0.7\)</span>, so a split that over-represents tall people will mechanically over-represent heavy people too. Those two imbalances are largely one imbalance, and a criterion that counted them separately would spend nearly all its rejections fighting the most common failure mode while barely constraining the rare, genuinely informative direction — arms that differ in weight <em>given</em> height.</p>
+<p>There is also a practical reason to prefer the ellipse:</p>
+<div class="keybox">
+<p>The Mahalanobis criterion accepts exactly <span class="math inline">\(p_a\)</span> of draws whatever the correlation structure is, so you can read the threshold off a <span class="math inline">\(\chi^2\)</span> table. The per-covariate criterion’s acceptance rate depends on <span class="math inline">\(S\)</span>, so its threshold has to be calibrated by simulation every time.</p>
+</div>
+<div id="naive-miscalibration" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>nominal <span class="op">=</span> stats.chi2.ppf(p_a, <span class="dv">2</span>)     <span class="co"># the chi-square threshold, wrongly reused</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"threshold from the chi-square table, a = </span><span class="sc">{</span>nominal<span class="sc">:.4f}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mahalanobis criterion accepts : </span><span class="sc">{</span>np<span class="sc">.</span>mean(M_all <span class="op">&lt;=</span> nominal)<span class="sc">:6.2%}</span><span class="ss">"</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  per-covariate criterion accepts: </span><span class="sc">{</span>np<span class="sc">.</span>mean(M_naive <span class="op">&lt;=</span> nominal)<span class="sc">:6.2%}</span><span class="ss">"</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  ... both should accept         : </span><span class="sc">{</span>p_a<span class="sc">:6.2%}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>threshold from the chi-square table, a = 0.1026
+
+  Mahalanobis criterion accepts :  5.03%
+  per-covariate criterion accepts:  6.83%
+  ... both should accept         :  5.00%</code></pre>
+</div>
+</div>
+</section>
+<section id="how-much-does-it-buy-you" class="level2">
+<h2 class="anchored" data-anchor-id="how-much-does-it-buy-you">How much does it buy you?</h2>
+<p>Morgan and Rubin show that rerandomizing on <span class="math inline">\(M \le a\)</span> reduces the variance of every covariate mean difference by the same factor,</p>
+<div class="keybox">
+<p><span class="math display">\[
+v_a \;=\; \frac{\operatorname{Var}_{\text{RR}}(d_j)}{\operatorname{Var}_{\text{CR}}(d_j)}
+      \;=\; \frac{P\big(\chi^2_{p+2} \le a\big)}{P\big(\chi^2_{p} \le a\big)} .
+\]</span></p>
+</div>
+<p>The important qualitative feature is how it degrades with <span class="math inline">\(p\)</span>: at a fixed acceptance rate, more covariates means less benefit per covariate. Balancing on twenty covariates at <span class="math inline">\(p_a = 0.01\)</span> buys much less than balancing on two.</p>
+<div id="cell-fig-variance-reduction" class="cell" data-fig-height="4.2" data-execution_count="6">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pa_grid <span class="op">=</span> np.logspace(<span class="op">-</span><span class="dv">4</span>, np.log10(<span class="fl">0.9</span>), <span class="dv">250</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.8</span>, <span class="fl">4.2</span>))</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>cols <span class="op">=</span> [C[<span class="st">"blue"</span>], C[<span class="st">"green"</span>], C[<span class="st">"orange"</span>], C[<span class="st">"red"</span>], C[<span class="st">"dark"</span>], C[<span class="st">"grey"</span>]]</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pv, col <span class="kw">in</span> <span class="bu">zip</span>([<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">50</span>], cols):</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    a_g <span class="op">=</span> stats.chi2.ppf(pa_grid, pv)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    v_g <span class="op">=</span> stats.chi2.cdf(a_g, pv <span class="op">+</span> <span class="dv">2</span>) <span class="op">/</span> stats.chi2.cdf(a_g, pv)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    ax.plot(pa_grid, v_g, color<span class="op">=</span>col, lw<span class="op">=</span><span class="dv">2</span>, label<span class="op">=</span><span class="ss">f"$p = </span><span class="sc">{</span>pv<span class="sc">}</span><span class="ss">$"</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>ax.set_xscale(<span class="st">"log"</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"acceptance probability $p_a$  (expected draws = $1/p_a$)"</span>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"$v_a$ vs. complete randomisation"</span>)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Diminishing returns as the number of covariates grows"</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>ax.legend(ncol<span class="op">=</span><span class="dv">3</span>, loc<span class="op">=</span><span class="st">"lower right"</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-variance-reduction" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-variance-reduction-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-variance-reduction-output-1.png" width="1133" height="691" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-reduction-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Variance reduction factor for each covariate mean difference. Lower is better. At a fixed acceptance rate the benefit erodes quickly as covariates are added. With p = 2, accepting 1 draw in 100 leaves 0.5% of the original imbalance variance; with p = 50 the same acceptance rate leaves 55%, and going all the way to 1 draw in 1,000 only gets it to 46%.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Two caveats keep this honest.</p>
+<p><strong>Balance is not the goal; precision is.</strong> The variance of the treatment effect estimator is reduced by a factor of <span class="math inline">\(1 - (1 - v_a)R^2\)</span>, where <span class="math inline">\(R^2\)</span> is the squared multiple correlation between the outcome and the covariates. If your covariates do not predict the outcome, perfect balance on them buys you nothing. Covariate <em>choice</em> matters more than threshold choice.</p>
+<p><strong>The usual standard errors no longer apply.</strong> Rerandomization makes the sampling distribution of the difference in means non-normal — Li, Ding and Rubin (2018) show it is a normal plus a truncated-normal term. A conventional two-sample <span class="math inline">\(t\)</span>-test on rerandomized data is conservative (its intervals are too wide). Either use randomization-based inference that redraws under the <em>same</em> rerandomization scheme, or use the asymptotic distribution from that paper.</p>
+<div id="cell-fig-cr-vs-rr" class="cell" data-fig-height="7.4" data-execution_count="7">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">7.4</span>))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>bins <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">70</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>ax1.hist(d_all[:, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>],</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>         alpha<span class="op">=</span><span class="fl">0.6</span>, label<span class="op">=</span><span class="st">"complete randomisation"</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>ax1.hist(d_all[accept, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, color<span class="op">=</span>C[<span class="st">"green"</span>],</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>         alpha<span class="op">=</span><span class="fl">0.8</span>, label<span class="op">=</span><span class="ss">f"rerandomised, $p_a$=</span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>ax1.set_xlabel(<span class="st">"standardised imbalance in height"</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">"density"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">"Imbalance shrinks"</span>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>ax1.set_ylim(<span class="dv">0</span>, <span class="fl">2.4</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>ax1.legend(loc<span class="op">=</span><span class="st">"upper right"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- empirical vs theoretical variance reduction ----</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>pa_check <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.3</span>, <span class="fl">0.2</span>, <span class="fl">0.1</span>, <span class="fl">0.05</span>, <span class="fl">0.02</span>, <span class="fl">0.01</span>])</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>emp_ratio <span class="op">=</span> []</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pa_ <span class="kw">in</span> pa_check:</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    acc_ <span class="op">=</span> M_all <span class="op">&lt;=</span> stats.chi2.ppf(pa_, <span class="dv">2</span>)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    emp_ratio.append(<span class="bu">float</span>(np.mean(d_all[acc_].var(<span class="dv">0</span>) <span class="op">/</span> d_all.var(<span class="dv">0</span>))))</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>pa_fine <span class="op">=</span> np.logspace(np.log10(<span class="fl">0.008</span>), np.log10(<span class="fl">0.6</span>), <span class="dv">200</span>)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>v_fine <span class="op">=</span> stats.chi2.cdf(stats.chi2.ppf(pa_fine, <span class="dv">2</span>), <span class="dv">4</span>) <span class="op">/</span> pa_fine</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>ax2.plot(pa_fine, v_fine, color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>         label<span class="op">=</span><span class="st">"theory: $P(</span><span class="ch">\\</span><span class="st">chi^2_{p+2}</span><span class="ch">\\</span><span class="st">leq a)</span><span class="ch">\\</span><span class="st">,/</span><span class="ch">\\</span><span class="st">,p_a$"</span>)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>ax2.scatter(pa_check, emp_ratio, s<span class="op">=</span><span class="dv">55</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>], zorder<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>            edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">1.1</span>, label<span class="op">=</span><span class="st">"simulated (40,000 draws)"</span>)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>ax2.set_xscale(<span class="st">"log"</span>)</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>ax2.set_xlabel(<span class="st">"acceptance probability $p_a$"</span>)</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">"variance ratio  $v_a$"</span>)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">"The formula, checked against simulation"</span>)</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>ax2.set_ylim(<span class="dv">0</span>, <span class="fl">0.75</span>)</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>ax2.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>v_a <span class="op">=</span> stats.chi2.cdf(a_thr, <span class="dv">4</span>) <span class="op">/</span> stats.chi2.cdf(a_thr, <span class="dv">2</span>)</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>emp <span class="op">=</span> d_all[accept].var(<span class="dv">0</span>) <span class="op">/</span> d_all.var(<span class="dv">0</span>)</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at p_a = </span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">:  theoretical v_a = </span><span class="sc">{</span>v_a<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"             empirical: height </span><span class="sc">{</span>emp[<span class="dv">0</span>]<span class="sc">:.4f}</span><span class="ss">, weight </span><span class="sc">{</span>emp[<span class="dv">1</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">so rerandomizing here removes "</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> v_a)<span class="sc">:.1f}</span><span class="ss">% of the variance of every covariate mean difference,"</span>)</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at a cost of </span><span class="sc">{</span><span class="dv">1</span> <span class="op">/</span> p_a<span class="sc">:.0f}</span><span class="ss"> draws on average."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="fig-cr-vs-rr" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-cr-vs-rr-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-cr-vs-rr-output-1.png" width="1065" height="1235" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-cr-vs-rr-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Left: the marginal distribution of the height imbalance, under complete randomisation and after rerandomizing at p_a = 0.05 — the same 40,000 draws, filtered. Right: the variance reduction actually achieved by those draws at a range of thresholds, against the theoretical v_a. Because P(χ²_p ≤ a) = p_a by construction, the formula simplifies to v_a = P(χ²_{p+2} ≤ a)/p_a.
+</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>at p_a = 0.05:  theoretical v_a = 0.0254
+             empirical: height 0.0256, weight 0.0252
+
+so rerandomizing here removes 97.5% of the variance of every covariate mean difference,
+at a cost of 20 draws on average.</code></pre>
+</div>
+</div>
+</section>
+<section id="doing-it-efficiently" class="level2">
+<h2 class="anchored" data-anchor-id="doing-it-efficiently">Doing it efficiently</h2>
+<p>Inside a rerandomization loop you will evaluate <span class="math inline">\(M\)</span> hundreds of thousands of times, so it is worth not recomputing anything that does not change. Write <span class="math inline">\(s_i = +1\)</span> for treated and <span class="math inline">\(-1\)</span> for control, with <span class="math inline">\(\sum_i s_i = 0\)</span>. Then <span class="math inline">\(d = \frac{2}{N}\sum_i s_i x_i\)</span>, and substituting into <span class="math inline">\(M\)</span>:</p>
+<div class="keybox">
+<p><span class="math display">\[
+M \;=\; \frac{1}{N}\Big\|\sum_{i=1}^{N} s_i z_i\Big\|^2,
+\qquad z_i = L^{-1}(x_i - \bar{x}), \quad S = LL^{\!\top}.
+\]</span></p>
+</div>
+<p>Whiten the covariate matrix <strong>once</strong>, and every draw afterwards is a sum of rows and a squared norm — no linear solve, no covariance matrix.</p>
+<div id="fast-path-check" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Z_rr <span class="op">=</span> np.linalg.solve(np.linalg.cholesky(S_rr), (Xrr <span class="op">-</span> Xrr.mean(<span class="dv">0</span>)).T).T</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>M_fast <span class="op">=</span> np.<span class="bu">sum</span>((s_mat <span class="op">@</span> Z_rr) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> N</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"max |M - M_fast| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(M_all <span class="op">-</span> M_fast)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3e}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>max |M - M_fast| = 1.705e-13</code></pre>
+</div>
+</div>
+<p>How much does it actually matter? Honest timings on a larger problem (<span class="math inline">\(N = 400\)</span>, <span class="math inline">\(p = 8\)</span>, 20,000 draws), from the naive loop most people write first down to a fully vectorised version:</p>
+<div class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Show the code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>N_b, p_b, B_b <span class="op">=</span> <span class="dv">400</span>, <span class="dv">8</span>, <span class="dv">20_000</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>Xb <span class="op">=</span> rng.normal(size<span class="op">=</span>(N_b, p_b)) <span class="op">@</span> rng.normal(size<span class="op">=</span>(p_b, p_b)) <span class="op">+</span> <span class="fl">3.0</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>Sb <span class="op">=</span> np.cov(Xb, rowvar<span class="op">=</span><span class="va">False</span>, ddof<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>Sb_inv <span class="op">=</span> np.linalg.inv(Sb)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>Zb <span class="op">=</span> np.linalg.solve(np.linalg.cholesky(Sb), (Xb <span class="op">-</span> Xb.mean(<span class="dv">0</span>)).T).T</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>nTb <span class="op">=</span> N_b <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>Zb_tot <span class="op">=</span> Zb.<span class="bu">sum</span>(<span class="dv">0</span>)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_resolve():</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> np.zeros(N_b, <span class="bu">bool</span>)<span class="op">;</span> m[rng.permutation(N_b)[:nTb]] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> Xb[m].mean(<span class="dv">0</span>) <span class="op">-</span> Xb[<span class="op">~</span>m].mean(<span class="dv">0</span>)</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (N_b <span class="op">/</span> <span class="dv">4</span>) <span class="op">*</span> d <span class="op">@</span> np.linalg.solve(Sb, d)     <span class="co"># refactorises S!</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_precomputed():</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> np.zeros(N_b, <span class="bu">bool</span>)<span class="op">;</span> m[rng.permutation(N_b)[:nTb]] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> Xb[m].mean(<span class="dv">0</span>) <span class="op">-</span> Xb[<span class="op">~</span>m].mean(<span class="dv">0</span>)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (N_b <span class="op">/</span> <span class="dv">4</span>) <span class="op">*</span> d <span class="op">@</span> Sb_inv <span class="op">@</span> d</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_whitened():</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>        g <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> Zb[rng.permutation(N_b)[:nTb]].<span class="bu">sum</span>(<span class="dv">0</span>) <span class="op">-</span> Zb_tot</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (g <span class="op">@</span> g) <span class="op">/</span> N_b</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> batched():</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> draw_splits(B_b, N_b, nTb, rng)</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">sum</span>((s <span class="op">@</span> Zb) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> N_b</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>timings <span class="op">=</span> []</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, fn <span class="kw">in</span> [(<span class="st">"loop, re-solves S each draw"</span>, loop_resolve),</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"loop, precomputed inverse"</span>, loop_precomputed),</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"loop, whitened Z"</span>, loop_whitened),</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"fully vectorised on Z"</span>, batched)]:</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>    t0 <span class="op">=</span> time.perf_counter()<span class="op">;</span> out <span class="op">=</span> fn()<span class="op">;</span> el <span class="op">=</span> time.perf_counter() <span class="op">-</span> t0</span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>    timings.append({<span class="st">"implementation"</span>: name, <span class="st">"ms for 20,000 draws"</span>: el <span class="op">*</span> <span class="dv">1000</span>,</span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"mean M (should be ~8)"</span>: out.mean()})</span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a>tdf <span class="op">=</span> pd.DataFrame(timings)</span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>tdf[<span class="st">"speed-up"</span>] <span class="op">=</span> tdf[<span class="st">"ms for 20,000 draws"</span>].iloc[<span class="dv">0</span>] <span class="op">/</span> tdf[<span class="st">"ms for 20,000 draws"</span>]</span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a>tdf.set_index(<span class="st">"implementation"</span>).<span class="bu">round</span>(<span class="dv">2</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div id="tbl-timings" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="9">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-timings-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2
+</figcaption>
+<div aria-describedby="tbl-timings-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="9">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">ms for 20,000 draws</th>
+<th data-quarto-table-cell-role="th">mean M (should be ~8)</th>
+<th data-quarto-table-cell-role="th">speed-up</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">implementation</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">loop, re-solves S each draw</th>
+<td>1396.80</td>
+<td>8.02</td>
+<td>1.00</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">loop, precomputed inverse</th>
+<td>1234.35</td>
+<td>8.00</td>
+<td>1.13</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">loop, whitened Z</th>
+<td>602.85</td>
+<td>7.99</td>
+<td>2.32</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">fully vectorised on Z</th>
+<td>285.55</td>
+<td>7.96</td>
+<td>4.89</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>The gains are real but moderate, because the dominant cost is forming the mean difference at all — that is <span class="math inline">\(O(Np)\)</span> per draw no matter what you do. The point of the whitened form is less that it is fast and more that it makes it <em>impossible</em> to accidentally refactorise <span class="math inline">\(S\)</span> inside the loop.</p>
+</section>
+<section id="practical-notes-and-failure-modes" class="level2">
+<h2 class="anchored" data-anchor-id="practical-notes-and-failure-modes">Practical notes and failure modes</h2>
+<p><strong>Feasibility at small <span class="math inline">\(N\)</span>.</strong> There are only <span class="math inline">\(\binom{N}{N/2}\)</span> distinct equal splits. That is astronomically large for <span class="math inline">\(N = 200\)</span>, but for <span class="math inline">\(N = 20\)</span> it is 184,756, and an acceptance rate of <span class="math inline">\(10^{-6}\)</span> is then not merely slow but impossible. Check <span class="math inline">\(p_a \binom{N}{N/2} \gg 1\)</span>.</p>
+<p><strong>More covariates is not free.</strong> Adding a correlated covariate does not get it extra weight in <span class="math inline">\(M\)</span>, but it does raise <span class="math inline">\(p\)</span>, which shrinks the variance reduction <span class="math inline">\(v_a\)</span> available at any acceptance rate. It is cheap to include a covariate, not free.</p>
+<p><strong>Every covariate is treated as equally important.</strong> <span class="math inline">\(M\)</span> is invariant to rescaling, which is a virtue for units and a limitation for priorities. If some covariates genuinely matter more, use tiered rerandomization (Morgan and Rubin, 2015), which applies separate thresholds to groups of covariates in order of importance.</p>
+<p><strong>Keep the accepted split reproducible.</strong> Record the seed, the covariate matrix, the encoding, and the threshold. Because <span class="math inline">\(S\)</span> is computed from the data at hand, a change in the covariate set changes the metric and therefore the accepted split.</p>
+</section>
+<section id="still-to-write" class="level2">
+<h2 class="anchored" data-anchor-id="still-to-write">Still to write</h2>
+<ol type="1">
+<li><strong>Choosing <span class="math inline">\(p_a\)</span> properly.</strong> The trade-off is not really compute time — it is that a smaller <span class="math inline">\(p_a\)</span> shrinks the set of acceptable assignments, which matters for randomisation inference.</li>
+<li><strong>Tiered rerandomization</strong> in detail.</li>
+<li><strong>Inference after rerandomization.</strong> The Li–Ding–Rubin asymptotic distribution, and how to run a randomisation test that respects the acceptance rule. This is the part most often got wrong in practice.</li>
+<li><strong>Covariate adjustment as an alternative.</strong> Rerandomizing then regressing.</li>
+<li><strong>Head-to-head simulation</strong> against complete randomisation, stratification and pairwise matching, over linear and non-linear outcome models.</li>
+</ol>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<ul>
+<li>Morgan, K. L. and Rubin, D. B. (2012). <a href="https://doi.org/10.1214/12-AOS1008">Rerandomization to improve covariate balance in experiments</a>. <em>The Annals of Statistics</em>, 40(2), 1263–1282.</li>
+<li>Morgan, K. L. and Rubin, D. B. (2015). <a href="https://doi.org/10.1080/01621459.2015.1079528">Rerandomization to balance tiers of covariates</a>. <em>JASA</em>, 110(512), 1412–1421.</li>
+<li>Li, X., Ding, P. and Rubin, D. B. (2018). <a href="https://doi.org/10.1073/pnas.1808191115">Asymptotic theory of rerandomization in treatment–control experiments</a>. <em>PNAS</em>, 115(37), 9157–9162.</li>
+</ul>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const cellDetails = window.document.querySelectorAll(".cell details.code-fold");
+        for (let i=0; i<cellDetails.length; i++) {
+          const details = cellDetails[i];
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell div.sourceCode.cell-code");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/alexanderdbolton\.github\.io\/BoostSampleSize");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+            // target, if specified
+            link.setAttribute("target", "_blank");
+            if (link.getAttribute("rel") === null) {
+              link.setAttribute("rel", "noopener");
+            }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Rerandomization"</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> &gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">  Drawing, checking, and redrawing until the covariates balance — the</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">  Mahalanobis criterion, the acceptance ellipse, how much it buys you, and how</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">  to compute it efficiently.</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> 2026-08-24</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="an">order:</span><span class="co"> 4</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="an">categories:</span><span class="co"> [rerandomization, design, inference]</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: setup</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: false</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib <span class="im">as</span> mpl</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> stats</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">20260824</span>)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>mpl.rcParams.update({</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"figure.facecolor"</span>:  <span class="st">"white"</span>,</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.facecolor"</span>:    <span class="st">"white"</span>,</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.edgecolor"</span>:    <span class="st">"#b9c0c7"</span>,</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.linewidth"</span>:    <span class="fl">0.9</span>,</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.grid"</span>:         <span class="va">True</span>,</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.axisbelow"</span>:    <span class="va">True</span>,</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.color"</span>:        <span class="st">"#e6e9ec"</span>,</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.linewidth"</span>:    <span class="fl">0.8</span>,</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.top"</span>:   <span class="va">False</span>,</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.right"</span>: <span class="va">False</span>,</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titlesize"</span>:    <span class="dv">12</span>,</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titleweight"</span>:  <span class="st">"semibold"</span>,</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.labelsize"</span>:    <span class="dv">11</span>,</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.labelsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.labelsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.frameon"</span>:    <span class="va">False</span>,</span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.fontsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a>    <span class="st">"font.size"</span>:         <span class="dv">11</span>,</span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a>C <span class="op">=</span> {</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>    <span class="st">"blue"</span>:   <span class="st">"#2c6e9b"</span>,</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a>    <span class="st">"orange"</span>: <span class="st">"#d1743a"</span>,</span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a>    <span class="st">"green"</span>:  <span class="st">"#4f8f63"</span>,</span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a>    <span class="st">"red"</span>:    <span class="st">"#b5483d"</span>,</span>
+<span id="cb14-55"><a href="#cb14-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grey"</span>:   <span class="st">"#9aa3ab"</span>,</span>
+<span id="cb14-56"><a href="#cb14-56" aria-hidden="true" tabindex="-1"></a>    <span class="st">"dark"</span>:   <span class="st">"#2c4a63"</span>,</span>
+<span id="cb14-57"><a href="#cb14-57" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb14-58"><a href="#cb14-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-59"><a href="#cb14-59" aria-hidden="true" tabindex="-1"></a><span class="co"># The running example from the Mahalanobis article: height and weight,</span></span>
+<span id="cb14-60"><a href="#cb14-60" aria-hidden="true" tabindex="-1"></a><span class="co"># correlated at 0.7.</span></span>
+<span id="cb14-61"><a href="#cb14-61" aria-hidden="true" tabindex="-1"></a>mu_hw <span class="op">=</span> np.array([<span class="fl">170.0</span>, <span class="fl">75.0</span>])</span>
+<span id="cb14-62"><a href="#cb14-62" aria-hidden="true" tabindex="-1"></a>sd_hw <span class="op">=</span> np.array([<span class="fl">10.0</span>, <span class="fl">15.0</span>])</span>
+<span id="cb14-63"><a href="#cb14-63" aria-hidden="true" tabindex="-1"></a>S_hw  <span class="op">=</span> np.outer(sd_hw, sd_hw) <span class="op">*</span> np.array([[<span class="fl">1.0</span>, <span class="fl">0.7</span>], [<span class="fl">0.7</span>, <span class="fl">1.0</span>]])</span>
+<span id="cb14-64"><a href="#cb14-64" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-65"><a href="#cb14-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-66"><a href="#cb14-66" aria-hidden="true" tabindex="-1"></a>You have $N$ units with covariate matrix $X$ ($N \times p$), and you want to</span>
+<span id="cb14-67"><a href="#cb14-67" aria-hidden="true" tabindex="-1"></a>split them into two equal groups of $n = N/2$ such that the covariates are</span>
+<span id="cb14-68"><a href="#cb14-68" aria-hidden="true" tabindex="-1"></a>balanced. The plan is *rerandomization*: draw a random split, measure imbalance,</span>
+<span id="cb14-69"><a href="#cb14-69" aria-hidden="true" tabindex="-1"></a>and redraw if the imbalance is too large.</span>
+<span id="cb14-70"><a href="#cb14-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-71"><a href="#cb14-71" aria-hidden="true" tabindex="-1"></a>The measure of imbalance is a Mahalanobis distance. This article assumes the</span>
+<span id="cb14-72"><a href="#cb14-72" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">previous one</span><span class="co">](../mahalanobis-distance/)</span>, and in particular that $D^2 =</span>
+<span id="cb14-73"><a href="#cb14-73" aria-hidden="true" tabindex="-1"></a>(x-\mu)^{\top}\Sigma^{-1}(x-\mu)$ is affine invariant, discounts correlated</span>
+<span id="cb14-74"><a href="#cb14-74" aria-hidden="true" tabindex="-1"></a>columns rather than double-counting them, and handles categorical covariates</span>
+<span id="cb14-75"><a href="#cb14-75" aria-hidden="true" tabindex="-1"></a>via a dropped baseline or a pseudo-inverse.</span>
+<span id="cb14-76"><a href="#cb14-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-77"><a href="#cb14-77" aria-hidden="true" tabindex="-1"></a><span class="fu">## The criterion</span></span>
+<span id="cb14-78"><a href="#cb14-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-79"><a href="#cb14-79" aria-hidden="true" tabindex="-1"></a>The natural summary of imbalance is the vector of covariate mean differences,</span>
+<span id="cb14-80"><a href="#cb14-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-81"><a href="#cb14-81" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-82"><a href="#cb14-82" aria-hidden="true" tabindex="-1"></a>d \;=\; \bar{X}_T - \bar{X}_C \;\in\; \mathbb{R}^p .</span>
+<span id="cb14-83"><a href="#cb14-83" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-84"><a href="#cb14-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-85"><a href="#cb14-85" aria-hidden="true" tabindex="-1"></a>Under complete randomization into equal halves, $\mathbb{E}<span class="co">[</span><span class="ot">d</span><span class="co">]</span> = 0$ and</span>
+<span id="cb14-86"><a href="#cb14-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-87"><a href="#cb14-87" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-88"><a href="#cb14-88" aria-hidden="true" tabindex="-1"></a>\operatorname{Cov}(d)</span>
+<span id="cb14-89"><a href="#cb14-89" aria-hidden="true" tabindex="-1"></a>  = \Big(\tfrac{1}{n_T} + \tfrac{1}{n_C}\Big) S</span>
+<span id="cb14-90"><a href="#cb14-90" aria-hidden="true" tabindex="-1"></a>  = \frac{4}{N}\,S ,</span>
+<span id="cb14-91"><a href="#cb14-91" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-92"><a href="#cb14-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-93"><a href="#cb14-93" aria-hidden="true" tabindex="-1"></a>where $S$ is the sample covariance matrix of the covariates. So $d$ is a random</span>
+<span id="cb14-94"><a href="#cb14-94" aria-hidden="true" tabindex="-1"></a>vector with a known mean and a known covariance, and the obvious way to say "$d$</span>
+<span id="cb14-95"><a href="#cb14-95" aria-hidden="true" tabindex="-1"></a>is too far from zero" is its Mahalanobis distance from $0$:</span>
+<span id="cb14-96"><a href="#cb14-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-97"><a href="#cb14-97" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-98"><a href="#cb14-98" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-99"><a href="#cb14-99" aria-hidden="true" tabindex="-1"></a>M \;=\; d^{<span class="sc">\!</span>\top}\big<span class="co">[</span><span class="ot">\operatorname{Cov}(d)\big</span><span class="co">]</span>^{-1} d</span>
+<span id="cb14-100"><a href="#cb14-100" aria-hidden="true" tabindex="-1"></a>    \;=\; \frac{N}{4}\; d^{<span class="sc">\!</span>\top} S^{-1} d .</span>
+<span id="cb14-101"><a href="#cb14-101" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-102"><a href="#cb14-102" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-103"><a href="#cb14-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-104"><a href="#cb14-104" aria-hidden="true" tabindex="-1"></a>This is exactly the criterion Morgan and Rubin proposed in 2012. Everything from</span>
+<span id="cb14-105"><a href="#cb14-105" aria-hidden="true" tabindex="-1"></a>the Mahalanobis article applies verbatim: $M$ is affine invariant (so the units</span>
+<span id="cb14-106"><a href="#cb14-106" aria-hidden="true" tabindex="-1"></a>of your covariates are irrelevant and you need not standardise first),</span>
+<span id="cb14-107"><a href="#cb14-107" aria-hidden="true" tabindex="-1"></a>correlated covariates are not double-counted, and categorical covariates are</span>
+<span id="cb14-108"><a href="#cb14-108" aria-hidden="true" tabindex="-1"></a>handled by dropping a baseline or using $S^{+}$.</span>
+<span id="cb14-109"><a href="#cb14-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-112"><a href="#cb14-112" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-113"><a href="#cb14-113" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: rerand-setup</span></span>
+<span id="cb14-114"><a href="#cb14-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-115"><a href="#cb14-115" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb14-116"><a href="#cb14-116" aria-hidden="true" tabindex="-1"></a>n_T <span class="op">=</span> N <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb14-117"><a href="#cb14-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-118"><a href="#cb14-118" aria-hidden="true" tabindex="-1"></a><span class="co"># Two covariates so the acceptance region can be drawn.</span></span>
+<span id="cb14-119"><a href="#cb14-119" aria-hidden="true" tabindex="-1"></a>Xrr <span class="op">=</span> rng.multivariate_normal(mu_hw, S_hw, N)</span>
+<span id="cb14-120"><a href="#cb14-120" aria-hidden="true" tabindex="-1"></a>S_rr <span class="op">=</span> np.cov(Xrr, rowvar<span class="op">=</span><span class="va">False</span>, ddof<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-121"><a href="#cb14-121" aria-hidden="true" tabindex="-1"></a>cov_d <span class="op">=</span> (<span class="dv">4</span> <span class="op">/</span> N) <span class="op">*</span> S_rr</span>
+<span id="cb14-122"><a href="#cb14-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-123"><a href="#cb14-123" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> draw_splits(B, N, n_T, rng):</span>
+<span id="cb14-124"><a href="#cb14-124" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""B random equal splits, as a B x N matrix of +1 (treated) / -1 (control)."""</span></span>
+<span id="cb14-125"><a href="#cb14-125" aria-hidden="true" tabindex="-1"></a>    idx <span class="op">=</span> np.argsort(rng.random((B, N)), axis<span class="op">=</span><span class="dv">1</span>)[:, :n_T]</span>
+<span id="cb14-126"><a href="#cb14-126" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> <span class="op">-</span>np.ones((B, N))</span>
+<span id="cb14-127"><a href="#cb14-127" aria-hidden="true" tabindex="-1"></a>    np.put_along_axis(s, idx, <span class="fl">1.0</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-128"><a href="#cb14-128" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> s</span>
+<span id="cb14-129"><a href="#cb14-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-130"><a href="#cb14-130" aria-hidden="true" tabindex="-1"></a>B <span class="op">=</span> <span class="dv">40_000</span></span>
+<span id="cb14-131"><a href="#cb14-131" aria-hidden="true" tabindex="-1"></a>s_mat <span class="op">=</span> draw_splits(B, N, n_T, rng)</span>
+<span id="cb14-132"><a href="#cb14-132" aria-hidden="true" tabindex="-1"></a>d_all <span class="op">=</span> (<span class="dv">2</span> <span class="op">/</span> N) <span class="op">*</span> (s_mat <span class="op">@</span> Xrr)                       <span class="co"># B x 2 mean differences</span></span>
+<span id="cb14-133"><a href="#cb14-133" aria-hidden="true" tabindex="-1"></a>M_all <span class="op">=</span> np.einsum(<span class="st">"bi,ij,bj-&gt;b"</span>, d_all, np.linalg.inv(cov_d), d_all)</span>
+<span id="cb14-134"><a href="#cb14-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-135"><a href="#cb14-135" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"empirical Cov(d) / theoretical (4/N)S:</span><span class="ch">\n</span><span class="ss">"</span></span>
+<span id="cb14-136"><a href="#cb14-136" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">round</span>(np.cov(d_all, rowvar<span class="op">=</span><span class="va">False</span>) <span class="op">/</span> cov_d, <span class="dv">3</span>)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb14-137"><a href="#cb14-137" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">mean of M : </span><span class="sc">{</span>M_all<span class="sc">.</span>mean()<span class="sc">:.4f}</span><span class="ss">   (chi-square with p=2 has mean 2)"</span>)</span>
+<span id="cb14-138"><a href="#cb14-138" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-139"><a href="#cb14-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-140"><a href="#cb14-140" aria-hidden="true" tabindex="-1"></a><span class="fu">## Choosing the threshold</span></span>
+<span id="cb14-141"><a href="#cb14-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-142"><a href="#cb14-142" aria-hidden="true" tabindex="-1"></a>Since $M$ is a squared Mahalanobis distance of an (approximately normal)</span>
+<span id="cb14-143"><a href="#cb14-143" aria-hidden="true" tabindex="-1"></a>$p$-vector, $M \sim \chi^2_p$. That gives you the threshold directly. To accept</span>
+<span id="cb14-144"><a href="#cb14-144" aria-hidden="true" tabindex="-1"></a>a proportion $p_a$ of draws, set</span>
+<span id="cb14-145"><a href="#cb14-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-146"><a href="#cb14-146" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-147"><a href="#cb14-147" aria-hidden="true" tabindex="-1"></a>a = F^{-1}_{\chi^2_p}(p_a), \qquad \text{accept iff } M \le a .</span>
+<span id="cb14-148"><a href="#cb14-148" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-149"><a href="#cb14-149" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-150"><a href="#cb14-150" aria-hidden="true" tabindex="-1"></a>The expected number of draws before acceptance is $1/p_a$. Note that</span>
+<span id="cb14-151"><a href="#cb14-151" aria-hidden="true" tabindex="-1"></a>thresholding $M$ at $a$ is the same as thresholding the *distance* $\sqrt{M}$ at</span>
+<span id="cb14-152"><a href="#cb14-152" aria-hidden="true" tabindex="-1"></a>$\sqrt{a}$; the squared scale is the convenient one because it is the scale on</span>
+<span id="cb14-153"><a href="#cb14-153" aria-hidden="true" tabindex="-1"></a>which the $\chi^2$ table is written.</span>
+<span id="cb14-154"><a href="#cb14-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-157"><a href="#cb14-157" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-158"><a href="#cb14-158" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: tbl-thresholds</span></span>
+<span id="cb14-159"><a href="#cb14-159" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-160"><a href="#cb14-160" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb14-161"><a href="#cb14-161" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p_a_ <span class="kw">in</span> [<span class="fl">0.5</span>, <span class="fl">0.1</span>, <span class="fl">0.05</span>, <span class="fl">0.01</span>, <span class="fl">0.001</span>, <span class="fl">0.0001</span>]:</span>
+<span id="cb14-162"><a href="#cb14-162" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> pp_ <span class="kw">in</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>]:</span>
+<span id="cb14-163"><a href="#cb14-163" aria-hidden="true" tabindex="-1"></a>        rows.append({<span class="st">"p_a"</span>: p_a_, <span class="st">"p (covariates)"</span>: pp_,</span>
+<span id="cb14-164"><a href="#cb14-164" aria-hidden="true" tabindex="-1"></a>                     <span class="st">"threshold a"</span>: stats.chi2.ppf(p_a_, pp_)})</span>
+<span id="cb14-165"><a href="#cb14-165" aria-hidden="true" tabindex="-1"></a>thr <span class="op">=</span> pd.DataFrame(rows).pivot(index<span class="op">=</span><span class="st">"p_a"</span>, columns<span class="op">=</span><span class="st">"p (covariates)"</span>,</span>
+<span id="cb14-166"><a href="#cb14-166" aria-hidden="true" tabindex="-1"></a>                               values<span class="op">=</span><span class="st">"threshold a"</span>)</span>
+<span id="cb14-167"><a href="#cb14-167" aria-hidden="true" tabindex="-1"></a>thr[<span class="st">"expected draws"</span>] <span class="op">=</span> [<span class="dv">1</span> <span class="op">/</span> x <span class="cf">for</span> x <span class="kw">in</span> thr.index]</span>
+<span id="cb14-168"><a href="#cb14-168" aria-hidden="true" tabindex="-1"></a>thr.<span class="bu">round</span>(<span class="dv">3</span>)</span>
+<span id="cb14-169"><a href="#cb14-169" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-170"><a href="#cb14-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-171"><a href="#cb14-171" aria-hidden="true" tabindex="-1"></a><span class="fu">## The acceptance region is an ellipse</span></span>
+<span id="cb14-172"><a href="#cb14-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-173"><a href="#cb14-173" aria-hidden="true" tabindex="-1"></a>For $p = 2$ you can draw it. The set $<span class="sc">\{</span>d : M(d) \le a<span class="sc">\}</span>$ is an ellipse centred</span>
+<span id="cb14-174"><a href="#cb14-174" aria-hidden="true" tabindex="-1"></a>at the origin, and its shape is set by $S$ — it is elongated in exactly the</span>
+<span id="cb14-175"><a href="#cb14-175" aria-hidden="true" tabindex="-1"></a>direction in which imbalance naturally occurs.</span>
+<span id="cb14-176"><a href="#cb14-176" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-179"><a href="#cb14-179" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-180"><a href="#cb14-180" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-acceptance-ellipse</span></span>
+<span id="cb14-181"><a href="#cb14-181" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: 40,000 random equal splits, each a dot at its (height, weight) mean-difference, with the nested acceptance ellipses for four values of p_a. Note how small the accepted region already is at 5%. Right: a zoom on the boxed area, in standardised coordinates, comparing the Mahalanobis ellipse against the circle from a naive per-covariate criterion calibrated to accept the same 5%. The blue and orange points are the splits the two criteria disagree about."</span></span>
+<span id="cb14-182"><a href="#cb14-182" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 8.4</span></span>
+<span id="cb14-183"><a href="#cb14-183" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-184"><a href="#cb14-184" aria-hidden="true" tabindex="-1"></a>p_a <span class="op">=</span> <span class="fl">0.05</span></span>
+<span id="cb14-185"><a href="#cb14-185" aria-hidden="true" tabindex="-1"></a>a_thr <span class="op">=</span> stats.chi2.ppf(p_a, <span class="dv">2</span>)</span>
+<span id="cb14-186"><a href="#cb14-186" aria-hidden="true" tabindex="-1"></a>accept <span class="op">=</span> M_all <span class="op">&lt;=</span> a_thr</span>
+<span id="cb14-187"><a href="#cb14-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-188"><a href="#cb14-188" aria-hidden="true" tabindex="-1"></a>sd_d <span class="op">=</span> np.sqrt(np.diag(cov_d))</span>
+<span id="cb14-189"><a href="#cb14-189" aria-hidden="true" tabindex="-1"></a>theta <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span> <span class="op">*</span> np.pi, <span class="dv">400</span>)</span>
+<span id="cb14-190"><a href="#cb14-190" aria-hidden="true" tabindex="-1"></a>L_rr <span class="op">=</span> np.linalg.cholesky(cov_d)</span>
+<span id="cb14-191"><a href="#cb14-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-192"><a href="#cb14-192" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ellipse(a):</span>
+<span id="cb14-193"><a href="#cb14-193" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Boundary {d : M(d) = a} in raw mean-difference units."""</span></span>
+<span id="cb14-194"><a href="#cb14-194" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (np.sqrt(a) <span class="op">*</span> L_rr <span class="op">@</span> np.vstack([np.cos(theta), np.sin(theta)])).T</span>
+<span id="cb14-195"><a href="#cb14-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-196"><a href="#cb14-196" aria-hidden="true" tabindex="-1"></a>fig, (axL, axR) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">8.4</span>))</span>
+<span id="cb14-197"><a href="#cb14-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-198"><a href="#cb14-198" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- top: the whole cloud, with nested acceptance regions ----</span></span>
+<span id="cb14-199"><a href="#cb14-199" aria-hidden="true" tabindex="-1"></a>axL.scatter(d_all[<span class="op">~</span>accept, <span class="dv">0</span>], d_all[<span class="op">~</span>accept, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb14-200"><a href="#cb14-200" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.22</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"rejected"</span>)</span>
+<span id="cb14-201"><a href="#cb14-201" aria-hidden="true" tabindex="-1"></a>axL.scatter(d_all[accept, <span class="dv">0</span>], d_all[accept, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb14-202"><a href="#cb14-202" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"green"</span>], alpha<span class="op">=</span><span class="fl">0.85</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="ss">f"accepted ($p_a$=</span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb14-203"><a href="#cb14-203" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pa_, ls_ <span class="kw">in</span> [(<span class="fl">0.50</span>, <span class="st">":"</span>), (<span class="fl">0.20</span>, <span class="st">"-."</span>), (<span class="fl">0.05</span>, <span class="st">"-"</span>), (<span class="fl">0.01</span>, <span class="st">"--"</span>)]:</span>
+<span id="cb14-204"><a href="#cb14-204" aria-hidden="true" tabindex="-1"></a>    e <span class="op">=</span> ellipse(stats.chi2.ppf(pa_, <span class="dv">2</span>))</span>
+<span id="cb14-205"><a href="#cb14-205" aria-hidden="true" tabindex="-1"></a>    axL.plot(e[:, <span class="dv">0</span>], e[:, <span class="dv">1</span>], color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">1.6</span>, ls<span class="op">=</span>ls_, zorder<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb14-206"><a href="#cb14-206" aria-hidden="true" tabindex="-1"></a>             label<span class="op">=</span><span class="ss">f"$p_a$ = </span><span class="sc">{</span>pa_<span class="sc">:.0%}</span><span class="ss">"</span>)</span>
+<span id="cb14-207"><a href="#cb14-207" aria-hidden="true" tabindex="-1"></a>axL.scatter(<span class="dv">0</span>, <span class="dv">0</span>, marker<span class="op">=</span><span class="st">"+"</span>, s<span class="op">=</span><span class="dv">130</span>, color<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="fl">1.7</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb14-208"><a href="#cb14-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-209"><a href="#cb14-209" aria-hidden="true" tabindex="-1"></a>ZOOM <span class="op">=</span> <span class="fl">0.5</span>                                     <span class="co"># zoom half-width, in sd of d</span></span>
+<span id="cb14-210"><a href="#cb14-210" aria-hidden="true" tabindex="-1"></a>axL.add_patch(plt.Rectangle((<span class="op">-</span>ZOOM <span class="op">*</span> sd_d[<span class="dv">0</span>], <span class="op">-</span>ZOOM <span class="op">*</span> sd_d[<span class="dv">1</span>]),</span>
+<span id="cb14-211"><a href="#cb14-211" aria-hidden="true" tabindex="-1"></a>                            <span class="dv">2</span> <span class="op">*</span> ZOOM <span class="op">*</span> sd_d[<span class="dv">0</span>], <span class="dv">2</span> <span class="op">*</span> ZOOM <span class="op">*</span> sd_d[<span class="dv">1</span>],</span>
+<span id="cb14-212"><a href="#cb14-212" aria-hidden="true" tabindex="-1"></a>                            fill<span class="op">=</span><span class="va">False</span>, ec<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">1.3</span>, zorder<span class="op">=</span><span class="dv">7</span>))</span>
+<span id="cb14-213"><a href="#cb14-213" aria-hidden="true" tabindex="-1"></a>axL.set_xlabel(<span class="vs">r"</span><span class="dv">$\b</span><span class="vs">ar{X}_T - </span><span class="dv">\b</span><span class="vs">ar{X}_C</span><span class="dv">$</span><span class="vs">  for height </span><span class="kw">(</span><span class="vs">cm</span><span class="kw">)</span><span class="vs">"</span>)</span>
+<span id="cb14-214"><a href="#cb14-214" aria-hidden="true" tabindex="-1"></a>axL.set_ylabel(<span class="vs">r"</span><span class="dv">$\b</span><span class="vs">ar{X}_T - </span><span class="dv">\b</span><span class="vs">ar{X}_C</span><span class="dv">$</span><span class="vs">  for weight </span><span class="kw">(</span><span class="vs">kg</span><span class="kw">)</span><span class="vs">"</span>)</span>
+<span id="cb14-215"><a href="#cb14-215" aria-hidden="true" tabindex="-1"></a>axL.set_title(<span class="st">"Acceptance regions for four values of $p_a$"</span>)</span>
+<span id="cb14-216"><a href="#cb14-216" aria-hidden="true" tabindex="-1"></a>axL.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, markerscale<span class="op">=</span><span class="fl">2.2</span>, fontsize<span class="op">=</span><span class="dv">9</span>, ncol<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb14-217"><a href="#cb14-217" aria-hidden="true" tabindex="-1"></a>axL.grid(<span class="va">False</span>)</span>
+<span id="cb14-218"><a href="#cb14-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-219"><a href="#cb14-219" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- bottom: zoom, Mahalanobis ellipse vs per-covariate circle ----</span></span>
+<span id="cb14-220"><a href="#cb14-220" aria-hidden="true" tabindex="-1"></a>z_all <span class="op">=</span> d_all <span class="op">/</span> sd_d</span>
+<span id="cb14-221"><a href="#cb14-221" aria-hidden="true" tabindex="-1"></a><span class="co"># Naive criterion: sum of squared standardised mean differences, calibrated</span></span>
+<span id="cb14-222"><a href="#cb14-222" aria-hidden="true" tabindex="-1"></a><span class="co"># empirically to the SAME acceptance rate.</span></span>
+<span id="cb14-223"><a href="#cb14-223" aria-hidden="true" tabindex="-1"></a>M_naive <span class="op">=</span> np.<span class="bu">sum</span>(z_all <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-224"><a href="#cb14-224" aria-hidden="true" tabindex="-1"></a>c_thr <span class="op">=</span> np.quantile(M_naive, p_a)</span>
+<span id="cb14-225"><a href="#cb14-225" aria-hidden="true" tabindex="-1"></a>accept_naive <span class="op">=</span> M_naive <span class="op">&lt;=</span> c_thr</span>
+<span id="cb14-226"><a href="#cb14-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-227"><a href="#cb14-227" aria-hidden="true" tabindex="-1"></a>both       <span class="op">=</span> accept <span class="op">&amp;</span> accept_naive</span>
+<span id="cb14-228"><a href="#cb14-228" aria-hidden="true" tabindex="-1"></a>only_maha  <span class="op">=</span> accept <span class="op">&amp;</span> <span class="op">~</span>accept_naive</span>
+<span id="cb14-229"><a href="#cb14-229" aria-hidden="true" tabindex="-1"></a>only_naive <span class="op">=</span> accept_naive <span class="op">&amp;</span> <span class="op">~</span>accept</span>
+<span id="cb14-230"><a href="#cb14-230" aria-hidden="true" tabindex="-1"></a>neither    <span class="op">=</span> <span class="op">~</span>accept <span class="op">&amp;</span> <span class="op">~</span>accept_naive</span>
+<span id="cb14-231"><a href="#cb14-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-232"><a href="#cb14-232" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[neither, <span class="dv">0</span>], z_all[neither, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb14-233"><a href="#cb14-233" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.18</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb14-234"><a href="#cb14-234" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[both, <span class="dv">0</span>], z_all[both, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">9</span>, color<span class="op">=</span>C[<span class="st">"green"</span>],</span>
+<span id="cb14-235"><a href="#cb14-235" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.8</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"accepted by both"</span>)</span>
+<span id="cb14-236"><a href="#cb14-236" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[only_maha, <span class="dv">0</span>], z_all[only_maha, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">11</span>, color<span class="op">=</span>C[<span class="st">"blue"</span>],</span>
+<span id="cb14-237"><a href="#cb14-237" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.95</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"Mahalanobis only"</span>)</span>
+<span id="cb14-238"><a href="#cb14-238" aria-hidden="true" tabindex="-1"></a>axR.scatter(z_all[only_naive, <span class="dv">0</span>], z_all[only_naive, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">11</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>],</span>
+<span id="cb14-239"><a href="#cb14-239" aria-hidden="true" tabindex="-1"></a>            alpha<span class="op">=</span><span class="fl">0.95</span>, lw<span class="op">=</span><span class="dv">0</span>, label<span class="op">=</span><span class="st">"per-covariate only"</span>)</span>
+<span id="cb14-240"><a href="#cb14-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-241"><a href="#cb14-241" aria-hidden="true" tabindex="-1"></a>e <span class="op">=</span> ellipse(a_thr)</span>
+<span id="cb14-242"><a href="#cb14-242" aria-hidden="true" tabindex="-1"></a>axR.plot(e[:, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], e[:, <span class="dv">1</span>] <span class="op">/</span> sd_d[<span class="dv">1</span>], color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">2.2</span>,</span>
+<span id="cb14-243"><a href="#cb14-243" aria-hidden="true" tabindex="-1"></a>         zorder<span class="op">=</span><span class="dv">6</span>, label<span class="op">=</span><span class="st">"Mahalanobis boundary"</span>)</span>
+<span id="cb14-244"><a href="#cb14-244" aria-hidden="true" tabindex="-1"></a>axR.plot(np.sqrt(c_thr) <span class="op">*</span> np.cos(theta), np.sqrt(c_thr) <span class="op">*</span> np.sin(theta),</span>
+<span id="cb14-245"><a href="#cb14-245" aria-hidden="true" tabindex="-1"></a>         color<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">2.0</span>, ls<span class="op">=</span><span class="st">"--"</span>, zorder<span class="op">=</span><span class="dv">6</span>, label<span class="op">=</span><span class="st">"circle boundary"</span>)</span>
+<span id="cb14-246"><a href="#cb14-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-247"><a href="#cb14-247" aria-hidden="true" tabindex="-1"></a>axR.set_xlim(<span class="op">-</span>ZOOM, ZOOM)</span>
+<span id="cb14-248"><a href="#cb14-248" aria-hidden="true" tabindex="-1"></a>axR.set_ylim(<span class="op">-</span>ZOOM, ZOOM)</span>
+<span id="cb14-249"><a href="#cb14-249" aria-hidden="true" tabindex="-1"></a>axR.set_aspect(<span class="st">"equal"</span>)</span>
+<span id="cb14-250"><a href="#cb14-250" aria-hidden="true" tabindex="-1"></a>axR.set_xlabel(<span class="st">"standardised imbalance, height"</span>)</span>
+<span id="cb14-251"><a href="#cb14-251" aria-hidden="true" tabindex="-1"></a>axR.set_ylabel(<span class="st">"standardised imbalance, weight"</span>)</span>
+<span id="cb14-252"><a href="#cb14-252" aria-hidden="true" tabindex="-1"></a>axR.set_title(<span class="st">"Zoom: same acceptance rate, different region"</span>)</span>
+<span id="cb14-253"><a href="#cb14-253" aria-hidden="true" tabindex="-1"></a>axR.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, markerscale<span class="op">=</span><span class="fl">1.5</span>, fontsize<span class="op">=</span><span class="fl">8.5</span>)</span>
+<span id="cb14-254"><a href="#cb14-254" aria-hidden="true" tabindex="-1"></a>axR.grid(<span class="va">False</span>)</span>
+<span id="cb14-255"><a href="#cb14-255" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-256"><a href="#cb14-256" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-257"><a href="#cb14-257" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb14-258"><a href="#cb14-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-259"><a href="#cb14-259" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by both             : </span><span class="sc">{</span>both<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">"</span>)</span>
+<span id="cb14-260"><a href="#cb14-260" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by Mahalanobis only : </span><span class="sc">{</span>only_maha<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">  "</span></span>
+<span id="cb14-261"><a href="#cb14-261" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"(</span><span class="sc">{</span>only_maha<span class="sc">.</span><span class="bu">sum</span>() <span class="op">/</span> accept<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:.1%}</span><span class="ss"> of all accepted splits)"</span>)</span>
+<span id="cb14-262"><a href="#cb14-262" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"accepted by the circle only  : </span><span class="sc">{</span>only_naive<span class="sc">.</span><span class="bu">sum</span>()<span class="sc">:5d}</span><span class="ss">"</span>)</span>
+<span id="cb14-263"><a href="#cb14-263" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-264"><a href="#cb14-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-265"><a href="#cb14-265" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why an ellipse and not a circle</span></span>
+<span id="cb14-266"><a href="#cb14-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-267"><a href="#cb14-267" aria-hidden="true" tabindex="-1"></a>The ellipse leans along the positive correlation between height and weight,</span>
+<span id="cb14-268"><a href="#cb14-268" aria-hidden="true" tabindex="-1"></a>which at first looks backwards: it is *more permissive* about splits where both</span>
+<span id="cb14-269"><a href="#cb14-269" aria-hidden="true" tabindex="-1"></a>covariates are imbalanced in the same direction. That is the correct behaviour,</span>
+<span id="cb14-270"><a href="#cb14-270" aria-hidden="true" tabindex="-1"></a>for the same reason correlated columns are not double-counted. Height and weight</span>
+<span id="cb14-271"><a href="#cb14-271" aria-hidden="true" tabindex="-1"></a>are correlated at $0.7$, so a split that over-represents tall people will</span>
+<span id="cb14-272"><a href="#cb14-272" aria-hidden="true" tabindex="-1"></a>mechanically over-represent heavy people too. Those two imbalances are largely</span>
+<span id="cb14-273"><a href="#cb14-273" aria-hidden="true" tabindex="-1"></a>one imbalance, and a criterion that counted them separately would spend nearly</span>
+<span id="cb14-274"><a href="#cb14-274" aria-hidden="true" tabindex="-1"></a>all its rejections fighting the most common failure mode while barely</span>
+<span id="cb14-275"><a href="#cb14-275" aria-hidden="true" tabindex="-1"></a>constraining the rare, genuinely informative direction — arms that differ in</span>
+<span id="cb14-276"><a href="#cb14-276" aria-hidden="true" tabindex="-1"></a>weight *given* height.</span>
+<span id="cb14-277"><a href="#cb14-277" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-278"><a href="#cb14-278" aria-hidden="true" tabindex="-1"></a>There is also a practical reason to prefer the ellipse:</span>
+<span id="cb14-279"><a href="#cb14-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-280"><a href="#cb14-280" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-281"><a href="#cb14-281" aria-hidden="true" tabindex="-1"></a>The Mahalanobis criterion accepts exactly $p_a$ of draws whatever the</span>
+<span id="cb14-282"><a href="#cb14-282" aria-hidden="true" tabindex="-1"></a>correlation structure is, so you can read the threshold off a $\chi^2$ table.</span>
+<span id="cb14-283"><a href="#cb14-283" aria-hidden="true" tabindex="-1"></a>The per-covariate criterion's acceptance rate depends on $S$, so its threshold</span>
+<span id="cb14-284"><a href="#cb14-284" aria-hidden="true" tabindex="-1"></a>has to be calibrated by simulation every time.</span>
+<span id="cb14-285"><a href="#cb14-285" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-286"><a href="#cb14-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-289"><a href="#cb14-289" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-290"><a href="#cb14-290" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: naive-miscalibration</span></span>
+<span id="cb14-291"><a href="#cb14-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-292"><a href="#cb14-292" aria-hidden="true" tabindex="-1"></a>nominal <span class="op">=</span> stats.chi2.ppf(p_a, <span class="dv">2</span>)     <span class="co"># the chi-square threshold, wrongly reused</span></span>
+<span id="cb14-293"><a href="#cb14-293" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"threshold from the chi-square table, a = </span><span class="sc">{</span>nominal<span class="sc">:.4f}</span><span class="ch">\n</span><span class="ss">"</span>)</span>
+<span id="cb14-294"><a href="#cb14-294" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mahalanobis criterion accepts : </span><span class="sc">{</span>np<span class="sc">.</span>mean(M_all <span class="op">&lt;=</span> nominal)<span class="sc">:6.2%}</span><span class="ss">"</span>)</span>
+<span id="cb14-295"><a href="#cb14-295" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  per-covariate criterion accepts: </span><span class="sc">{</span>np<span class="sc">.</span>mean(M_naive <span class="op">&lt;=</span> nominal)<span class="sc">:6.2%}</span><span class="ss">"</span>)</span>
+<span id="cb14-296"><a href="#cb14-296" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  ... both should accept         : </span><span class="sc">{</span>p_a<span class="sc">:6.2%}</span><span class="ss">"</span>)</span>
+<span id="cb14-297"><a href="#cb14-297" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-298"><a href="#cb14-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-299"><a href="#cb14-299" aria-hidden="true" tabindex="-1"></a><span class="fu">## How much does it buy you?</span></span>
+<span id="cb14-300"><a href="#cb14-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-301"><a href="#cb14-301" aria-hidden="true" tabindex="-1"></a>Morgan and Rubin show that rerandomizing on $M \le a$ reduces the variance of</span>
+<span id="cb14-302"><a href="#cb14-302" aria-hidden="true" tabindex="-1"></a>every covariate mean difference by the same factor,</span>
+<span id="cb14-303"><a href="#cb14-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-304"><a href="#cb14-304" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-305"><a href="#cb14-305" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-306"><a href="#cb14-306" aria-hidden="true" tabindex="-1"></a>v_a \;=\; \frac{\operatorname{Var}_{\text{RR}}(d_j)}{\operatorname{Var}_{\text{CR}}(d_j)}</span>
+<span id="cb14-307"><a href="#cb14-307" aria-hidden="true" tabindex="-1"></a>      \;=\; \frac{P\big(\chi^2_{p+2} \le a\big)}{P\big(\chi^2_{p} \le a\big)} .</span>
+<span id="cb14-308"><a href="#cb14-308" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-309"><a href="#cb14-309" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-310"><a href="#cb14-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-311"><a href="#cb14-311" aria-hidden="true" tabindex="-1"></a>The important qualitative feature is how it degrades with $p$: at a fixed</span>
+<span id="cb14-312"><a href="#cb14-312" aria-hidden="true" tabindex="-1"></a>acceptance rate, more covariates means less benefit per covariate. Balancing on</span>
+<span id="cb14-313"><a href="#cb14-313" aria-hidden="true" tabindex="-1"></a>twenty covariates at $p_a = 0.01$ buys much less than balancing on two.</span>
+<span id="cb14-314"><a href="#cb14-314" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-317"><a href="#cb14-317" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-318"><a href="#cb14-318" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variance-reduction</span></span>
+<span id="cb14-319"><a href="#cb14-319" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variance reduction factor for each covariate mean difference. Lower is better. At a fixed acceptance rate the benefit erodes quickly as covariates are added. With p = 2, accepting 1 draw in 100 leaves 0.5% of the original imbalance variance; with p = 50 the same acceptance rate leaves 55%, and going all the way to 1 draw in 1,000 only gets it to 46%."</span></span>
+<span id="cb14-320"><a href="#cb14-320" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 4.2</span></span>
+<span id="cb14-321"><a href="#cb14-321" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-322"><a href="#cb14-322" aria-hidden="true" tabindex="-1"></a>pa_grid <span class="op">=</span> np.logspace(<span class="op">-</span><span class="dv">4</span>, np.log10(<span class="fl">0.9</span>), <span class="dv">250</span>)</span>
+<span id="cb14-323"><a href="#cb14-323" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.8</span>, <span class="fl">4.2</span>))</span>
+<span id="cb14-324"><a href="#cb14-324" aria-hidden="true" tabindex="-1"></a>cols <span class="op">=</span> [C[<span class="st">"blue"</span>], C[<span class="st">"green"</span>], C[<span class="st">"orange"</span>], C[<span class="st">"red"</span>], C[<span class="st">"dark"</span>], C[<span class="st">"grey"</span>]]</span>
+<span id="cb14-325"><a href="#cb14-325" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pv, col <span class="kw">in</span> <span class="bu">zip</span>([<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">50</span>], cols):</span>
+<span id="cb14-326"><a href="#cb14-326" aria-hidden="true" tabindex="-1"></a>    a_g <span class="op">=</span> stats.chi2.ppf(pa_grid, pv)</span>
+<span id="cb14-327"><a href="#cb14-327" aria-hidden="true" tabindex="-1"></a>    v_g <span class="op">=</span> stats.chi2.cdf(a_g, pv <span class="op">+</span> <span class="dv">2</span>) <span class="op">/</span> stats.chi2.cdf(a_g, pv)</span>
+<span id="cb14-328"><a href="#cb14-328" aria-hidden="true" tabindex="-1"></a>    ax.plot(pa_grid, v_g, color<span class="op">=</span>col, lw<span class="op">=</span><span class="dv">2</span>, label<span class="op">=</span><span class="ss">f"$p = </span><span class="sc">{</span>pv<span class="sc">}</span><span class="ss">$"</span>)</span>
+<span id="cb14-329"><a href="#cb14-329" aria-hidden="true" tabindex="-1"></a>ax.set_xscale(<span class="st">"log"</span>)</span>
+<span id="cb14-330"><a href="#cb14-330" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"acceptance probability $p_a$  (expected draws = $1/p_a$)"</span>)</span>
+<span id="cb14-331"><a href="#cb14-331" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"$v_a$ vs. complete randomisation"</span>)</span>
+<span id="cb14-332"><a href="#cb14-332" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Diminishing returns as the number of covariates grows"</span>)</span>
+<span id="cb14-333"><a href="#cb14-333" aria-hidden="true" tabindex="-1"></a>ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb14-334"><a href="#cb14-334" aria-hidden="true" tabindex="-1"></a>ax.legend(ncol<span class="op">=</span><span class="dv">3</span>, loc<span class="op">=</span><span class="st">"lower right"</span>)</span>
+<span id="cb14-335"><a href="#cb14-335" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-336"><a href="#cb14-336" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb14-337"><a href="#cb14-337" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-338"><a href="#cb14-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-339"><a href="#cb14-339" aria-hidden="true" tabindex="-1"></a>Two caveats keep this honest.</span>
+<span id="cb14-340"><a href="#cb14-340" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-341"><a href="#cb14-341" aria-hidden="true" tabindex="-1"></a>**Balance is not the goal; precision is.** The variance of the treatment effect</span>
+<span id="cb14-342"><a href="#cb14-342" aria-hidden="true" tabindex="-1"></a>estimator is reduced by a factor of $1 - (1 - v_a)R^2$, where $R^2$ is the</span>
+<span id="cb14-343"><a href="#cb14-343" aria-hidden="true" tabindex="-1"></a>squared multiple correlation between the outcome and the covariates. If your</span>
+<span id="cb14-344"><a href="#cb14-344" aria-hidden="true" tabindex="-1"></a>covariates do not predict the outcome, perfect balance on them buys you nothing.</span>
+<span id="cb14-345"><a href="#cb14-345" aria-hidden="true" tabindex="-1"></a>Covariate *choice* matters more than threshold choice.</span>
+<span id="cb14-346"><a href="#cb14-346" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-347"><a href="#cb14-347" aria-hidden="true" tabindex="-1"></a>**The usual standard errors no longer apply.** Rerandomization makes the</span>
+<span id="cb14-348"><a href="#cb14-348" aria-hidden="true" tabindex="-1"></a>sampling distribution of the difference in means non-normal — Li, Ding and Rubin</span>
+<span id="cb14-349"><a href="#cb14-349" aria-hidden="true" tabindex="-1"></a>(2018) show it is a normal plus a truncated-normal term. A conventional</span>
+<span id="cb14-350"><a href="#cb14-350" aria-hidden="true" tabindex="-1"></a>two-sample $t$-test on rerandomized data is conservative (its intervals are too</span>
+<span id="cb14-351"><a href="#cb14-351" aria-hidden="true" tabindex="-1"></a>wide). Either use randomization-based inference that redraws under the *same*</span>
+<span id="cb14-352"><a href="#cb14-352" aria-hidden="true" tabindex="-1"></a>rerandomization scheme, or use the asymptotic distribution from that paper.</span>
+<span id="cb14-353"><a href="#cb14-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-356"><a href="#cb14-356" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-357"><a href="#cb14-357" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-cr-vs-rr</span></span>
+<span id="cb14-358"><a href="#cb14-358" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: the marginal distribution of the height imbalance, under complete randomisation and after rerandomizing at p_a = 0.05 — the same 40,000 draws, filtered. Right: the variance reduction actually achieved by those draws at a range of thresholds, against the theoretical v_a. Because P(χ²_p ≤ a) = p_a by construction, the formula simplifies to v_a = P(χ²_{p+2} ≤ a)/p_a."</span></span>
+<span id="cb14-359"><a href="#cb14-359" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 7.4</span></span>
+<span id="cb14-360"><a href="#cb14-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-361"><a href="#cb14-361" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">7.4</span>))</span>
+<span id="cb14-362"><a href="#cb14-362" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-363"><a href="#cb14-363" aria-hidden="true" tabindex="-1"></a>bins <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">70</span>)</span>
+<span id="cb14-364"><a href="#cb14-364" aria-hidden="true" tabindex="-1"></a>ax1.hist(d_all[:, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>],</span>
+<span id="cb14-365"><a href="#cb14-365" aria-hidden="true" tabindex="-1"></a>         alpha<span class="op">=</span><span class="fl">0.6</span>, label<span class="op">=</span><span class="st">"complete randomisation"</span>)</span>
+<span id="cb14-366"><a href="#cb14-366" aria-hidden="true" tabindex="-1"></a>ax1.hist(d_all[accept, <span class="dv">0</span>] <span class="op">/</span> sd_d[<span class="dv">0</span>], bins<span class="op">=</span>bins, density<span class="op">=</span><span class="va">True</span>, color<span class="op">=</span>C[<span class="st">"green"</span>],</span>
+<span id="cb14-367"><a href="#cb14-367" aria-hidden="true" tabindex="-1"></a>         alpha<span class="op">=</span><span class="fl">0.8</span>, label<span class="op">=</span><span class="ss">f"rerandomised, $p_a$=</span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb14-368"><a href="#cb14-368" aria-hidden="true" tabindex="-1"></a>ax1.set_xlabel(<span class="st">"standardised imbalance in height"</span>)</span>
+<span id="cb14-369"><a href="#cb14-369" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">"density"</span>)</span>
+<span id="cb14-370"><a href="#cb14-370" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">"Imbalance shrinks"</span>)</span>
+<span id="cb14-371"><a href="#cb14-371" aria-hidden="true" tabindex="-1"></a>ax1.set_ylim(<span class="dv">0</span>, <span class="fl">2.4</span>)</span>
+<span id="cb14-372"><a href="#cb14-372" aria-hidden="true" tabindex="-1"></a>ax1.legend(loc<span class="op">=</span><span class="st">"upper right"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb14-373"><a href="#cb14-373" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-374"><a href="#cb14-374" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- empirical vs theoretical variance reduction ----</span></span>
+<span id="cb14-375"><a href="#cb14-375" aria-hidden="true" tabindex="-1"></a>pa_check <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.3</span>, <span class="fl">0.2</span>, <span class="fl">0.1</span>, <span class="fl">0.05</span>, <span class="fl">0.02</span>, <span class="fl">0.01</span>])</span>
+<span id="cb14-376"><a href="#cb14-376" aria-hidden="true" tabindex="-1"></a>emp_ratio <span class="op">=</span> []</span>
+<span id="cb14-377"><a href="#cb14-377" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pa_ <span class="kw">in</span> pa_check:</span>
+<span id="cb14-378"><a href="#cb14-378" aria-hidden="true" tabindex="-1"></a>    acc_ <span class="op">=</span> M_all <span class="op">&lt;=</span> stats.chi2.ppf(pa_, <span class="dv">2</span>)</span>
+<span id="cb14-379"><a href="#cb14-379" aria-hidden="true" tabindex="-1"></a>    emp_ratio.append(<span class="bu">float</span>(np.mean(d_all[acc_].var(<span class="dv">0</span>) <span class="op">/</span> d_all.var(<span class="dv">0</span>))))</span>
+<span id="cb14-380"><a href="#cb14-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-381"><a href="#cb14-381" aria-hidden="true" tabindex="-1"></a>pa_fine <span class="op">=</span> np.logspace(np.log10(<span class="fl">0.008</span>), np.log10(<span class="fl">0.6</span>), <span class="dv">200</span>)</span>
+<span id="cb14-382"><a href="#cb14-382" aria-hidden="true" tabindex="-1"></a>v_fine <span class="op">=</span> stats.chi2.cdf(stats.chi2.ppf(pa_fine, <span class="dv">2</span>), <span class="dv">4</span>) <span class="op">/</span> pa_fine</span>
+<span id="cb14-383"><a href="#cb14-383" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-384"><a href="#cb14-384" aria-hidden="true" tabindex="-1"></a>ax2.plot(pa_fine, v_fine, color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb14-385"><a href="#cb14-385" aria-hidden="true" tabindex="-1"></a>         label<span class="op">=</span><span class="st">"theory: $P(</span><span class="ch">\\</span><span class="st">chi^2_{p+2}</span><span class="ch">\\</span><span class="st">leq a)</span><span class="ch">\\</span><span class="st">,/</span><span class="ch">\\</span><span class="st">,p_a$"</span>)</span>
+<span id="cb14-386"><a href="#cb14-386" aria-hidden="true" tabindex="-1"></a>ax2.scatter(pa_check, emp_ratio, s<span class="op">=</span><span class="dv">55</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>], zorder<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb14-387"><a href="#cb14-387" aria-hidden="true" tabindex="-1"></a>            edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">1.1</span>, label<span class="op">=</span><span class="st">"simulated (40,000 draws)"</span>)</span>
+<span id="cb14-388"><a href="#cb14-388" aria-hidden="true" tabindex="-1"></a>ax2.set_xscale(<span class="st">"log"</span>)</span>
+<span id="cb14-389"><a href="#cb14-389" aria-hidden="true" tabindex="-1"></a>ax2.set_xlabel(<span class="st">"acceptance probability $p_a$"</span>)</span>
+<span id="cb14-390"><a href="#cb14-390" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">"variance ratio  $v_a$"</span>)</span>
+<span id="cb14-391"><a href="#cb14-391" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">"The formula, checked against simulation"</span>)</span>
+<span id="cb14-392"><a href="#cb14-392" aria-hidden="true" tabindex="-1"></a>ax2.set_ylim(<span class="dv">0</span>, <span class="fl">0.75</span>)</span>
+<span id="cb14-393"><a href="#cb14-393" aria-hidden="true" tabindex="-1"></a>ax2.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb14-394"><a href="#cb14-394" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-395"><a href="#cb14-395" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-396"><a href="#cb14-396" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb14-397"><a href="#cb14-397" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-398"><a href="#cb14-398" aria-hidden="true" tabindex="-1"></a>v_a <span class="op">=</span> stats.chi2.cdf(a_thr, <span class="dv">4</span>) <span class="op">/</span> stats.chi2.cdf(a_thr, <span class="dv">2</span>)</span>
+<span id="cb14-399"><a href="#cb14-399" aria-hidden="true" tabindex="-1"></a>emp <span class="op">=</span> d_all[accept].var(<span class="dv">0</span>) <span class="op">/</span> d_all.var(<span class="dv">0</span>)</span>
+<span id="cb14-400"><a href="#cb14-400" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at p_a = </span><span class="sc">{</span>p_a<span class="sc">}</span><span class="ss">:  theoretical v_a = </span><span class="sc">{</span>v_a<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb14-401"><a href="#cb14-401" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"             empirical: height </span><span class="sc">{</span>emp[<span class="dv">0</span>]<span class="sc">:.4f}</span><span class="ss">, weight </span><span class="sc">{</span>emp[<span class="dv">1</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb14-402"><a href="#cb14-402" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">so rerandomizing here removes "</span></span>
+<span id="cb14-403"><a href="#cb14-403" aria-hidden="true" tabindex="-1"></a>      <span class="ss">f"</span><span class="sc">{</span><span class="dv">100</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> v_a)<span class="sc">:.1f}</span><span class="ss">% of the variance of every covariate mean difference,"</span>)</span>
+<span id="cb14-404"><a href="#cb14-404" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"at a cost of </span><span class="sc">{</span><span class="dv">1</span> <span class="op">/</span> p_a<span class="sc">:.0f}</span><span class="ss"> draws on average."</span>)</span>
+<span id="cb14-405"><a href="#cb14-405" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-406"><a href="#cb14-406" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-407"><a href="#cb14-407" aria-hidden="true" tabindex="-1"></a><span class="fu">## Doing it efficiently</span></span>
+<span id="cb14-408"><a href="#cb14-408" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-409"><a href="#cb14-409" aria-hidden="true" tabindex="-1"></a>Inside a rerandomization loop you will evaluate $M$ hundreds of thousands of</span>
+<span id="cb14-410"><a href="#cb14-410" aria-hidden="true" tabindex="-1"></a>times, so it is worth not recomputing anything that does not change. Write</span>
+<span id="cb14-411"><a href="#cb14-411" aria-hidden="true" tabindex="-1"></a>$s_i = +1$ for treated and $-1$ for control, with $\sum_i s_i = 0$. Then</span>
+<span id="cb14-412"><a href="#cb14-412" aria-hidden="true" tabindex="-1"></a>$d = \frac{2}{N}\sum_i s_i x_i$, and substituting into $M$:</span>
+<span id="cb14-413"><a href="#cb14-413" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-414"><a href="#cb14-414" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-415"><a href="#cb14-415" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-416"><a href="#cb14-416" aria-hidden="true" tabindex="-1"></a>M \;=\; \frac{1}{N}\Big<span class="sc">\|</span>\sum_{i=1}^{N} s_i z_i\Big<span class="sc">\|</span>^2,</span>
+<span id="cb14-417"><a href="#cb14-417" aria-hidden="true" tabindex="-1"></a>\qquad z_i = L^{-1}(x_i - \bar{x}), \quad S = LL^{<span class="sc">\!</span>\top}.</span>
+<span id="cb14-418"><a href="#cb14-418" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-419"><a href="#cb14-419" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-420"><a href="#cb14-420" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-421"><a href="#cb14-421" aria-hidden="true" tabindex="-1"></a>Whiten the covariate matrix **once**, and every draw afterwards is a sum of rows</span>
+<span id="cb14-422"><a href="#cb14-422" aria-hidden="true" tabindex="-1"></a>and a squared norm — no linear solve, no covariance matrix.</span>
+<span id="cb14-423"><a href="#cb14-423" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-426"><a href="#cb14-426" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-427"><a href="#cb14-427" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fast-path-check</span></span>
+<span id="cb14-428"><a href="#cb14-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-429"><a href="#cb14-429" aria-hidden="true" tabindex="-1"></a>Z_rr <span class="op">=</span> np.linalg.solve(np.linalg.cholesky(S_rr), (Xrr <span class="op">-</span> Xrr.mean(<span class="dv">0</span>)).T).T</span>
+<span id="cb14-430"><a href="#cb14-430" aria-hidden="true" tabindex="-1"></a>M_fast <span class="op">=</span> np.<span class="bu">sum</span>((s_mat <span class="op">@</span> Z_rr) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> N</span>
+<span id="cb14-431"><a href="#cb14-431" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"max |M - M_fast| = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">abs</span>(M_all <span class="op">-</span> M_fast)<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.3e}</span><span class="ss">"</span>)</span>
+<span id="cb14-432"><a href="#cb14-432" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-433"><a href="#cb14-433" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-434"><a href="#cb14-434" aria-hidden="true" tabindex="-1"></a>How much does it actually matter? Honest timings on a larger problem</span>
+<span id="cb14-435"><a href="#cb14-435" aria-hidden="true" tabindex="-1"></a>($N = 400$, $p = 8$, 20,000 draws), from the naive loop most people write first</span>
+<span id="cb14-436"><a href="#cb14-436" aria-hidden="true" tabindex="-1"></a>down to a fully vectorised version:</span>
+<span id="cb14-437"><a href="#cb14-437" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-440"><a href="#cb14-440" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-441"><a href="#cb14-441" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: tbl-timings</span></span>
+<span id="cb14-442"><a href="#cb14-442" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-443"><a href="#cb14-443" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span>
+<span id="cb14-444"><a href="#cb14-444" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-445"><a href="#cb14-445" aria-hidden="true" tabindex="-1"></a>N_b, p_b, B_b <span class="op">=</span> <span class="dv">400</span>, <span class="dv">8</span>, <span class="dv">20_000</span></span>
+<span id="cb14-446"><a href="#cb14-446" aria-hidden="true" tabindex="-1"></a>Xb <span class="op">=</span> rng.normal(size<span class="op">=</span>(N_b, p_b)) <span class="op">@</span> rng.normal(size<span class="op">=</span>(p_b, p_b)) <span class="op">+</span> <span class="fl">3.0</span></span>
+<span id="cb14-447"><a href="#cb14-447" aria-hidden="true" tabindex="-1"></a>Sb <span class="op">=</span> np.cov(Xb, rowvar<span class="op">=</span><span class="va">False</span>, ddof<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-448"><a href="#cb14-448" aria-hidden="true" tabindex="-1"></a>Sb_inv <span class="op">=</span> np.linalg.inv(Sb)</span>
+<span id="cb14-449"><a href="#cb14-449" aria-hidden="true" tabindex="-1"></a>Zb <span class="op">=</span> np.linalg.solve(np.linalg.cholesky(Sb), (Xb <span class="op">-</span> Xb.mean(<span class="dv">0</span>)).T).T</span>
+<span id="cb14-450"><a href="#cb14-450" aria-hidden="true" tabindex="-1"></a>nTb <span class="op">=</span> N_b <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb14-451"><a href="#cb14-451" aria-hidden="true" tabindex="-1"></a>Zb_tot <span class="op">=</span> Zb.<span class="bu">sum</span>(<span class="dv">0</span>)</span>
+<span id="cb14-452"><a href="#cb14-452" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-453"><a href="#cb14-453" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_resolve():</span>
+<span id="cb14-454"><a href="#cb14-454" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb14-455"><a href="#cb14-455" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb14-456"><a href="#cb14-456" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> np.zeros(N_b, <span class="bu">bool</span>)<span class="op">;</span> m[rng.permutation(N_b)[:nTb]] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb14-457"><a href="#cb14-457" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> Xb[m].mean(<span class="dv">0</span>) <span class="op">-</span> Xb[<span class="op">~</span>m].mean(<span class="dv">0</span>)</span>
+<span id="cb14-458"><a href="#cb14-458" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (N_b <span class="op">/</span> <span class="dv">4</span>) <span class="op">*</span> d <span class="op">@</span> np.linalg.solve(Sb, d)     <span class="co"># refactorises S!</span></span>
+<span id="cb14-459"><a href="#cb14-459" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb14-460"><a href="#cb14-460" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-461"><a href="#cb14-461" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_precomputed():</span>
+<span id="cb14-462"><a href="#cb14-462" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb14-463"><a href="#cb14-463" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb14-464"><a href="#cb14-464" aria-hidden="true" tabindex="-1"></a>        m <span class="op">=</span> np.zeros(N_b, <span class="bu">bool</span>)<span class="op">;</span> m[rng.permutation(N_b)[:nTb]] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb14-465"><a href="#cb14-465" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> Xb[m].mean(<span class="dv">0</span>) <span class="op">-</span> Xb[<span class="op">~</span>m].mean(<span class="dv">0</span>)</span>
+<span id="cb14-466"><a href="#cb14-466" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (N_b <span class="op">/</span> <span class="dv">4</span>) <span class="op">*</span> d <span class="op">@</span> Sb_inv <span class="op">@</span> d</span>
+<span id="cb14-467"><a href="#cb14-467" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb14-468"><a href="#cb14-468" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-469"><a href="#cb14-469" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> loop_whitened():</span>
+<span id="cb14-470"><a href="#cb14-470" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> np.empty(B_b)</span>
+<span id="cb14-471"><a href="#cb14-471" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(B_b):</span>
+<span id="cb14-472"><a href="#cb14-472" aria-hidden="true" tabindex="-1"></a>        g <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> Zb[rng.permutation(N_b)[:nTb]].<span class="bu">sum</span>(<span class="dv">0</span>) <span class="op">-</span> Zb_tot</span>
+<span id="cb14-473"><a href="#cb14-473" aria-hidden="true" tabindex="-1"></a>        out[b] <span class="op">=</span> (g <span class="op">@</span> g) <span class="op">/</span> N_b</span>
+<span id="cb14-474"><a href="#cb14-474" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> out</span>
+<span id="cb14-475"><a href="#cb14-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-476"><a href="#cb14-476" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> batched():</span>
+<span id="cb14-477"><a href="#cb14-477" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> draw_splits(B_b, N_b, nTb, rng)</span>
+<span id="cb14-478"><a href="#cb14-478" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">sum</span>((s <span class="op">@</span> Zb) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> N_b</span>
+<span id="cb14-479"><a href="#cb14-479" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-480"><a href="#cb14-480" aria-hidden="true" tabindex="-1"></a>timings <span class="op">=</span> []</span>
+<span id="cb14-481"><a href="#cb14-481" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, fn <span class="kw">in</span> [(<span class="st">"loop, re-solves S each draw"</span>, loop_resolve),</span>
+<span id="cb14-482"><a href="#cb14-482" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"loop, precomputed inverse"</span>, loop_precomputed),</span>
+<span id="cb14-483"><a href="#cb14-483" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"loop, whitened Z"</span>, loop_whitened),</span>
+<span id="cb14-484"><a href="#cb14-484" aria-hidden="true" tabindex="-1"></a>                 (<span class="st">"fully vectorised on Z"</span>, batched)]:</span>
+<span id="cb14-485"><a href="#cb14-485" aria-hidden="true" tabindex="-1"></a>    t0 <span class="op">=</span> time.perf_counter()<span class="op">;</span> out <span class="op">=</span> fn()<span class="op">;</span> el <span class="op">=</span> time.perf_counter() <span class="op">-</span> t0</span>
+<span id="cb14-486"><a href="#cb14-486" aria-hidden="true" tabindex="-1"></a>    timings.append({<span class="st">"implementation"</span>: name, <span class="st">"ms for 20,000 draws"</span>: el <span class="op">*</span> <span class="dv">1000</span>,</span>
+<span id="cb14-487"><a href="#cb14-487" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"mean M (should be ~8)"</span>: out.mean()})</span>
+<span id="cb14-488"><a href="#cb14-488" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-489"><a href="#cb14-489" aria-hidden="true" tabindex="-1"></a>tdf <span class="op">=</span> pd.DataFrame(timings)</span>
+<span id="cb14-490"><a href="#cb14-490" aria-hidden="true" tabindex="-1"></a>tdf[<span class="st">"speed-up"</span>] <span class="op">=</span> tdf[<span class="st">"ms for 20,000 draws"</span>].iloc[<span class="dv">0</span>] <span class="op">/</span> tdf[<span class="st">"ms for 20,000 draws"</span>]</span>
+<span id="cb14-491"><a href="#cb14-491" aria-hidden="true" tabindex="-1"></a>tdf.set_index(<span class="st">"implementation"</span>).<span class="bu">round</span>(<span class="dv">2</span>)</span>
+<span id="cb14-492"><a href="#cb14-492" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-493"><a href="#cb14-493" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-494"><a href="#cb14-494" aria-hidden="true" tabindex="-1"></a>The gains are real but moderate, because the dominant cost is forming the mean</span>
+<span id="cb14-495"><a href="#cb14-495" aria-hidden="true" tabindex="-1"></a>difference at all — that is $O(Np)$ per draw no matter what you do. The point of</span>
+<span id="cb14-496"><a href="#cb14-496" aria-hidden="true" tabindex="-1"></a>the whitened form is less that it is fast and more that it makes it *impossible*</span>
+<span id="cb14-497"><a href="#cb14-497" aria-hidden="true" tabindex="-1"></a>to accidentally refactorise $S$ inside the loop.</span>
+<span id="cb14-498"><a href="#cb14-498" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-499"><a href="#cb14-499" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical notes and failure modes</span></span>
+<span id="cb14-500"><a href="#cb14-500" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-501"><a href="#cb14-501" aria-hidden="true" tabindex="-1"></a>**Feasibility at small $N$.** There are only $\binom{N}{N/2}$ distinct equal</span>
+<span id="cb14-502"><a href="#cb14-502" aria-hidden="true" tabindex="-1"></a>splits. That is astronomically large for $N = 200$, but for $N = 20$ it is</span>
+<span id="cb14-503"><a href="#cb14-503" aria-hidden="true" tabindex="-1"></a>184,756, and an acceptance rate of $10^{-6}$ is then not merely slow but</span>
+<span id="cb14-504"><a href="#cb14-504" aria-hidden="true" tabindex="-1"></a>impossible. Check $p_a \binom{N}{N/2} \gg 1$.</span>
+<span id="cb14-505"><a href="#cb14-505" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-506"><a href="#cb14-506" aria-hidden="true" tabindex="-1"></a>**More covariates is not free.** Adding a correlated covariate does not get it</span>
+<span id="cb14-507"><a href="#cb14-507" aria-hidden="true" tabindex="-1"></a>extra weight in $M$, but it does raise $p$, which shrinks the variance reduction</span>
+<span id="cb14-508"><a href="#cb14-508" aria-hidden="true" tabindex="-1"></a>$v_a$ available at any acceptance rate. It is cheap to include a covariate, not</span>
+<span id="cb14-509"><a href="#cb14-509" aria-hidden="true" tabindex="-1"></a>free.</span>
+<span id="cb14-510"><a href="#cb14-510" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-511"><a href="#cb14-511" aria-hidden="true" tabindex="-1"></a>**Every covariate is treated as equally important.** $M$ is invariant to</span>
+<span id="cb14-512"><a href="#cb14-512" aria-hidden="true" tabindex="-1"></a>rescaling, which is a virtue for units and a limitation for priorities. If some</span>
+<span id="cb14-513"><a href="#cb14-513" aria-hidden="true" tabindex="-1"></a>covariates genuinely matter more, use tiered rerandomization (Morgan and Rubin,</span>
+<span id="cb14-514"><a href="#cb14-514" aria-hidden="true" tabindex="-1"></a>2015), which applies separate thresholds to groups of covariates in order of</span>
+<span id="cb14-515"><a href="#cb14-515" aria-hidden="true" tabindex="-1"></a>importance.</span>
+<span id="cb14-516"><a href="#cb14-516" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-517"><a href="#cb14-517" aria-hidden="true" tabindex="-1"></a>**Keep the accepted split reproducible.** Record the seed, the covariate matrix,</span>
+<span id="cb14-518"><a href="#cb14-518" aria-hidden="true" tabindex="-1"></a>the encoding, and the threshold. Because $S$ is computed from the data at hand,</span>
+<span id="cb14-519"><a href="#cb14-519" aria-hidden="true" tabindex="-1"></a>a change in the covariate set changes the metric and therefore the accepted</span>
+<span id="cb14-520"><a href="#cb14-520" aria-hidden="true" tabindex="-1"></a>split.</span>
+<span id="cb14-521"><a href="#cb14-521" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-522"><a href="#cb14-522" aria-hidden="true" tabindex="-1"></a><span class="fu">## Still to write</span></span>
+<span id="cb14-523"><a href="#cb14-523" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-524"><a href="#cb14-524" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Choosing $p_a$ properly.** The trade-off is not really compute time — it is</span>
+<span id="cb14-525"><a href="#cb14-525" aria-hidden="true" tabindex="-1"></a>   that a smaller $p_a$ shrinks the set of acceptable assignments, which matters</span>
+<span id="cb14-526"><a href="#cb14-526" aria-hidden="true" tabindex="-1"></a>   for randomisation inference.</span>
+<span id="cb14-527"><a href="#cb14-527" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Tiered rerandomization** in detail.</span>
+<span id="cb14-528"><a href="#cb14-528" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Inference after rerandomization.** The Li–Ding–Rubin asymptotic</span>
+<span id="cb14-529"><a href="#cb14-529" aria-hidden="true" tabindex="-1"></a>   distribution, and how to run a randomisation test that respects the</span>
+<span id="cb14-530"><a href="#cb14-530" aria-hidden="true" tabindex="-1"></a>   acceptance rule. This is the part most often got wrong in practice.</span>
+<span id="cb14-531"><a href="#cb14-531" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Covariate adjustment as an alternative.** Rerandomizing then regressing.</span>
+<span id="cb14-532"><a href="#cb14-532" aria-hidden="true" tabindex="-1"></a><span class="ss">5. </span>**Head-to-head simulation** against complete randomisation, stratification</span>
+<span id="cb14-533"><a href="#cb14-533" aria-hidden="true" tabindex="-1"></a>   and pairwise matching, over linear and non-linear outcome models.</span>
+<span id="cb14-534"><a href="#cb14-534" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-535"><a href="#cb14-535" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb14-536"><a href="#cb14-536" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-537"><a href="#cb14-537" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Morgan, K. L. and Rubin, D. B. (2012).</span>
+<span id="cb14-538"><a href="#cb14-538" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">Rerandomization to improve covariate balance in experiments</span><span class="co">](https://doi.org/10.1214/12-AOS1008)</span>.</span>
+<span id="cb14-539"><a href="#cb14-539" aria-hidden="true" tabindex="-1"></a>  *The Annals of Statistics*, 40(2), 1263–1282.</span>
+<span id="cb14-540"><a href="#cb14-540" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Morgan, K. L. and Rubin, D. B. (2015).</span>
+<span id="cb14-541"><a href="#cb14-541" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">Rerandomization to balance tiers of covariates</span><span class="co">](https://doi.org/10.1080/01621459.2015.1079528)</span>.</span>
+<span id="cb14-542"><a href="#cb14-542" aria-hidden="true" tabindex="-1"></a>  *JASA*, 110(512), 1412–1421.</span>
+<span id="cb14-543"><a href="#cb14-543" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Li, X., Ding, P. and Rubin, D. B. (2018).</span>
+<span id="cb14-544"><a href="#cb14-544" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">Asymptotic theory of rerandomization in treatment–control experiments</span><span class="co">](https://doi.org/10.1073/pnas.1808191115)</span>.</span>
+<span id="cb14-545"><a href="#cb14-545" aria-hidden="true" tabindex="-1"></a>  *PNAS*, 115(37), 9157–9162.</span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Alexander Bolton</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

@@ -2,12 +2,11 @@
 title: "The Mahalanobis distance"
 description: >
   What the quadratic form actually does, why correlated columns stop being
-  double-counted, how to handle categorical features without a singular
-  covariance matrix, and how the whole thing turns into an acceptance ellipse
-  when you rerandomize.
+  double-counted, and how to handle categorical features without a singular
+  covariance matrix.
 date: 2026-08-24
 order: 1
-categories: [distance, covariance, rerandomization]
+categories: [distance, covariance]
 jupyter: python3
 ---
 
@@ -34,16 +33,16 @@ mpl.rcParams.update({
     "grid.linewidth":    0.8,
     "axes.spines.top":   False,
     "axes.spines.right": False,
-    "axes.titlesize":    11,
+    "axes.titlesize":    12,
     "axes.titleweight":  "semibold",
-    "axes.labelsize":    10,
-    "xtick.labelsize":   9,
-    "ytick.labelsize":   9,
+    "axes.labelsize":    11,
+    "xtick.labelsize":   10,
+    "ytick.labelsize":   10,
     "xtick.color":       "#5b6570",
     "ytick.color":       "#5b6570",
     "legend.frameon":    False,
-    "legend.fontsize":   9,
-    "font.size":         10,
+    "legend.fontsize":   10,
+    "font.size":         11,
 })
 
 # A small, consistent palette used across every figure in the article.
@@ -60,9 +59,10 @@ C = {
 The Mahalanobis distance is a one-line formula that quietly does three things
 at once: it centres, it rescales, and it removes correlation. Most of the
 confusion around it comes from the fact that those three jobs are collapsed
-into a single matrix product. This article pulls them apart, then puts them
-back together in the setting I actually care about — splitting a sample into
-two halves by rerandomizing until the covariates are balanced.
+into a single matrix product. This article pulls them apart.
+
+The payoff — using the distance to split a sample into two balanced halves — is
+in [Rerandomization](../rerandomization/).
 
 ## From the z-score to the quadratic form
 
@@ -127,57 +127,6 @@ Two consequences, both of which matter later:
    distance into a probability, and it is why you can pick a rerandomization
    threshold with a known acceptance rate.
 
-```{python}
-#| label: fig-density-contours
-#| fig-cap: "Left: the univariate normal, where distance from the mean is measured in standard deviations. Right: a bivariate normal with correlation 0.7, where the dashed rings are contours of constant Mahalanobis distance — which are exactly the contours of constant density."
-#| fig-height: 3.6
-
-mu2 = np.array([0.0, 0.0])
-Sig2 = np.array([[1.0, 0.7], [0.7, 1.0]])
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.8, 3.6))
-
-# ---- univariate ----
-xs = np.linspace(-4, 4, 500)
-ax1.plot(xs, stats.norm.pdf(xs), color=C["dark"], lw=1.8)
-for k, alpha in zip([1, 2, 3], [0.28, 0.16, 0.08]):
-    band = (xs >= -k) & (xs <= k)
-    ax1.fill_between(xs[band], 0, stats.norm.pdf(xs[band]),
-                     color=C["blue"], alpha=alpha, lw=0)
-for k in [1, 2, 3]:
-    ax1.axvline(k, color=C["grey"], ls="--", lw=0.9)
-    ax1.axvline(-k, color=C["grey"], ls="--", lw=0.9)
-    # Sit each label just above the curve at that point, so they stagger
-    # down the tail instead of colliding in a row along the top.
-    ax1.text(k + 0.12, stats.norm.pdf(k) + 0.022, f"$D={k}$",
-             ha="left", fontsize=8.5, color="#5b6570")
-ax1.set_ylim(0, 0.45)
-ax1.set_xlabel("$x$")
-ax1.set_ylabel("density")
-ax1.set_title("One variable: $D = |x-\\mu| / \\sigma$")
-
-# ---- bivariate ----
-g = np.linspace(-4, 4, 300)
-GX, GY = np.meshgrid(g, g)
-pts = np.dstack([GX, GY])
-dens = stats.multivariate_normal(mu2, Sig2).pdf(pts)
-ax2.contourf(GX, GY, dens, levels=14, cmap="Blues", alpha=0.85)
-
-Sinv2 = np.linalg.inv(Sig2)
-D2grid = np.einsum("...i,ij,...j->...", pts, Sinv2, pts)
-cs = ax2.contour(GX, GY, np.sqrt(D2grid), levels=[1, 2, 3],
-                 colors=C["dark"], linestyles="--", linewidths=1.1)
-ax2.clabel(cs, fmt=lambda v: f"D={v:.0f}", fontsize=8.5)
-ax2.set_aspect("equal")
-ax2.set_xlabel("$x_1$")
-ax2.set_ylabel("$x_2$")
-ax2.set_title("Two variables, $\\rho = 0.7$")
-ax2.grid(False)
-
-fig.tight_layout()
-plt.show()
-```
-
 ### What the matrix product is doing
 
 $\Sigma$ is symmetric and positive definite, so it has a symmetric square root
@@ -205,7 +154,7 @@ $D^2$, much cheaper.
 ```{python}
 #| label: fig-whitening
 #| fig-cap: "The three jobs the quadratic form does, done one at a time. The highlighted point never moves relative to the cloud, but the yardstick changes: its Euclidean distance from the centre is only meaningful in the third panel, where the cloud has been made spherical."
-#| fig-height: 3.1
+#| fig-height: 9.6
 
 Sig_demo = np.array([[9.0, 7.2], [7.2, 16.0]])
 mu_demo = np.array([50.0, 120.0])
@@ -220,19 +169,18 @@ steps = [
      np.linalg.solve(L, focus - mu_demo), "$L^{-1}(x-\\mu)$", np.zeros(2)),
 ]
 
-fig, axes = plt.subplots(1, 3, figsize=(8.0, 3.1))
+fig, axes = plt.subplots(3, 1, figsize=(5.0, 9.6))
 for ax, (title, pts_, f_, lab, centre) in zip(axes, steps):
-    ax.scatter(pts_[:, 0], pts_[:, 1], s=7, color=C["grey"], alpha=0.5, lw=0)
+    ax.scatter(pts_[:, 0], pts_[:, 1], s=9, color=C["grey"], alpha=0.5, lw=0)
     ax.plot([centre[0], f_[0]], [centre[1], f_[1]],
-            color=C["red"], lw=1.6, zorder=3)
-    ax.scatter(*f_, s=52, color=C["red"], zorder=4, edgecolor="white", lw=0.8)
-    ax.set_title(f"{title}\n{lab}", fontsize=9.5)
-    ax.tick_params(labelsize=8)
+            color=C["red"], lw=1.8, zorder=3)
+    ax.scatter(*f_, s=62, color=C["red"], zorder=4, edgecolor="white", lw=0.9)
+    ax.set_title(f"{title}    {lab}")
     if title == "3. whitened":
         ax.set_aspect("equal")
         for r in [1, 2, 3]:
             ax.add_patch(plt.Circle((0, 0), r, fill=False, ls="--",
-                                    color=C["dark"], lw=0.9, alpha=0.7))
+                                    color=C["dark"], lw=1.0, alpha=0.7))
 
 fig.tight_layout()
 plt.show()
@@ -241,71 +189,6 @@ d_raw = focus - mu_demo
 print(f"Euclidean distance, raw units      : {np.linalg.norm(d_raw):.4f}")
 print(f"Euclidean distance, whitened       : {np.linalg.norm(np.linalg.solve(L, d_raw)):.4f}")
 print(f"Mahalanobis distance D             : {np.sqrt(d_raw @ np.linalg.solve(Sig_demo, d_raw)):.4f}")
-```
-
-### Written out in two dimensions
-
-For $p = 2$ the algebra is small enough to see. Write $z_j = (x_j-\mu_j)/\sigma_j$
-for the ordinary z-scores and $\rho$ for the correlation. Then
-
-::: {.keybox}
-$$
-D^2 \;=\; \frac{1}{1-\rho^2}\Big(z_1^2 \;-\; 2\rho\, z_1 z_2 \;+\; z_2^2\Big).
-$$
-:::
-
-Three things fall straight out of this:
-
-- **If $\rho = 0$**, $D^2 = z_1^2 + z_2^2$ — plain Euclidean distance on
-  standardised variables. Correlation is the *only* thing $\Sigma^{-1}$ adds
-  beyond standardising.
-- **The cross term $-2\rho z_1 z_2$ rewards agreement.** With $\rho > 0$, a point
-  whose two deviations share a sign gets a discount; one whose deviations
-  disagree gets a penalty.
-- **The prefactor $1/(1-\rho^2)$ blows up as $|\rho| \to 1$.** When two columns
-  are nearly the same variable, any disagreement between them is enormously
-  surprising, and the distance says so.
-
-### Affine invariance
-
-One property deserves its own heading, because it removes an entire class of
-worries. For any invertible $A$ and any vector $b$, if $x \mapsto Ax + b$ then
-$\mu \mapsto A\mu + b$ and $\Sigma \mapsto A\Sigma A^{\top}$, and
-
-$$
-(Ax+b - A\mu-b)^{\!\top}(A\Sigma A^{\!\top})^{-1}(Ax+b-A\mu-b)
-= (x-\mu)^{\!\top}\!A^{\!\top} A^{-\top}\Sigma^{-1}A^{-1} A(x-\mu)
-= (x-\mu)^{\!\top}\Sigma^{-1}(x-\mu).
-$$
-
-::: {.keybox}
-**The Mahalanobis distance is unchanged by any invertible linear
-reparameterisation of the covariates.**
-:::
-
-So it does not matter whether you measure height in centimetres or inches,
-whether you standardise your columns first, or which of several linearly
-equivalent encodings of a categorical variable you pick. That last one will do
-a lot of work below.
-
-```{python}
-#| label: affine-check
-
-def maha2(X, v):
-    """Squared Mahalanobis distance from v to the mean of X, using cov(X)."""
-    mu = X.mean(0)
-    S = np.cov(X, rowvar=False)
-    d = v - mu
-    return float(d @ np.linalg.solve(S, d))
-
-A = np.array([[0.3937, 0.0], [2.2046, 1.0]])   # arbitrary invertible mixing
-b = np.array([-3.0, 17.0])
-X_new = cloud @ A.T + b
-
-v_old = cloud[0]
-v_new = A @ v_old + b
-print(f"D^2 in original units : {maha2(cloud, v_old):.10f}")
-print(f"D^2 after x -> Ax + b : {maha2(X_new, v_new):.10f}")
 ```
 
 ## Three columns, two of them correlated
@@ -324,8 +207,7 @@ R_x   = np.array([[1.0, 0.0, 0.0],
                   [0.0, 1.0, 0.7],
                   [0.0, 0.7, 1.0]])
 S_x   = np.outer(sd_x, sd_x) * R_x          # covariance = D R D
-
-pd.DataFrame(S_x, index=names, columns=names).round(1)
+S_inv = np.linalg.inv(S_x)
 ```
 
 Now consider two people, both aged 50 (exactly average, so age contributes
@@ -334,16 +216,15 @@ nothing) and both exactly one standard deviation above average in height:
 - **A** is also one SD *above* average weight: `(50, 180, 90)` — tall and heavy.
 - **B** is one SD *below* average weight: `(50, 180, 60)` — tall and light.
 
-In raw units both are $(0, +10, -\!/\!+15)$ away from the mean, so their
-Euclidean distances are identical. After standardising, both are at
-$\sqrt{2} = 1.414$. Neither yardstick can tell them apart.
+In raw units both are $(0, +10, \pm 15)$ away from the mean, so their Euclidean
+distances are identical. After standardising, both are at $\sqrt{2} = 1.414$.
+Neither yardstick can tell them apart.
 
 ```{python}
 #| label: tbl-two-people
 
 A_person = np.array([50.0, 180.0, 90.0])
 B_person = np.array([50.0, 180.0, 60.0])
-S_inv = np.linalg.inv(S_x)
 
 rows = []
 for lab, v in [("A: tall & heavy", A_person), ("B: tall & light", B_person)]:
@@ -359,32 +240,37 @@ for lab, v in [("A: tall & heavy", A_person), ("B: tall & light", B_person)]:
 pd.DataFrame(rows).set_index("person").round(3)
 ```
 
-The Mahalanobis distance separates them by a factor of more than two. Plug the
-numbers into the two-dimensional formula to see exactly where that comes from —
-age drops out because it is uncorrelated, leaving $z_1 = z_2 = 1$ for A and
-$z_1 = 1, z_2 = -1$ for B with $\rho = 0.7$:
+The Mahalanobis distance separates them by a factor of more than two. For two
+correlated variables the quadratic form works out to
 
 $$
-D^2_A = \frac{1 - 2(0.7)(1)(1) + 1}{1 - 0.49} = \frac{0.6}{0.51} = 1.176,
+D^2 \;=\; \frac{1}{1-\rho^2}\Big(z_1^2 \;-\; 2\rho\, z_1 z_2 \;+\; z_2^2\Big),
+$$
+
+with $z_j$ the ordinary z-scores. Age drops out because it is uncorrelated,
+leaving $z_1 = z_2 = 1$ for A and $z_1 = 1, z_2 = -1$ for B, with $\rho = 0.7$:
+
+$$
+D^2_A = \frac{1 - 2(0.7) + 1}{1 - 0.49} = \frac{0.6}{0.51} = 1.176,
 \qquad
-D^2_B = \frac{1 + 2(0.7)(1)(1) + 1}{1 - 0.49} = \frac{3.4}{0.51} = 6.667 .
+D^2_B = \frac{1 + 2(0.7) + 1}{1 - 0.49} = \frac{3.4}{0.51} = 6.667 .
 $$
 
-Being tall *and* heavy is the ordinary way to be unusual; the two deviations
-largely explain each other, and $D^2$ counts them close to once rather than
-twice. Being tall *and* light is a genuine anomaly: it is unusual in a
-direction the data almost never goes.
+The cross term $-2\rho z_1 z_2$ is doing the work. Being tall *and* heavy is the
+ordinary way to be unusual; the two deviations largely explain each other, and
+$D^2$ counts them close to once rather than twice. Being tall *and* light is a
+genuine anomaly: it is unusual in a direction the data almost never goes.
 
 ```{python}
 #| label: fig-correlation-ellipse
 #| fig-cap: "The height–weight plane with contours of constant Mahalanobis distance (solid, tilted). The dotted orange curve is the contour of constant *standardised* Euclidean distance through A and B — it is axis-aligned, and it passes through both points, because standardising alone cannot tell them apart. The tilt is the entire contribution of Σ⁻¹."
-#| fig-height: 4.4
+#| fig-height: 4.8
 
 S_hw = S_x[1:, 1:]
 mu_hw = mu_x[1:]
 sample = rng.multivariate_normal(mu_hw, S_hw, 1200)
 
-fig, ax = plt.subplots(figsize=(6.4, 4.6))
+fig, ax = plt.subplots(figsize=(6.4, 4.8))
 ax.scatter(sample[:, 0], sample[:, 1], s=8, color=C["grey"], alpha=0.4, lw=0)
 
 # Mahalanobis contours
@@ -395,7 +281,7 @@ dd = np.dstack([GX - mu_hw[0], GY - mu_hw[1]])
 Dgrid = np.sqrt(np.einsum("...i,ij,...j->...", dd, np.linalg.inv(S_hw), dd))
 cs = ax.contour(GX, GY, Dgrid, levels=[1.0, 2.0, 3.0],
                 colors=C["dark"], linewidths=1.1, alpha=0.8)
-ax.clabel(cs, fmt=lambda v: f"D={v:.0f}", fontsize=8.5)
+ax.clabel(cs, fmt=lambda v: f"D={v:.0f}", fontsize=9)
 
 # Contour of constant STANDARDISED Euclidean distance through A and B.
 # Both sit at sum of squared z-scores = 2, so this is the axis-aligned
@@ -406,7 +292,7 @@ ax.plot(mu_hw[0] + np.sqrt(2) * sd_hw[0] * np.cos(th),
         mu_hw[1] + np.sqrt(2) * sd_hw[1] * np.sin(th),
         ls=":", color=C["orange"], lw=2.0,
         label="equal standardised distance")
-ax.legend(loc="upper left", fontsize=8.5)
+ax.legend(loc="upper left", fontsize=9)
 
 for lab, v, col in [("A", A_person, C["green"]), ("B", B_person, C["red"])]:
     ax.scatter(v[1], v[2], s=95, color=col, zorder=5,
@@ -425,99 +311,15 @@ fig.tight_layout()
 plt.show()
 ```
 
-### The uncorrelated column just adds on
-
-Because `age` is uncorrelated with the other two, $\Sigma$ is block diagonal and
-so is $\Sigma^{-1}$. The quadratic form therefore splits cleanly:
-
-$$
-D^2 \;=\; \underbrace{\frac{(x_{\text{age}} - \mu_{\text{age}})^2}
-                           {\sigma^2_{\text{age}}}}_{\text{a plain z-score}}
-     \;+\; \underbrace{D^2_{\text{height, weight}}}_{\text{the correlated block}} .
-$$
-
-Correlation only ever couples the columns that are actually correlated. An
-uncorrelated covariate contributes its squared z-score and nothing more.
-
-```{python}
-#| label: block-check
-
-C_person = np.array([62.0, 180.0, 60.0])       # B, but one SD older
-d = C_person - mu_x
-total = d @ S_inv @ d
-age_part = ((C_person[0] - mu_x[0]) / sd_x[0]) ** 2
-hw = C_person[1:] - mu_hw
-hw_part = hw @ np.linalg.solve(S_hw, hw)
-print(f"D^2 (all three columns)      : {total:.6f}")
-print(f"age z^2                      : {age_part:.6f}")
-print(f"D^2 (height & weight block)  : {hw_part:.6f}")
-print(f"sum of the two parts         : {age_part + hw_part:.6f}")
-```
-
 ### Redundant columns are not double-counted
 
 This is the property that matters most if you are going to balance covariates.
 Suppose weight gets recorded twice by two slightly different scales, and you
 carelessly leave both columns in. Then you add a third scale, and a fourth.
 Standardised Euclidean distance treats each copy as fresh evidence and lets
-"weight" quietly take over the metric. Mahalanobis does not.
-
-```{python}
-#| label: fig-redundancy
-#| fig-cap: "Adding near-duplicate copies of the weight column. Standardised Euclidean distance grows roughly linearly in the number of copies, because it counts the same information again and again. The Mahalanobis distance is flat: Σ⁻¹ already knows the copies are redundant and discounts them accordingly."
-#| fig-height: 3.8
-
-N_big = 200_000
-base = rng.multivariate_normal(mu_x, S_x, N_big)
-weight_true = base[:, 2]
-
-ks = range(0, 6)
-std_eucl, maha, conds = [], [], []
-for k in ks:
-    if k:
-        copies = weight_true[:, None] + rng.normal(0, 3.0, (N_big, k))
-        Xk = np.hstack([base, copies])
-        test = np.concatenate([B_person, np.full(k, B_person[2])])
-    else:
-        Xk, test = base, B_person
-    Sk = np.cov(Xk, rowvar=False)
-    dk = test - Xk.mean(0)
-    std_eucl.append(float(np.sum((dk / np.sqrt(np.diag(Sk))) ** 2)))
-    maha.append(float(dk @ np.linalg.solve(Sk, dk)))
-    conds.append(float(np.linalg.cond(Sk)))
-
-fig, ax = plt.subplots(figsize=(6.6, 3.8))
-ax.plot(list(ks), std_eucl, "o-", color=C["orange"], lw=2, ms=7,
-        label="standardised Euclidean $D^2$")
-ax.plot(list(ks), maha, "s-", color=C["blue"], lw=2, ms=7,
-        label="Mahalanobis $D^2$")
-ax.set_xlabel("number of extra near-duplicate weight columns")
-ax.set_ylabel("squared distance for person B")
-ax.set_title("Redundant covariates inflate one metric and not the other")
-ax.legend(loc="center right")
-ax.set_ylim(0, 8)
-fig.tight_layout()
-plt.show()
-
-pd.DataFrame({"extra copies": list(ks), "std. Euclidean D^2": std_eucl,
-              "Mahalanobis D^2": maha, "cond(S)": conds}).round(3)
-```
-
-::: {.callout-note}
-## Why this matters for balancing groups
-
-When you rerandomize until a balance criterion is satisfied, the criterion
-decides how much attention each covariate gets. Under a Euclidean criterion,
-including `height_cm` and `height_inches`, or five correlated blood-pressure
-readings, silently upweights that concept. Under Mahalanobis, the *set* of
-correlated columns collectively gets the weight of the information it actually
-carries. You get to throw covariates at the criterion without first pruning
-them for collinearity.
-
-The flip side, in the last column of the table above: the condition number of
-$S$ grows fast. Mahalanobis is statistically indifferent to redundancy but
-numerically is not. See [Practical notes](#practical-notes-and-failure-modes).
-:::
+"weight" quietly take over the metric. Mahalanobis does not: $\Sigma^{-1}$
+already knows the copies are redundant, and the squared distance is unchanged
+no matter how many of them you add.
 
 ## Categorical features
 
@@ -584,8 +386,17 @@ Since all the centred data already lives in that row space, nothing is lost.
 
 They are not two approximations to be traded off — they are the same number.
 Dropping a baseline is an invertible linear map on the $(K-1)$-dimensional
-subspace where the centred data lives, and by affine invariance $D^2$ cannot
-change. That also means **it does not matter which level you drop**.
+subspace where the centred data lives, and the Mahalanobis distance is
+unchanged by any invertible linear reparameterisation: replace $x$ by $Ax + b$,
+and $\Sigma$ becomes $A\Sigma A^{\top}$, so
+
+$$
+(Ax+b-A\mu-b)^{\!\top}(A\Sigma A^{\!\top})^{-1}(Ax+b-A\mu-b)
+= (x-\mu)^{\!\top}\Sigma^{-1}(x-\mu).
+$$
+
+So the two fixes must agree — and it also means **it does not matter which level
+you drop**.
 
 ```{python}
 #| label: tbl-categorical-equivalence
@@ -679,10 +490,10 @@ dominate the metric.
 ```{python}
 #| label: fig-rare-levels
 #| fig-cap: "Squared Mahalanobis distance contributed by membership of a single categorical level, as a function of how common that level is. The relationship is (1 − p)/p, so it grows without bound as the level gets rarer: at 1% prevalence one categorical level contributes D² = 99, more than a continuous covariate nine standard deviations from its mean."
-#| fig-height: 3.7
+#| fig-height: 4.0
 
 pp = np.linspace(0.01, 0.95, 400)
-fig, ax = plt.subplots(figsize=(6.6, 3.7))
+fig, ax = plt.subplots(figsize=(6.6, 4.0))
 ax.plot(pp, (1 - pp) / pp, color=C["blue"], lw=2)
 ax.set_yscale("log")
 ax.set_xlabel("prevalence of the level, $p_k$")
@@ -693,20 +504,20 @@ for pk, lab in [(0.50, "north"), (0.30, "south"), (0.15, "east"), (0.05, "west")
     ax.scatter(pk, (1 - pk) / pk, s=60, color=C["orange"], zorder=5,
                edgecolor="white", lw=1)
     ax.annotate(f"{lab}\n$D^2$={(1-pk)/pk:.1f}", (pk, (1 - pk) / pk),
-                textcoords="offset points", xytext=(8, 4), fontsize=8.5,
+                textcoords="offset points", xytext=(8, 4), fontsize=9,
                 color=C["orange"])
 ax.axhline(1.0, color=C["grey"], ls=":", lw=1)
 ax.text(0.04, 0.28, "$D^2 = 1$ is one standard deviation\nof a continuous covariate",
-        fontsize=8.5, color="#5b6570")
+        fontsize=9.5, color="#5b6570")
 fig.tight_layout()
 plt.show()
 ```
 
-In a rerandomization criterion this means a 1%-prevalence level can consume most
-of the balance budget: with `west` at 5%, a single unit moving between arms
-shifts $D^2$ far more than a large shift in mean age would. Usually the right
-response is to collapse levels below a few percent into an `other` category, or
-to accept the imbalance explicitly rather than let the metric chase it.
+In a balance criterion this means a 1%-prevalence level can consume most of the
+budget: with `west` at 5%, a single unit moving between arms shifts $D^2$ far
+more than a large shift in mean age would. Usually the right response is to
+collapse levels below a few percent into an `other` category, or to accept the
+imbalance explicitly rather than let the metric chase it.
 
 ### Mixing continuous and categorical covariates
 
@@ -757,7 +568,7 @@ They give identical answers, so pick on convenience.
 
 - **Drop a baseline** if you want a well-conditioned, genuinely invertible $S$
   and a Cholesky factor you can reuse (which is what you want inside a
-  rerandomization loop — see below). This is the default I would reach for.
+  rerandomization loop). This is the default I would reach for.
 - **Use the pseudo-inverse** if you would rather not choose reference levels,
   if you are handling several categoricals programmatically, or if $S$ may be
   singular for other reasons anyway — more covariates than units, an
@@ -769,476 +580,36 @@ the rank deficiency is $m$, not $1$ — each block contributes its own
 $\mathbf{1}$ direction.
 :::
 
-## Rerandomization: the distance becomes an acceptance region
-
-Now the application. You have $N$ units with covariate matrix $X$ ($N \times p$),
-and you want to split them into two equal groups of $n = N/2$ such that the
-covariates are balanced. The plan is *rerandomization*: draw a random split,
-measure imbalance, and redraw if the imbalance is too large.
-
-### The criterion
-
-The natural summary of imbalance is the vector of covariate mean differences,
-
-$$
-d \;=\; \bar{X}_T - \bar{X}_C \;\in\; \mathbb{R}^p .
-$$
-
-Under complete randomization into equal halves, $\mathbb{E}[d] = 0$ and
-
-$$
-\operatorname{Cov}(d)
-  = \Big(\tfrac{1}{n_T} + \tfrac{1}{n_C}\Big) S
-  = \frac{4}{N}\,S ,
-$$
-
-where $S$ is the sample covariance matrix of the covariates. So $d$ is a random
-vector with a known mean and a known covariance, and the obvious way to say "$d$
-is too far from zero" is its Mahalanobis distance from $0$:
-
-::: {.keybox}
-$$
-M \;=\; d^{\!\top}\big[\operatorname{Cov}(d)\big]^{-1} d
-    \;=\; \frac{N}{4}\; d^{\!\top} S^{-1} d .
-$$
-:::
-
-This is exactly the criterion Morgan and Rubin proposed in 2012. Everything
-from the first three sections now applies verbatim: $M$ is affine invariant (so
-the units of your covariates are irrelevant and you need not standardise
-first), correlated covariates are not double-counted, and categorical
-covariates are handled by dropping a baseline or using $S^{+}$.
-
-```{python}
-#| label: rerand-setup
-
-N = 200
-n_T = N // 2
-
-# Two covariates so the acceptance region can be drawn: height and weight,
-# correlated at 0.7, from the running example.
-Xrr = rng.multivariate_normal(mu_hw, S_hw, N)
-S_rr = np.cov(Xrr, rowvar=False, ddof=1)
-cov_d = (4 / N) * S_rr
-
-def draw_splits(B, N, n_T, rng):
-    """B random equal splits, as a B x N matrix of +1 (treated) / -1 (control)."""
-    idx = np.argsort(rng.random((B, N)), axis=1)[:, :n_T]
-    s = -np.ones((B, N))
-    np.put_along_axis(s, idx, 1.0, axis=1)
-    return s
-
-B = 40_000
-s_mat = draw_splits(B, N, n_T, rng)
-d_all = (2 / N) * (s_mat @ Xrr)                       # B x 2 mean differences
-M_all = np.einsum("bi,ij,bj->b", d_all, np.linalg.inv(cov_d), d_all)
-
-print(f"empirical Cov(d) / theoretical (4/N)S:\n"
-      f"{np.round(np.cov(d_all, rowvar=False) / cov_d, 3)}")
-print(f"\nmean of M : {M_all.mean():.4f}   (chi-square with p=2 has mean 2)")
-```
-
-### Choosing the threshold
-
-Since $M$ is a squared Mahalanobis distance of an (approximately normal)
-$p$-vector, $M \sim \chi^2_p$. That gives you the threshold directly. To accept
-a proportion $p_a$ of draws, set
-
-$$
-a = F^{-1}_{\chi^2_p}(p_a), \qquad \text{accept iff } M \le a .
-$$
-
-The expected number of draws before acceptance is $1/p_a$. Note that
-thresholding $M$ at $a$ is the same as thresholding the *distance* $\sqrt{M}$ at
-$\sqrt{a}$; the squared scale is the convenient one because it is the scale on
-which the $\chi^2$ table is written.
-
-```{python}
-#| label: tbl-thresholds
-
-rows = []
-for p_a in [0.5, 0.1, 0.05, 0.01, 0.001, 0.0001]:
-    for pp_ in [2, 5, 10]:
-        rows.append({"p_a": p_a, "p (covariates)": pp_,
-                     "threshold a": stats.chi2.ppf(p_a, pp_),
-                     "sqrt(a)": np.sqrt(stats.chi2.ppf(p_a, pp_)),
-                     "expected draws": 1 / p_a})
-thr = pd.DataFrame(rows).pivot(index="p_a", columns="p (covariates)",
-                               values="threshold a")
-thr["expected draws"] = [1 / x for x in thr.index]
-thr.round(3)
-```
-
-### The acceptance region is an ellipse
-
-For $p = 2$ you can draw it. The set $\{d : M(d) \le a\}$ is an ellipse centred
-at the origin, and its shape is set by $S$ — it is elongated in exactly the
-direction in which imbalance naturally occurs.
-
-```{python}
-#| label: fig-acceptance-ellipse
-#| fig-cap: "Left: 40,000 random equal splits, each a dot at its (height, weight) mean-difference, with the nested acceptance ellipses for four values of p_a. Note how small the accepted region already is at 5%. Right: a zoom on the boxed area, in standardised coordinates, comparing the Mahalanobis ellipse against the circle from a naive per-covariate criterion calibrated to accept the same 5%. The blue and orange points are the splits the two criteria disagree about."
-#| fig-height: 4.6
-
-p_a = 0.05
-a_thr = stats.chi2.ppf(p_a, 2)
-accept = M_all <= a_thr
-
-sd_d = np.sqrt(np.diag(cov_d))
-theta = np.linspace(0, 2 * np.pi, 400)
-L_rr = np.linalg.cholesky(cov_d)
-
-def ellipse(a):
-    """Boundary {d : M(d) = a} in raw mean-difference units."""
-    return (np.sqrt(a) * L_rr @ np.vstack([np.cos(theta), np.sin(theta)])).T
-
-fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.4, 4.6))
-
-# ---- left: the whole cloud, with nested acceptance regions ----
-axL.scatter(d_all[~accept, 0], d_all[~accept, 1], s=4,
-            color=C["grey"], alpha=0.22, lw=0, label="rejected")
-axL.scatter(d_all[accept, 0], d_all[accept, 1], s=7,
-            color=C["green"], alpha=0.85, lw=0, label=f"accepted ($p_a$={p_a})")
-for pa_, ls_ in [(0.50, ":"), (0.20, "-."), (0.05, "-"), (0.01, "--")]:
-    e = ellipse(stats.chi2.ppf(pa_, 2))
-    axL.plot(e[:, 0], e[:, 1], color=C["dark"], lw=1.6, ls=ls_, zorder=5,
-             label=f"$p_a$ = {pa_:.0%}")
-axL.scatter(0, 0, marker="+", s=130, color="black", lw=1.7, zorder=6)
-
-ZOOM = 0.5                                     # zoom half-width, in sd of d
-axL.add_patch(plt.Rectangle((-ZOOM * sd_d[0], -ZOOM * sd_d[1]),
-                            2 * ZOOM * sd_d[0], 2 * ZOOM * sd_d[1],
-                            fill=False, ec=C["red"], lw=1.3, zorder=7))
-axL.set_xlabel(r"$\bar{X}_T - \bar{X}_C$  for height (cm)")
-axL.set_ylabel(r"$\bar{X}_T - \bar{X}_C$  for weight (kg)")
-axL.set_title("Acceptance regions for four values of $p_a$")
-axL.legend(loc="upper left", markerscale=2.2, fontsize=8, ncol=2)
-axL.grid(False)
-
-# ---- right: zoom, Mahalanobis ellipse vs per-covariate circle ----
-z_all = d_all / sd_d
-# Naive criterion: sum of squared standardised mean differences, calibrated
-# empirically to the SAME acceptance rate.
-M_naive = np.sum(z_all ** 2, axis=1)
-c_thr = np.quantile(M_naive, p_a)
-accept_naive = M_naive <= c_thr
-
-both       = accept & accept_naive
-only_maha  = accept & ~accept_naive
-only_naive = accept_naive & ~accept
-neither    = ~accept & ~accept_naive
-
-axR.scatter(z_all[neither, 0], z_all[neither, 1], s=4,
-            color=C["grey"], alpha=0.18, lw=0)
-axR.scatter(z_all[both, 0], z_all[both, 1], s=9, color=C["green"],
-            alpha=0.8, lw=0, label="accepted by both")
-axR.scatter(z_all[only_maha, 0], z_all[only_maha, 1], s=11, color=C["blue"],
-            alpha=0.95, lw=0, label="Mahalanobis only")
-axR.scatter(z_all[only_naive, 0], z_all[only_naive, 1], s=11, color=C["orange"],
-            alpha=0.95, lw=0, label="per-covariate only")
-
-e = ellipse(a_thr)
-axR.plot(e[:, 0] / sd_d[0], e[:, 1] / sd_d[1], color=C["dark"], lw=2.2,
-         zorder=6, label="Mahalanobis boundary")
-axR.plot(np.sqrt(c_thr) * np.cos(theta), np.sqrt(c_thr) * np.sin(theta),
-         color=C["red"], lw=2.0, ls="--", zorder=6, label="circle boundary")
-
-axR.set_xlim(-ZOOM, ZOOM)
-axR.set_ylim(-ZOOM, ZOOM)
-axR.set_aspect("equal")
-axR.set_xlabel("standardised imbalance, height")
-axR.set_ylabel("standardised imbalance, weight")
-axR.set_title("Zoom: same acceptance rate, different region")
-axR.legend(loc="upper left", markerscale=1.5, fontsize=7.8, ncol=1)
-axR.grid(False)
-
-fig.tight_layout()
-plt.show()
-
-print(f"accepted by both             : {both.sum():5d}")
-print(f"accepted by Mahalanobis only : {only_maha.sum():5d}  "
-      f"({only_maha.sum() / accept.sum():.1%} of all accepted splits)")
-print(f"accepted by the circle only  : {only_naive.sum():5d}")
-```
-
-### Why an ellipse and not a circle
-
-The ellipse leans along the positive correlation between height and weight,
-which at first looks backwards: it is *more permissive* about splits where both
-covariates are imbalanced in the same direction. That is the correct behaviour,
-for the same reason as in the redundancy example. Height and weight are
-correlated at $0.7$, so a split that over-represents tall people will
-mechanically over-represent heavy people too. Those two imbalances are largely
-one imbalance, and a criterion that counted them separately would spend nearly
-all its rejections fighting the most common failure mode while barely
-constraining the rare, genuinely informative direction — arms that differ in
-weight *given* height.
-
-There is also a practical reason to prefer the ellipse:
-
-::: {.keybox}
-The Mahalanobis criterion accepts exactly $p_a$ of draws whatever the
-correlation structure is, so you can read the threshold off a $\chi^2$ table.
-The per-covariate criterion's acceptance rate depends on $S$, so its threshold
-has to be calibrated by simulation every time.
-:::
-
-```{python}
-#| label: naive-miscalibration
-
-nominal = stats.chi2.ppf(p_a, 2)     # the chi-square threshold, wrongly reused
-print(f"threshold from the chi-square table, a = {nominal:.4f}\n")
-print(f"  Mahalanobis criterion accepts : {np.mean(M_all <= nominal):6.2%}")
-print(f"  per-covariate criterion accepts: {np.mean(M_naive <= nominal):6.2%}")
-print(f"  ... both should accept         : {p_a:6.2%}")
-```
-
-### How much does it buy you?
-
-Morgan and Rubin show that rerandomizing on $M \le a$ reduces the variance of
-every covariate mean difference by the same factor,
-
-::: {.keybox}
-$$
-v_a \;=\; \frac{\operatorname{Var}_{\text{RR}}(d_j)}{\operatorname{Var}_{\text{CR}}(d_j)}
-      \;=\; \frac{P\big(\chi^2_{p+2} \le a\big)}{P\big(\chi^2_{p} \le a\big)} .
-$$
-:::
-
-The important qualitative feature is how it degrades with $p$: at a fixed
-acceptance rate, more covariates means less benefit per covariate. Balancing
-on twenty covariates at $p_a = 0.01$ buys much less than balancing on two.
-
-```{python}
-#| label: fig-variance-reduction
-#| fig-cap: "Variance reduction factor for each covariate mean difference. Lower is better. At a fixed acceptance rate the benefit erodes quickly as covariates are added. With p = 2, accepting 1 draw in 100 leaves 0.5% of the original imbalance variance; with p = 50 the same acceptance rate leaves 55%, and going all the way to 1 draw in 1,000 only gets it to 46%."
-#| fig-height: 3.9
-
-pa_grid = np.logspace(-4, np.log10(0.9), 250)
-fig, ax = plt.subplots(figsize=(7.0, 3.9))
-cols = [C["blue"], C["green"], C["orange"], C["red"], C["dark"], C["grey"]]
-for pv, col in zip([1, 2, 5, 10, 20, 50], cols):
-    a_g = stats.chi2.ppf(pa_grid, pv)
-    v_g = stats.chi2.cdf(a_g, pv + 2) / stats.chi2.cdf(a_g, pv)
-    ax.plot(pa_grid, v_g, color=col, lw=2, label=f"$p = {pv}$")
-ax.set_xscale("log")
-ax.set_xlabel("acceptance probability $p_a$  (expected draws = $1/p_a$)")
-ax.set_ylabel("$v_a$ = variance ratio vs. complete randomisation")
-ax.set_title("Diminishing returns as the number of covariates grows")
-ax.set_ylim(0, 1)
-ax.legend(ncol=3, loc="lower right")
-fig.tight_layout()
-plt.show()
-```
-
-Two caveats keep this honest.
-
-**Balance is not the goal; precision is.** The variance of the treatment effect
-estimator is reduced by a factor of $1 - (1 - v_a)R^2$, where $R^2$ is the
-squared multiple correlation between the outcome and the covariates. If your
-covariates do not predict the outcome, perfect balance on them buys you nothing.
-Covariate *choice* matters more than threshold choice.
-
-**The usual standard errors no longer apply.** Rerandomization makes the
-sampling distribution of the difference in means non-normal — Li, Ding and Rubin
-(2018) show it is a normal plus a truncated-normal term. A conventional
-two-sample $t$-test on rerandomized data is conservative (its intervals are too
-wide). Either use randomization-based inference that redraws under the *same*
-rerandomization scheme, or use the asymptotic distribution from that paper.
-
-```{python}
-#| label: fig-cr-vs-rr
-#| fig-cap: "Left: the marginal distribution of the height imbalance, under complete randomisation and after rerandomizing at p_a = 0.05 — the same 40,000 draws, filtered. Right: the variance reduction actually achieved by those draws at a range of thresholds, against the theoretical v_a. Because P(χ²_p ≤ a) = p_a by construction, the formula simplifies to v_a = P(χ²_{p+2} ≤ a)/p_a."
-#| fig-height: 3.7
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.2, 3.7))
-
-bins = np.linspace(-4, 4, 70)
-ax1.hist(d_all[:, 0] / sd_d[0], bins=bins, density=True, color=C["grey"],
-         alpha=0.6, label="complete randomisation")
-ax1.hist(d_all[accept, 0] / sd_d[0], bins=bins, density=True, color=C["green"],
-         alpha=0.8, label=f"rerandomised, $p_a$={p_a}")
-ax1.set_xlabel("standardised imbalance in height")
-ax1.set_ylabel("density")
-ax1.set_title("Imbalance shrinks")
-ax1.set_ylim(0, 2.4)
-ax1.legend(loc="upper right", fontsize=8.5)
-
-# ---- empirical vs theoretical variance reduction ----
-pa_check = np.array([0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01])
-emp_ratio, n_acc = [], []
-for pa_ in pa_check:
-    acc_ = M_all <= stats.chi2.ppf(pa_, 2)
-    n_acc.append(int(acc_.sum()))
-    emp_ratio.append(float(np.mean(d_all[acc_].var(0) / d_all.var(0))))
-
-pa_fine = np.logspace(np.log10(0.008), np.log10(0.6), 200)
-v_fine = stats.chi2.cdf(stats.chi2.ppf(pa_fine, 2), 4) / pa_fine
-
-ax2.plot(pa_fine, v_fine, color=C["dark"], lw=2,
-         label="theory: $P(\\chi^2_{p+2}\\leq a)\\,/\\,p_a$")
-ax2.scatter(pa_check, emp_ratio, s=55, color=C["orange"], zorder=5,
-            edgecolor="white", lw=1.1, label="simulated (40,000 draws)")
-ax2.set_xscale("log")
-ax2.set_xlabel("acceptance probability $p_a$")
-ax2.set_ylabel("variance ratio  $v_a$")
-ax2.set_title("The formula, checked against simulation")
-ax2.set_ylim(0, 0.75)
-ax2.legend(loc="upper left", fontsize=8.5)
-
-fig.tight_layout()
-plt.show()
-
-v_a = stats.chi2.cdf(a_thr, 4) / stats.chi2.cdf(a_thr, 2)
-emp = d_all[accept].var(0) / d_all.var(0)
-print(f"at p_a = {p_a}:  theoretical v_a = {v_a:.4f}")
-print(f"             empirical: height {emp[0]:.4f}, weight {emp[1]:.4f}")
-print(f"\nso rerandomizing here removes "
-      f"{100 * (1 - v_a):.1f}% of the variance of every covariate mean difference,")
-print(f"at a cost of {1 / p_a:.0f} draws on average.")
-```
-
-### Doing it efficiently
-
-Inside a rerandomization loop you will evaluate $M$ hundreds of thousands of
-times, so it is worth not recomputing anything that does not change. Write
-$s_i = +1$ for treated and $-1$ for control, with $\sum_i s_i = 0$. Then
-$d = \frac{2}{N}\sum_i s_i x_i$, and substituting into $M$:
-
-::: {.keybox}
-$$
-M \;=\; \frac{1}{N}\Big\|\sum_{i=1}^{N} s_i z_i\Big\|^2,
-\qquad z_i = L^{-1}(x_i - \bar{x}), \quad S = LL^{\!\top}.
-$$
-:::
-
-Whiten the covariate matrix **once**, and every draw afterwards is a sum of
-rows and a squared norm — no linear solve, no covariance matrix.
-
-```{python}
-#| label: fast-path-check
-
-Z_rr = np.linalg.solve(np.linalg.cholesky(S_rr), (Xrr - Xrr.mean(0)).T).T
-M_fast = np.sum((s_mat @ Z_rr) ** 2, axis=1) / N
-print(f"max |M - M_fast| = {np.abs(M_all - M_fast).max():.3e}")
-```
-
-How much does it actually matter? Honest timings on a larger problem
-($N = 400$, $p = 8$, 20,000 draws), from the naive loop most people write first
-down to a fully vectorised version:
-
-```{python}
-#| label: tbl-timings
-
-import time
-
-N_b, p_b, B_b = 400, 8, 20_000
-Xb = rng.normal(size=(N_b, p_b)) @ rng.normal(size=(p_b, p_b)) + 3.0
-Sb = np.cov(Xb, rowvar=False, ddof=1)
-Sb_inv = np.linalg.inv(Sb)
-Zb = np.linalg.solve(np.linalg.cholesky(Sb), (Xb - Xb.mean(0)).T).T
-nTb = N_b // 2
-Zb_tot = Zb.sum(0)
-
-def loop_resolve():
-    out = np.empty(B_b)
-    for b in range(B_b):
-        m = np.zeros(N_b, bool); m[rng.permutation(N_b)[:nTb]] = True
-        d = Xb[m].mean(0) - Xb[~m].mean(0)
-        out[b] = (N_b / 4) * d @ np.linalg.solve(Sb, d)     # refactorises S!
-    return out
-
-def loop_precomputed():
-    out = np.empty(B_b)
-    for b in range(B_b):
-        m = np.zeros(N_b, bool); m[rng.permutation(N_b)[:nTb]] = True
-        d = Xb[m].mean(0) - Xb[~m].mean(0)
-        out[b] = (N_b / 4) * d @ Sb_inv @ d
-    return out
-
-def loop_whitened():
-    out = np.empty(B_b)
-    for b in range(B_b):
-        g = 2 * Zb[rng.permutation(N_b)[:nTb]].sum(0) - Zb_tot
-        out[b] = (g @ g) / N_b
-    return out
-
-def batched():
-    s = draw_splits(B_b, N_b, nTb, rng)
-    return np.sum((s @ Zb) ** 2, axis=1) / N_b
-
-timings = []
-for name, fn in [("loop, re-solves S each draw", loop_resolve),
-                 ("loop, precomputed inverse", loop_precomputed),
-                 ("loop, whitened Z", loop_whitened),
-                 ("fully vectorised on Z", batched)]:
-    t0 = time.perf_counter(); out = fn(); el = time.perf_counter() - t0
-    timings.append({"implementation": name, "ms for 20,000 draws": el * 1000,
-                    "mean M (should be ~8)": out.mean()})
-
-tdf = pd.DataFrame(timings)
-tdf["speed-up"] = tdf["ms for 20,000 draws"].iloc[0] / tdf["ms for 20,000 draws"]
-tdf.set_index("implementation").round(2)
-```
-
-The gains are real but moderate, because the dominant cost is forming the mean
-difference at all — that is $O(Np)$ per draw no matter what you do. The point of
-the whitened form is less that it is fast and more that it makes it *impossible*
-to accidentally refactorise $S$ inside the loop.
-
 ## Practical notes and failure modes
 
 **Singular or ill-conditioned $S$.** With $p$ close to $N$, exact collinearity,
 or full one-hot encodings, $S^{-1}$ does not exist. Use $S^{+}$ with an explicit
 tolerance, or drop columns until it is invertible. Watch `np.linalg.cond(S)`:
-once it passes roughly $10^{10}$, $M$ is being driven by directions in which the
-data barely varies, and those directions are usually noise rather than anything
-you care about balancing.
+once it passes roughly $10^{10}$, $D^2$ is being driven by directions in which
+the data barely varies, and those directions are usually noise.
 
-**Redundancy is free, but only statistically.** As the redundancy figure showed,
-adding correlated covariates does not upweight them. It does, however, raise
-$p$, which shrinks the variance reduction $v_a$ available at any acceptance
-rate, and it worsens the conditioning of $S$. So it is cheap to include a
-correlated covariate, not free.
+**Redundancy is free, but only statistically.** Adding correlated covariates
+does not upweight them. It does worsen the conditioning of $S$, and it raises
+$p$, which matters as soon as you start comparing $D^2$ against a $\chi^2_p$
+reference.
 
 **Rare categorical levels.** $(1-p_k)/p_k$ grows without bound. Collapse levels
-below a few percent, or the criterion will quietly become a criterion about
-that one level.
+below a few percent, or the metric will quietly become a metric about that one
+level.
 
-**Every covariate is treated as equally important.** $M$ is invariant to
+**Every covariate is treated as equally important.** $D^2$ is invariant to
 rescaling, which is a virtue for units and a limitation for priorities: it has
 no way to know that the baseline outcome measurement matters more than the
-recruitment site. If some covariates genuinely matter more, use tiered
-rerandomization (Morgan and Rubin, 2015), which applies separate thresholds to
-groups of covariates in order of importance.
-
-**Feasibility at small $N$.** There are only $\binom{N}{N/2}$ distinct equal
-splits. That is astronomically large for $N = 200$, but for $N = 20$ it is
-184,756, and an acceptance rate of $10^{-6}$ is then not merely slow but
-impossible. Check $p_a \binom{N}{N/2} \gg 1$.
+recruitment site.
 
 **Outliers inflate $S$.** The covariance is estimated from the same data you are
-splitting, so a handful of extreme units widen the ellipse and make everything
-look better balanced than it is. Look at your covariates before trusting the
-metric.
-
-**Keep the accepted split reproducible.** Record the seed, the covariate matrix,
-the encoding, and the threshold. Because $S$ is computed from the data at hand,
-a change in the covariate set changes the metric and therefore the accepted
-split.
+measuring against, so a handful of extreme units widen the ellipse and make
+everything look closer to the centre than it is. Look at your covariates before
+trusting the metric.
 
 ## References
 
 - Mahalanobis, P. C. (1936). On the generalised distance in statistics.
   *Proceedings of the National Institute of Sciences of India*, 2(1), 49–55.
-- Morgan, K. L. and Rubin, D. B. (2012).
-  [Rerandomization to improve covariate balance in experiments](https://doi.org/10.1214/12-AOS1008).
-  *The Annals of Statistics*, 40(2), 1263–1282.
-- Morgan, K. L. and Rubin, D. B. (2015).
-  [Rerandomization to balance tiers of covariates](https://doi.org/10.1080/01621459.2015.1079528).
-  *Journal of the American Statistical Association*, 110(512), 1412–1421.
-- Li, X., Ding, P. and Rubin, D. B. (2018).
-  [Asymptotic theory of rerandomization in treatment–control experiments](https://doi.org/10.1073/pnas.1808191115).
-  *PNAS*, 115(37), 9157–9162.
 - Rubin, D. B. (1976). Multivariate matching methods that are equal percent bias
   reducing. *Biometrics*, 32(1), 109–120.
