@@ -61,6 +61,22 @@ at once: it centres, it rescales, and it removes correlation. Most of the
 confusion around it comes from the fact that those three jobs are collapsed
 into a single matrix product. This article pulls them apart.
 
+Here is the formula. For a point $x$, a mean vector $\mu$ and a covariance
+matrix $\Sigma$, the **squared Mahalanobis distance** is
+
+::: {.keybox}
+$$
+D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{\!\top}\,\Sigma^{-1}\,(x-\mu),
+\qquad D = \sqrt{D^2}.
+$$
+:::
+
+Read it left to right: $(x-\mu)$ centres, $\Sigma^{-1}$ divides by the
+covariance — the matrix version of dividing by the variance — and the two copies
+of $(x-\mu)$ square the result, so $D^2 \ge 0$. If $\Sigma$ is the identity this
+is ordinary squared Euclidean distance. If $\Sigma$ is diagonal it is a sum of
+squared z-scores. Everything interesting comes from the off-diagonal entries.
+
 The payoff — using the distance to split a sample into two balanced halves — is
 in [Rerandomization](../rerandomization/).
 
@@ -106,16 +122,9 @@ Compare the two exponents:
 | "divide by the variance" | $(\sigma^2)^{-1}$                   | $\Sigma^{-1}$ (a matrix)                 |
 | squared distance         | $\dfrac{(x-\mu)^2}{\sigma^2}$       | $(x-\mu)^{\!\top}\Sigma^{-1}(x-\mu)$     |
 
-The quadratic form $(x-\mu)^{\top}\Sigma^{-1}(x-\mu)$ *is* the squared z-score,
-generalised. It is the **squared Mahalanobis distance**:
-
-::: {.keybox}
-$$
-D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{\!\top}\,\Sigma^{-1}\,(x-\mu),
-\qquad
-D(x;\mu,\Sigma) = \sqrt{D^2}.
-$$
-:::
+So the quadratic form from the top of the article *is* the squared z-score,
+generalised — and it is the exponent of the multivariate normal density, exactly
+as $z^2$ is the exponent of the univariate one.
 
 Two consequences, both of which matter later:
 
@@ -323,11 +332,27 @@ no matter how many of them you add.
 
 ## Categorical features
 
+Everything so far assumed continuous covariates. Categorical ones need one extra
+step, and it is the step people most often get wrong.
+
+Throughout this section the running example is a fourth covariate alongside
+`age`, `height_cm` and `weight_kg`: a **recruitment region** with $K = 4$
+levels, `north`, `south`, `east` and `west`, occurring with prevalences
+
+$$
+p = (0.50,\; 0.30,\; 0.15,\; 0.05).
+$$
+
+The names carry no meaning — they are just four labels. What matters is the
+shape of that vector: one dominant level, two middling ones, and one deliberately
+rare level at 5%, because the rare level is where the interesting behaviour is.
+Below, 50,000 units are drawn from it.
+
 ### Why full one-hot encoding breaks $\Sigma^{-1}$
 
-Take a categorical `region` with $K = 4$ levels and encode it as four indicator
-columns. Every row of that block sums to exactly one, which is a linear
-dependency, and after centring it becomes
+Encode `region` as four indicator (dummy) columns, one per level, each equal to
+1 if the unit is in that level and 0 otherwise. Every row of that block sums to
+exactly one, which is a linear dependency, and after centring it becomes
 
 $$
 \mathbf{1}^{\!\top} \tilde{d}_i = \mathbf{1}^{\!\top}(d_i - \hat{p}) = 1 - 1 = 0
@@ -384,19 +409,91 @@ Since all the centred data already lives in that row space, nothing is lost.
 
 ### The two fixes give the same answer
 
-They are not two approximations to be traded off — they are the same number.
-Dropping a baseline is an invertible linear map on the $(K-1)$-dimensional
-subspace where the centred data lives, and the Mahalanobis distance is
-unchanged by any invertible linear reparameterisation: replace $x$ by $Ax + b$,
-and $\Sigma$ becomes $A\Sigma A^{\top}$, so
+::: {.keybox}
+**Fix A and Fix B are not two approximations to trade off. They give exactly the
+same $D^2$ — and it does not matter which level you drop.**
+:::
+
+The reason in one sentence: the two encodings hold identical information in
+different coordinates (given any three of the four dummies, the fourth is
+determined), and the Mahalanobis distance is unchanged when you re-express the
+same information in different coordinates.
+
+That last property is worth naming, because it is used again and again:
+
+::: {.keybox}
+**Affine invariance.** Replace $x$ by $Ax+b$ for any invertible matrix $A$. Then
+$\mu$ becomes $A\mu + b$ and $\Sigma$ becomes $A\Sigma A^{\top}$, and $D^2$ does
+not change at all.
+:::
+
+It is why you never have to standardise your covariates first, why centimetres
+and inches give the same answer, and why the encoding choice here is free.
+
+::: {.callout-note collapse="true"}
+## Proof: why the two encodings agree
+
+**Step 1 — affine invariance.** Substitute $y = Ax+b$, $\mu_y = A\mu+b$,
+$\Sigma_y = A\Sigma A^{\top}$ into the formula. The $b$ cancels in the
+difference, $y - \mu_y = A(x-\mu)$, and $(A\Sigma A^{\top})^{-1}
+= A^{-\top}\Sigma^{-1}A^{-1}$, so
 
 $$
-(Ax+b-A\mu-b)^{\!\top}(A\Sigma A^{\!\top})^{-1}(Ax+b-A\mu-b)
+(y-\mu_y)^{\!\top}\Sigma_y^{-1}(y-\mu_y)
+= (x-\mu)^{\!\top}\underbrace{A^{\!\top}A^{-\top}}_{I}\Sigma^{-1}
+  \underbrace{A^{-1}A}_{I}(x-\mu)
 = (x-\mu)^{\!\top}\Sigma^{-1}(x-\mu).
 $$
 
-So the two fixes must agree — and it also means **it does not matter which level
-you drop**.
+The rescaling built into $\Sigma^{-1}$ exactly undoes whatever $A$ did. This is
+the same reason a $t$-statistic does not care what units you measure in.
+
+**Step 2 — the data only occupies $K-1$ dimensions.** Write $\tilde d_i =
+d_i - \hat p$ for the centred one-hot row of unit $i$. Since the dummies sum to
+1 and the prevalences sum to 1, $\mathbf 1^{\top}\tilde d_i = 1 - 1 = 0$ for
+*every* unit. So all the centred data lies in the flat
+$V = \{v : \mathbf 1^{\top}v = 0\}$, which has $K-1$ dimensions, not $K$. The
+$K$-column encoding is a $K$-dimensional description of a $(K-1)$-dimensional
+object — which is precisely why $\Sigma$ is singular.
+
+**Step 3 — both fixes work inside $V$.** Dropping a baseline picks $K-1$
+coordinates, and that is an invertible relabelling *of $V$*: from any three
+dummies you recover the fourth as $1$ minus their sum. By Step 1, $D^2$ is
+unchanged. The pseudo-inverse $\Sigma^{+}$ is *defined* as the inverse of
+$\Sigma$ restricted to the directions the data actually occupies — which is
+$V$ again. Both routes invert the same operator on the same space, so both
+return the same number.
+
+**The binary case, in full.** With $K=2$ and $p = (p, 1-p)$, everything is
+scalar. A unit in level 1 has centred one-hot vector $(1-p,\,-(1-p))$, and
+$$
+\Sigma = \operatorname{diag}(p) - pp^{\!\top}
+       = p(1-p)\begin{pmatrix}1 & -1\\ -1 & 1\end{pmatrix}.
+$$
+
+*Fix B* (all $K$ columns, pseudo-inverse), using the identity from the next
+subsection:
+$$
+D^2 = \frac{(1-p)^2}{p} + \frac{(1-p)^2}{1-p}
+    = \frac{(1-p)^2}{p} + (1-p)
+    = (1-p)\left[\frac{1-p}{p} + 1\right] = \frac{1-p}{p}.
+$$
+
+*Fix A* (drop level 2). One column remains: a Bernoulli$(p)$ indicator with
+variance $p(1-p)$, and the unit sits $1-p$ above its mean. So
+$$
+D^2 = \frac{(1-p)^2}{p(1-p)} = \frac{1-p}{p}.
+$$
+
+Identical, and neither required a matrix.
+:::
+
+The table below computes $D^2$ six different ways for each level. Every row is
+one level of `region`; every numeric column is the squared Mahalanobis distance
+of a single unit belonging to that level, measured from the overall mean. The
+columns are: the prevalence $\hat p$; Fix B, using the pseudo-inverse on all
+four dummies; then Fix A four times over, dropping each level in turn as the
+baseline; and finally the closed form $(1-p_k)/p_k$ derived below.
 
 ```{python}
 #| label: tbl-categorical-equivalence
@@ -407,21 +504,25 @@ S_pinv = np.linalg.pinv(S_full, rcond=TOL)
 rows = []
 for k, lev in enumerate(levels):
     v_full = np.eye(4)[k] - p_hat
-    row = {"level": lev, "p_hat": p_hat[k],
-           "pseudo-inverse": float(v_full @ S_pinv @ v_full)}
+    row = {"level": lev,
+           "prevalence p": p_hat[k],
+           "Fix B: pseudo-inv": float(v_full @ S_pinv @ v_full)}
     for drop in range(4):
         keep = [j for j in range(4) if j != drop]
         Dr = Dfull[:, keep]
         Sr = np.cov(Dr, rowvar=False, bias=True)
         vr = np.eye(4)[k][keep] - Dr.mean(0)
-        row[f"drop {levels[drop]}"] = float(vr @ np.linalg.solve(Sr, vr))
-    row["(1 - p) / p"] = float((1 - p_hat[k]) / p_hat[k])
+        row[f"Fix A: base={levels[drop]}"] = float(vr @ np.linalg.solve(Sr, vr))
+    row["closed form (1-p)/p"] = float((1 - p_hat[k]) / p_hat[k])
     rows.append(row)
 
 pd.DataFrame(rows).set_index("level").round(4)
 ```
 
-Every column of that table is identical, to about fourteen digits.
+Read across any row: the six $D^2$ columns are identical, to about fourteen
+digits. Read down the last column: a unit from `west` (5% prevalence) sits at
+$D^2 \approx 19$, while a unit from `north` (50%) sits at $D^2 \approx 1$ — the
+subject of the next subsection.
 
 ::: {.callout-warning}
 ## Set an explicit tolerance on `pinv`
@@ -458,34 +559,101 @@ encoding, where the problem cannot arise at all.
 
 ### The closed form, and why rare levels are dangerous
 
-For a single categorical the covariance is $\Sigma = \mathrm{diag}(p) - pp^{\top}$,
-and for any contrast $v$ with $\mathbf{1}^{\top}v = 0$ there is a clean identity.
-Set $u = \mathrm{diag}(1/p)\,v$; then
-$\Sigma u = p \odot u - p\,(p^{\top}u) = v - p\,(\mathbf{1}^{\top}v) = v$, so $u$
-solves $\Sigma u = v$, and any other solution differs by a multiple of
-$\mathbf{1}$, which is annihilated by $v^{\top}$. Hence
+For a single categorical you never need a matrix at all. There are two results,
+and the second is the one that will bite you.
 
 ::: {.keybox}
+**1. The distance is a Pearson chi-square.** For any difference vector $v$
+whose entries sum to zero,
 $$
-v^{\!\top}\Sigma^{+}v \;=\; \sum_{j=1}^{K}\frac{v_j^2}{p_j}
-\qquad\text{whenever}\qquad \sum_j v_j = 0 .
+v^{\!\top}\Sigma^{+}v \;=\; \sum_{j=1}^{K}\frac{v_j^2}{p_j}.
+$$
+
+**2. A single unit's distance depends only on its own level's prevalence.** For
+a unit in level $k$,
+$$
+D^2 \;=\; \frac{1 - p_k}{p_k}.
 $$
 :::
 
-That is exactly the Pearson chi-square form. Two special cases are worth
-keeping in your head:
+The entries of $v$ always sum to zero here, because both one-hot vectors and
+proportion vectors sum to 1, so their difference sums to 0. Two cases matter:
 
-- A unit in level $k$ has $v = e_k - p$, giving
-  $$D^2 = \frac{(1-p_k)^2}{p_k} + \sum_{j \neq k}\frac{p_j^2}{p_j}
-        = \frac{(1-p_k)^2}{p_k} + (1 - p_k) = \frac{1 - p_k}{p_k}.$$
-- For a difference in *proportions* between two groups,
-  $v = \hat{p}_T - \hat{p}_C$, and $D^2 = \sum_j (\hat p_{Tj} - \hat p_{Cj})^2 / p_j$
-  — a chi-square statistic on the group-by-level table. This is the form that
-  shows up when you balance a categorical covariate across arms.
+- **One unit versus the population**: $v = e_k - p$, which gives result 2.
+- **One group versus another**: $v = \hat p_T - \hat p_C$, giving
+  $D^2 = \sum_j (\hat p_{Tj} - \hat p_{Cj})^2 / p_j$ — literally a chi-square
+  statistic on the group-by-level table. This is the form that appears when you
+  balance a categorical covariate across two arms.
 
-The first identity is the warning. A level with $p_k = 0.05$ contributes
-$D^2 = 19$ all by itself, while $p_k = 0.5$ contributes $1$. Rare levels
-dominate the metric.
+::: {.callout-note collapse="true"}
+## Proof: both identities, step by step
+
+**The covariance of a set of dummies.** Let $d$ be the one-hot vector, so
+$d_j \in \{0,1\}$ and $\mathbb{E}[d_j] = p_j$. Each dummy is Bernoulli, so
+$\operatorname{Var}(d_j) = p_j(1-p_j)$; and two distinct dummies can never both
+be 1, so $\mathbb{E}[d_jd_k] = 0$ and
+$\operatorname{Cov}(d_j,d_k) = -p_jp_k$ for $j \neq k$. Collecting these,
+
+$$
+\Sigma = \operatorname{diag}(p) - pp^{\!\top}.
+$$
+
+**Result 1.** We need $\Sigma^{+}v$, which means solving $\Sigma u = v$. Rather
+than inverting anything, guess
+
+$$
+u = \left(\frac{v_1}{p_1},\ \frac{v_2}{p_2},\ \dots,\ \frac{v_K}{p_K}\right)
+  = \operatorname{diag}(1/p)\,v,
+$$
+
+and check it. The $j$-th entry of $\Sigma u$ is
+
+$$
+(\Sigma u)_j = p_j u_j - p_j\!\sum_k p_k u_k
+             = v_j - p_j\!\sum_k p_k \frac{v_k}{p_k}
+             = v_j - p_j\underbrace{\sum_k v_k}_{=\,0}
+             = v_j .
+$$
+
+So the guess is a solution — and this is exactly where the "entries sum to zero"
+condition earns its keep.
+
+The solution is not unique: $\Sigma\mathbf 1 = p - p(p^{\top}\mathbf 1) = 0$, so
+you can add any multiple of $\mathbf 1$ to $u$. But that does not matter,
+because we only ever use $u$ inside $v^{\top}u$, and
+
+$$
+v^{\!\top}(u + c\mathbf 1) = v^{\!\top}u + c\underbrace{\sum_j v_j}_{=\,0}
+                           = v^{\!\top}u .
+$$
+
+Every valid solution gives the same answer, so
+
+$$
+v^{\!\top}\Sigma^{+}v = v^{\!\top}u = \sum_j v_j \cdot \frac{v_j}{p_j}
+                      = \sum_j \frac{v_j^2}{p_j}. \qquad \blacksquare
+$$
+
+**Result 2.** Put $v = e_k - p$, so $v_k = 1 - p_k$ and $v_j = -p_j$ for
+$j \neq k$. Substituting into Result 1 and splitting off the $k$-th term:
+
+$$
+D^2 = \frac{(1-p_k)^2}{p_k} + \sum_{j \neq k}\frac{(-p_j)^2}{p_j}
+    = \frac{(1-p_k)^2}{p_k} + \sum_{j \neq k} p_j .
+$$
+
+The remaining sum is just $1 - p_k$, since all $K$ prevalences sum to 1. Factor
+it out:
+
+$$
+D^2 = (1-p_k)\left[\frac{1-p_k}{p_k} + 1\right]
+    = (1-p_k)\cdot\frac{1-p_k+p_k}{p_k}
+    = \frac{1-p_k}{p_k}. \qquad \blacksquare
+$$
+:::
+
+Result 2 is the warning. A level with $p_k = 0.05$ contributes $D^2 = 19$ all by
+itself, while $p_k = 0.5$ contributes $1$. Rare levels dominate the metric.
 
 ```{python}
 #| label: fig-rare-levels
