@@ -71,62 +71,106 @@ D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{\!\top}\,\Sigma^{-1}\,(x-\mu),
 $$
 :::
 
-Read it left to right: $(x-\mu)$ centres, $\Sigma^{-1}$ divides by the
-covariance — the matrix version of dividing by the variance — and the two copies
-of $(x-\mu)$ square the result, so $D^2 \ge 0$. If $\Sigma$ is the identity this
-is ordinary squared Euclidean distance. If $\Sigma$ is diagonal it is a sum of
-squared z-scores. Everything interesting comes from the off-diagonal entries.
+If you looked at that and thought *"that's the term that depends on $x$ in the
+multivariate normal density"*, skip the next box — you already have it. If you
+looked at it and thought *"I have very little idea what that means"*, the box is
+for you.
 
-The payoff — using the distance to split a sample into two balanced halves — is
-in [Rerandomization](../rerandomization/).
+::: {.callout-tip collapse="true"}
+## New to this? Build the formula up from the z-score
 
-## From the z-score to the quadratic form
+Nothing here is needed later on; it is the same formula, arrived at slowly.
 
-### One dimension
-
-Start with something familiar. For a single variable with mean $\mu$ and
-standard deviation $\sigma$, the z-score is
+**One variable.** Suppose heights have mean $\mu = 170$ cm and standard
+deviation $\sigma = 10$ cm. Someone 190 cm tall is 20 cm above average, which is
+2 standard deviations. That is the **z-score**:
 
 $$
-z = \frac{x - \mu}{\sigma},
+z = \frac{x - \mu}{\sigma} = \frac{190 - 170}{10} = 2 .
 $$
 
-and the univariate normal density is
+The point of dividing by $\sigma$ is that it makes the number *unitless*, so
+"2 standard deviations out" means the same thing for heights in centimetres and
+for incomes in pounds. Squaring it gives an unsigned measure of unusualness:
+
+$$
+z^2 = \frac{(x-\mu)^2}{\sigma^2} = (x-\mu)\,(\sigma^2)^{-1}\,(x-\mu) .
+$$
+
+That last way of writing it looks perverse, but it is the form that generalises:
+*deviation, times one-over-the-variance, times deviation.*
+
+Now look at where $z^2$ shows up. The normal density is
 
 $$
 f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}
        \exp\!\left(-\tfrac{1}{2}\,\frac{(x-\mu)^2}{\sigma^2}\right)
-     = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\!\left(-\tfrac{1}{2} z^2\right).
+     = \underbrace{\frac{1}{\sqrt{2\pi\sigma^2}}}_{\text{a constant}}
+       \exp\!\left(-\tfrac{1}{2} z^2\right).
 $$
 
-The only place $x$ appears is inside $z^2 = (x-\mu)\,(\sigma^2)^{-1}\,(x-\mu)$.
-That is the whole story: **the density depends on $x$ only through a squared,
-variance-adjusted deviation from the mean.** Everything else is a normalising
-constant.
+The only place $x$ appears at all is inside $z^2$. Everything else is a
+normalising constant that makes the curve integrate to 1. So **how likely a
+point is depends on it only through $z^2$** — through its squared,
+variance-adjusted distance from the mean.
 
-### Many dimensions
+**Several variables.** Now each observation is a list of numbers — say
+$x = (\text{age},\ \text{height},\ \text{weight})$ — so $x$ and $\mu$ are
+vectors with $p = 3$ entries.
 
-Now let $x \in \mathbb{R}^p$ have mean vector $\mu$ and covariance matrix
-$\Sigma$. The multivariate normal density is
+The single variance $\sigma^2$ has to become something richer, because there are
+now two kinds of information: how much each variable varies on its own, and
+whether variables move together. That object is the **covariance matrix**
+$\Sigma$, a $p \times p$ table whose diagonal entry $\Sigma_{jj}$ is the
+variance of variable $j$, and whose off-diagonal entry $\Sigma_{jk}$ is the
+covariance between variables $j$ and $k$ — positive if they tend to be large
+together, zero if they are unrelated.
+
+Dividing by a matrix is not defined, but *multiplying by its inverse* is, and
+$\Sigma^{-1}$ is the matrix that plays the role $1/\sigma^2$ played before.
+(Concretely: for one variable, $\Sigma$ is the $1\times1$ matrix $[\sigma^2]$
+and $\Sigma^{-1}$ is $[1/\sigma^2]$, so the one-variable case really is a
+special case, not an analogy.)
+
+Make those two substitutions in $(x-\mu)(\sigma^2)^{-1}(x-\mu)$ and you get
+
+$$
+(x-\mu)^{\!\top}\,\Sigma^{-1}\,(x-\mu),
+$$
+
+where the $^{\top}$ ("transpose") just turns the first column of numbers on its
+side so the multiplication is legal. The result is a single number, not a
+vector or a matrix.
+
+And this expression sits in exactly the same place in the multivariate normal
+density that $z^2$ sat in the univariate one:
 
 $$
 f(x) = \frac{1}{(2\pi)^{p/2}\,|\Sigma|^{1/2}}
        \exp\!\left(-\tfrac{1}{2}\,(x-\mu)^{\!\top}\Sigma^{-1}(x-\mu)\right).
 $$
 
-Compare the two exponents:
+Side by side:
 
-|                          | univariate                          | multivariate                             |
+|                          | one variable                        | several variables                        |
 |--------------------------|-------------------------------------|------------------------------------------|
-| deviation                | $x - \mu$                           | $x - \mu$ (a vector)                     |
+| deviation                | $x - \mu$ (a number)                | $x - \mu$ (a vector)                     |
 | "divide by the variance" | $(\sigma^2)^{-1}$                   | $\Sigma^{-1}$ (a matrix)                 |
 | squared distance         | $\dfrac{(x-\mu)^2}{\sigma^2}$       | $(x-\mu)^{\!\top}\Sigma^{-1}(x-\mu)$     |
+| appears in the density as| $\exp(-\tfrac12 z^2)$               | $\exp(-\tfrac12 D^2)$                    |
 
-So the quadratic form from the top of the article *is* the squared z-score,
-generalised — and it is the exponent of the multivariate normal density, exactly
-as $z^2$ is the exponent of the univariate one.
+So the Mahalanobis distance is the squared z-score, generalised to several
+variables at once — and the generalisation is forced, not chosen: it is
+whatever has to sit in the exponent of the multivariate normal.
+:::
 
-Two consequences, both of which matter later:
+Read the formula left to right: $(x-\mu)$ centres, $\Sigma^{-1}$ divides by the
+covariance, and the two copies of $(x-\mu)$ square the result, so $D^2 \ge 0$.
+If $\Sigma$ is the identity this is ordinary squared Euclidean distance. If
+$\Sigma$ is diagonal it is a sum of squared z-scores. Everything interesting
+comes from the off-diagonal entries.
+
+Two properties matter throughout what follows:
 
 1. **Contours of constant density are contours of constant $D$.** Since $D^2$
    is the only place $x$ enters the density, the set $\{x : D(x) = c\}$ is an
@@ -136,7 +180,10 @@ Two consequences, both of which matter later:
    distance into a probability, and it is why you can pick a rerandomization
    threshold with a known acceptance rate.
 
-### What the matrix product is doing
+The payoff — using the distance to split a sample into two balanced halves — is
+in [Rerandomization](../rerandomization/).
+
+## What the matrix product is doing
 
 $\Sigma$ is symmetric and positive definite, so it has a symmetric square root
 $\Sigma^{1/2}$, and $\Sigma^{-1} = \Sigma^{-1/2}\Sigma^{-1/2}$. Substituting

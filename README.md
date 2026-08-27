@@ -30,28 +30,45 @@ python -m venv .venv
 
 ## Building
 
-Quarto needs to be pointed at the virtual environment, otherwise it will pick up
-whatever Python is first on `PATH`:
+Quarto has to use the virtual environment, otherwise it picks up whatever Python
+is first on `PATH`. The simplest way is to activate the venv once per terminal
+session — after that, plain `quarto` commands do the right thing.
 
-```bash
-QUARTO_PYTHON=.venv/Scripts/python.exe quarto render
-```
-
-On Windows PowerShell:
+PowerShell:
 
 ```powershell
-$env:QUARTO_PYTHON = ".venv\Scripts\python.exe"; quarto render
+.\.venv\Scripts\Activate.ps1
+quarto render
+```
+
+bash / macOS / Linux:
+
+```bash
+source .venv/bin/activate
+quarto render
+```
+
+To preview locally while editing — this serves the site and re-renders on every
+save, which is the way to work on an article:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+quarto preview
+```
+
+Press Ctrl+C to stop it.
+
+If you would rather not activate, set the variable instead. Note that the
+bash-style `VAR=value command` prefix is **not** valid PowerShell syntax:
+
+```powershell
+$env:QUARTO_PYTHON = ".venv\Scripts\python.exe"
+quarto render
 ```
 
 Output goes to `docs/`, which **is** committed — GitHub Pages serves the site
-from `main` / `docs`. Configure this once under *Settings → Pages → Build and
-deployment → Deploy from a branch → main / docs*.
-
-To preview locally while editing:
-
-```bash
-QUARTO_PYTHON=.venv/Scripts/python.exe quarto preview
-```
+from `main` / `docs`, configured under *Settings → Pages → Build and deployment
+→ Deploy from a branch → main / docs*.
 
 ## Notes
 
