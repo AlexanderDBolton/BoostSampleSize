@@ -233,7 +233,11 @@ for ax, (title, pts_, f_, lab, centre) in zip(axes, steps):
     ax.scatter(*f_, s=62, color=C["red"], zorder=4, edgecolor="white", lw=0.9)
     ax.set_title(f"{title}    {lab}")
     if title == "3. whitened":
-        ax.set_aspect("equal")
+        # Equal aspect so the whitened cloud really looks spherical and the
+        # rings really look circular. adjustable="datalim" widens the x range
+        # to achieve that instead of shrinking the axes box, so this panel
+        # keeps the same landscape frame as the two above it.
+        ax.set_aspect("equal", adjustable="datalim")
         for r in [1, 2, 3]:
             ax.add_patch(plt.Circle((0, 0), r, fill=False, ls="--",
                                     color=C["dark"], lw=1.0, alpha=0.7))
@@ -439,66 +443,47 @@ $D^2$ is unchanged by any invertible linear reparameterisation of the
 covariates. That same property is why you never have to standardise your columns
 first, and why centimetres and inches give the same answer.
 
-The table below shows it. Every row is one level of `region`; every numeric
-column is the squared Mahalanobis distance of a single unit belonging to that
-level, measured from the overall mean. The columns are: the prevalence
-$\hat p$; Fix B, using the pseudo-inverse on all four dummies; then Fix A four
-times over, dropping each level in turn as the baseline; and finally the closed
-form $(1-p_k)/p_k$.
+So pick on convenience.
+
+**Drop a baseline** if you want a well-conditioned, genuinely invertible $S$ and
+a Cholesky factor you can reuse — which is what you want inside a
+rerandomization loop. This is the default I would reach for.
+
+**Use the pseudo-inverse** if you would rather not choose reference levels, if
+you are handling several categoricals programmatically, or if $S$ may be
+singular for other reasons anyway: more covariates than units, an all-constant
+column, a covariate that is an exact linear combination of others. Just set
+`rcond` explicitly — see [Practical notes](#practical-notes-and-failure-modes).
+
+Both methods, end to end, for a unit from `west`:
 
 ```{python}
-#| label: tbl-categorical-equivalence
+#| label: categorical-both-methods
 
 levels = ["north", "south", "east", "west"]
 p_true = np.array([0.50, 0.30, 0.15, 0.05])
-n_cat  = 50_000
+TOL    = 1e-10                  # never rely on pinv's default; see the notes
 
-lev_idx = rng.choice(4, size=n_cat, p=p_true)
-Dfull   = np.eye(4)[lev_idx]                 # full one-hot, all K columns
-p_hat   = Dfull.mean(0)
-S_full  = np.cov(Dfull, rowvar=False, bias=True)   # singular by construction
+region = rng.choice(4, size=50_000, p=p_true)
+unit   = 3                      # the unit whose distance we want: 'west'
 
-TOL = 1e-10                        # never rely on pinv's default; see the notes
-S_pinv = np.linalg.pinv(S_full, rcond=TOL)
+# ---- Fix A: drop a baseline (north) -------------------------------------
+X_a    = np.eye(4)[region][:, 1:]        # south, east, west; north is implied
+S_a    = np.cov(X_a, rowvar=False, bias=True)
+d_a    = np.eye(4)[unit][1:] - X_a.mean(0)
+D2_a   = d_a @ np.linalg.solve(S_a, d_a)
 
-rows = []
-for k, lev in enumerate(levels):
-    v_full = np.eye(4)[k] - p_hat
-    row = {"level": lev,
-           "prevalence p": p_hat[k],
-           "Fix B: pseudo-inv": float(v_full @ S_pinv @ v_full)}
-    for drop in range(4):
-        keep = [j for j in range(4) if j != drop]
-        Dr = Dfull[:, keep]
-        Sr = np.cov(Dr, rowvar=False, bias=True)
-        vr = np.eye(4)[k][keep] - Dr.mean(0)
-        row[f"Fix A: base={levels[drop]}"] = float(vr @ np.linalg.solve(Sr, vr))
-    row["closed form (1-p)/p"] = float((1 - p_hat[k]) / p_hat[k])
-    rows.append(row)
+# ---- Fix B: keep all four levels, use the pseudo-inverse ----------------
+Dfull  = np.eye(4)[region]
+S_full = np.cov(Dfull, rowvar=False, bias=True)     # singular by construction
+p_hat  = Dfull.mean(0)
+d_b    = np.eye(4)[unit] - p_hat
+D2_b   = d_b @ np.linalg.pinv(S_full, rcond=TOL) @ d_b
 
-pd.DataFrame(rows).set_index("level").round(4)
+print(f"Fix A, baseline = north : D^2 = {D2_a:.10f}")
+print(f"Fix B, pseudo-inverse   : D^2 = {D2_b:.10f}")
+print(f"difference              : {abs(D2_a - D2_b):.2e}")
 ```
-
-Read across any row: the six $D^2$ columns are identical, to about fourteen
-digits. Read down the last column: a unit from `west` (5% prevalence) sits at
-$D^2 \approx 19$, while a unit from `north` (50%) sits at $D^2 \approx 1$. That
-closed form, and what it does to rare levels, is covered in
-[Practical notes](#practical-notes-and-failure-modes).
-
-::: {.callout-tip}
-## Which fix should you use?
-
-They give identical answers, so pick on convenience.
-
-- **Drop a baseline** if you want a well-conditioned, genuinely invertible $S$
-  and a Cholesky factor you can reuse (which is what you want inside a
-  rerandomization loop). This is the default I would reach for.
-- **Use the pseudo-inverse** if you would rather not choose reference levels,
-  if you are handling several categoricals programmatically, or if $S$ may be
-  singular for other reasons anyway — more covariates than units, an
-  all-constant column, a covariate that is an exact linear combination of
-  others. Just set `rcond` explicitly — see the notes at the end.
-:::
 
 ### Mixing continuous and categorical covariates
 
