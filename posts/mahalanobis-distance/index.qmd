@@ -1,9 +1,8 @@
 ---
 title: "The Mahalanobis distance"
 description: >
-  What the quadratic form actually does, why correlated columns stop being
-  double-counted, and how to handle categorical features without a singular
-  covariance matrix.
+  A description, an explanation of how it handles correlated columns, and how to
+  handle categorical features.
 date: 2026-08-24
 order: 1
 categories: [distance, covariance]
@@ -56,12 +55,10 @@ C = {
 }
 ```
 
-The Mahalanobis distance is a one-line formula that quietly does three things
-at once: it centres, it rescales, and it removes correlation. Most of the
-confusion around it comes from the fact that those three jobs are collapsed
-into a single matrix product. This article pulls them apart.
+The Mahalanobis distance is a one-line formula that does three things
+at once: it centres, it rescales, and it removes correlation.
 
-Here is the formula. For a point $x$, a mean vector $\mu$ and a covariance
+For a point $x$, a mean vector $\mu$ and a covariance
 matrix $\Sigma$, the **squared Mahalanobis distance** is
 
 ::: {.keybox}
