@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="dcterms.date" content="2026-08-24">
-<meta name="description" content="What the quadratic form actually does, why correlated columns stop being double-counted, and how to handle categorical features without a singular covariance matrix.">
+<meta name="description" content="A description, an explanation of how it handles correlated columns, and how to handle categorical features.">
 
 <title>The Mahalanobis distance – BoostSampleSize</title>
 <style>
@@ -221,7 +221,7 @@ window.Quarto = {
 
 <div>
   <div class="description">
-    <p>What the quadratic form actually does, why correlated columns stop being double-counted, and how to handle categorical features without a singular covariance matrix.</p>
+    <p>A description, an explanation of how it handles correlated columns, and how to handle categorical features.</p>
   </div>
 </div>
 
@@ -244,8 +244,8 @@ window.Quarto = {
 </header>
 
 
-<p>The Mahalanobis distance is a one-line formula that quietly does three things at once: it centres, it rescales, and it removes correlation. Most of the confusion around it comes from the fact that those three jobs are collapsed into a single matrix product. This article pulls them apart.</p>
-<p>Here is the formula. For a point <span class="math inline">\(x\)</span>, a mean vector <span class="math inline">\(\mu\)</span> and a covariance matrix <span class="math inline">\(\Sigma\)</span>, the <strong>squared Mahalanobis distance</strong> is</p>
+<p>The Mahalanobis distance is a one-line formula that does three things at once: it centres, it rescales, and it removes correlation.</p>
+<p>For a point <span class="math inline">\(x\)</span>, a mean vector <span class="math inline">\(\mu\)</span> and a covariance matrix <span class="math inline">\(\Sigma\)</span>, the <strong>squared Mahalanobis distance</strong> is</p>
 <div class="keybox">
 <p><span class="math display">\[
 D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{\!\top}\,\Sigma^{-1}\,(x-\mu),
@@ -1264,637 +1264,634 @@ region correlated with age   : actual 20.272   closed form 19.263</code></pre>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "The Mahalanobis distance"</span></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> &gt;</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">  What the quadratic form actually does, why correlated columns stop being</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">  double-counted, and how to handle categorical features without a singular</span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co">  covariance matrix.</span></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> 2026-08-24</span></span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="an">order:</span><span class="co"> 1</span></span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="an">categories:</span><span class="co"> [distance, covariance]</span></span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: setup</span></span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: false</span></span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib <span class="im">as</span> mpl</span>
-<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> stats</span>
-<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">20260824</span>)</span>
-<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>mpl.rcParams.update({</span>
-<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"figure.facecolor"</span>:  <span class="st">"white"</span>,</span>
-<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.facecolor"</span>:    <span class="st">"white"</span>,</span>
-<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.edgecolor"</span>:    <span class="st">"#b9c0c7"</span>,</span>
-<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.linewidth"</span>:    <span class="fl">0.9</span>,</span>
-<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.grid"</span>:         <span class="va">True</span>,</span>
-<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.axisbelow"</span>:    <span class="va">True</span>,</span>
-<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.color"</span>:        <span class="st">"#e6e9ec"</span>,</span>
-<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.linewidth"</span>:    <span class="fl">0.8</span>,</span>
-<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.top"</span>:   <span class="va">False</span>,</span>
-<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.right"</span>: <span class="va">False</span>,</span>
-<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titlesize"</span>:    <span class="dv">12</span>,</span>
-<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titleweight"</span>:  <span class="st">"semibold"</span>,</span>
-<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.labelsize"</span>:    <span class="dv">11</span>,</span>
-<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.labelsize"</span>:   <span class="dv">10</span>,</span>
-<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.labelsize"</span>:   <span class="dv">10</span>,</span>
-<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
-<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
-<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.frameon"</span>:    <span class="va">False</span>,</span>
-<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.fontsize"</span>:   <span class="dv">10</span>,</span>
-<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a>    <span class="st">"font.size"</span>:         <span class="dv">11</span>,</span>
-<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a>})</span>
-<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a><span class="co"># A small, consistent palette used across every figure in the article.</span></span>
-<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>C <span class="op">=</span> {</span>
-<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a>    <span class="st">"blue"</span>:   <span class="st">"#2c6e9b"</span>,</span>
-<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a>    <span class="st">"orange"</span>: <span class="st">"#d1743a"</span>,</span>
-<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a>    <span class="st">"green"</span>:  <span class="st">"#4f8f63"</span>,</span>
-<span id="cb14-55"><a href="#cb14-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">"red"</span>:    <span class="st">"#b5483d"</span>,</span>
-<span id="cb14-56"><a href="#cb14-56" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grey"</span>:   <span class="st">"#9aa3ab"</span>,</span>
-<span id="cb14-57"><a href="#cb14-57" aria-hidden="true" tabindex="-1"></a>    <span class="st">"dark"</span>:   <span class="st">"#2c4a63"</span>,</span>
-<span id="cb14-58"><a href="#cb14-58" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb14-59"><a href="#cb14-59" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-60"><a href="#cb14-60" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-61"><a href="#cb14-61" aria-hidden="true" tabindex="-1"></a>The Mahalanobis distance is a one-line formula that quietly does three things</span>
-<span id="cb14-62"><a href="#cb14-62" aria-hidden="true" tabindex="-1"></a>at once: it centres, it rescales, and it removes correlation. Most of the</span>
-<span id="cb14-63"><a href="#cb14-63" aria-hidden="true" tabindex="-1"></a>confusion around it comes from the fact that those three jobs are collapsed</span>
-<span id="cb14-64"><a href="#cb14-64" aria-hidden="true" tabindex="-1"></a>into a single matrix product. This article pulls them apart.</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">  A description, an explanation of how it handles correlated columns, and how to</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co">  handle categorical features.</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> 2026-08-24</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="an">order:</span><span class="co"> 1</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="an">categories:</span><span class="co"> [distance, covariance]</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: setup</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: false</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib <span class="im">as</span> mpl</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> stats</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">20260824</span>)</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>mpl.rcParams.update({</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"figure.facecolor"</span>:  <span class="st">"white"</span>,</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.facecolor"</span>:    <span class="st">"white"</span>,</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.edgecolor"</span>:    <span class="st">"#b9c0c7"</span>,</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.linewidth"</span>:    <span class="fl">0.9</span>,</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.grid"</span>:         <span class="va">True</span>,</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.axisbelow"</span>:    <span class="va">True</span>,</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.color"</span>:        <span class="st">"#e6e9ec"</span>,</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grid.linewidth"</span>:    <span class="fl">0.8</span>,</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.top"</span>:   <span class="va">False</span>,</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.spines.right"</span>: <span class="va">False</span>,</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titlesize"</span>:    <span class="dv">12</span>,</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.titleweight"</span>:  <span class="st">"semibold"</span>,</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"axes.labelsize"</span>:    <span class="dv">11</span>,</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.labelsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.labelsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"xtick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ytick.color"</span>:       <span class="st">"#5b6570"</span>,</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.frameon"</span>:    <span class="va">False</span>,</span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>    <span class="st">"legend.fontsize"</span>:   <span class="dv">10</span>,</span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>    <span class="st">"font.size"</span>:         <span class="dv">11</span>,</span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a><span class="co"># A small, consistent palette used across every figure in the article.</span></span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a>C <span class="op">=</span> {</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>    <span class="st">"blue"</span>:   <span class="st">"#2c6e9b"</span>,</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a>    <span class="st">"orange"</span>: <span class="st">"#d1743a"</span>,</span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a>    <span class="st">"green"</span>:  <span class="st">"#4f8f63"</span>,</span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a>    <span class="st">"red"</span>:    <span class="st">"#b5483d"</span>,</span>
+<span id="cb14-55"><a href="#cb14-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grey"</span>:   <span class="st">"#9aa3ab"</span>,</span>
+<span id="cb14-56"><a href="#cb14-56" aria-hidden="true" tabindex="-1"></a>    <span class="st">"dark"</span>:   <span class="st">"#2c4a63"</span>,</span>
+<span id="cb14-57"><a href="#cb14-57" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb14-58"><a href="#cb14-58" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-59"><a href="#cb14-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-60"><a href="#cb14-60" aria-hidden="true" tabindex="-1"></a>The Mahalanobis distance is a one-line formula that does three things</span>
+<span id="cb14-61"><a href="#cb14-61" aria-hidden="true" tabindex="-1"></a>at once: it centres, it rescales, and it removes correlation.</span>
+<span id="cb14-62"><a href="#cb14-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-63"><a href="#cb14-63" aria-hidden="true" tabindex="-1"></a>For a point $x$, a mean vector $\mu$ and a covariance</span>
+<span id="cb14-64"><a href="#cb14-64" aria-hidden="true" tabindex="-1"></a>matrix $\Sigma$, the **squared Mahalanobis distance** is</span>
 <span id="cb14-65"><a href="#cb14-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-66"><a href="#cb14-66" aria-hidden="true" tabindex="-1"></a>Here is the formula. For a point $x$, a mean vector $\mu$ and a covariance</span>
-<span id="cb14-67"><a href="#cb14-67" aria-hidden="true" tabindex="-1"></a>matrix $\Sigma$, the **squared Mahalanobis distance** is</span>
-<span id="cb14-68"><a href="#cb14-68" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-69"><a href="#cb14-69" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-66"><a href="#cb14-66" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-67"><a href="#cb14-67" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-68"><a href="#cb14-68" aria-hidden="true" tabindex="-1"></a>D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{<span class="sc">\!</span>\top}\,\Sigma^{-1}\,(x-\mu),</span>
+<span id="cb14-69"><a href="#cb14-69" aria-hidden="true" tabindex="-1"></a>\qquad D = \sqrt{D^2}.</span>
 <span id="cb14-70"><a href="#cb14-70" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-71"><a href="#cb14-71" aria-hidden="true" tabindex="-1"></a>D^2(x;\mu,\Sigma) \;=\; (x-\mu)^{<span class="sc">\!</span>\top}\,\Sigma^{-1}\,(x-\mu),</span>
-<span id="cb14-72"><a href="#cb14-72" aria-hidden="true" tabindex="-1"></a>\qquad D = \sqrt{D^2}.</span>
-<span id="cb14-73"><a href="#cb14-73" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-74"><a href="#cb14-74" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb14-75"><a href="#cb14-75" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-76"><a href="#cb14-76" aria-hidden="true" tabindex="-1"></a>If you looked at that and thought *"that's the term that depends on $x$ in the</span>
-<span id="cb14-77"><a href="#cb14-77" aria-hidden="true" tabindex="-1"></a>multivariate normal density"*, skip the next box — you already have it. If you</span>
-<span id="cb14-78"><a href="#cb14-78" aria-hidden="true" tabindex="-1"></a>looked at it and thought *"I have very little idea what that means"*, the box is</span>
-<span id="cb14-79"><a href="#cb14-79" aria-hidden="true" tabindex="-1"></a>for you.</span>
+<span id="cb14-71"><a href="#cb14-71" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-72"><a href="#cb14-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-73"><a href="#cb14-73" aria-hidden="true" tabindex="-1"></a>If you looked at that and thought *"that's the term that depends on $x$ in the</span>
+<span id="cb14-74"><a href="#cb14-74" aria-hidden="true" tabindex="-1"></a>multivariate normal density"*, skip the next box — you already have it. If you</span>
+<span id="cb14-75"><a href="#cb14-75" aria-hidden="true" tabindex="-1"></a>looked at it and thought *"I have very little idea what that means"*, the box is</span>
+<span id="cb14-76"><a href="#cb14-76" aria-hidden="true" tabindex="-1"></a>for you.</span>
+<span id="cb14-77"><a href="#cb14-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-78"><a href="#cb14-78" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb14-79"><a href="#cb14-79" aria-hidden="true" tabindex="-1"></a><span class="fu">## New to this? Build the formula up from the z-score</span></span>
 <span id="cb14-80"><a href="#cb14-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-81"><a href="#cb14-81" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb14-82"><a href="#cb14-82" aria-hidden="true" tabindex="-1"></a><span class="fu">## New to this? Build the formula up from the z-score</span></span>
-<span id="cb14-83"><a href="#cb14-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-84"><a href="#cb14-84" aria-hidden="true" tabindex="-1"></a>Nothing here is needed later on; it is the same formula, arrived at slowly.</span>
-<span id="cb14-85"><a href="#cb14-85" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-86"><a href="#cb14-86" aria-hidden="true" tabindex="-1"></a>**One variable.** Suppose heights have mean $\mu = 170$ cm and standard</span>
-<span id="cb14-87"><a href="#cb14-87" aria-hidden="true" tabindex="-1"></a>deviation $\sigma = 10$ cm. Someone 190 cm tall is 20 cm above average, which is</span>
-<span id="cb14-88"><a href="#cb14-88" aria-hidden="true" tabindex="-1"></a>2 standard deviations. That is the **z-score**:</span>
-<span id="cb14-89"><a href="#cb14-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-90"><a href="#cb14-90" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-91"><a href="#cb14-91" aria-hidden="true" tabindex="-1"></a>z = \frac{x - \mu}{\sigma} = \frac{190 - 170}{10} = 2 .</span>
-<span id="cb14-92"><a href="#cb14-92" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-93"><a href="#cb14-93" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-94"><a href="#cb14-94" aria-hidden="true" tabindex="-1"></a>The point of dividing by $\sigma$ is that it makes the number *unitless*, so</span>
-<span id="cb14-95"><a href="#cb14-95" aria-hidden="true" tabindex="-1"></a>"2 standard deviations out" means the same thing for heights in centimetres and</span>
-<span id="cb14-96"><a href="#cb14-96" aria-hidden="true" tabindex="-1"></a>for incomes in pounds. Squaring it gives an unsigned measure of unusualness:</span>
-<span id="cb14-97"><a href="#cb14-97" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-98"><a href="#cb14-98" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-99"><a href="#cb14-99" aria-hidden="true" tabindex="-1"></a>z^2 = \frac{(x-\mu)^2}{\sigma^2} = (x-\mu)\,(\sigma^2)^{-1}\,(x-\mu) .</span>
-<span id="cb14-100"><a href="#cb14-100" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-81"><a href="#cb14-81" aria-hidden="true" tabindex="-1"></a>Nothing here is needed later on; it is the same formula, arrived at slowly.</span>
+<span id="cb14-82"><a href="#cb14-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-83"><a href="#cb14-83" aria-hidden="true" tabindex="-1"></a>**One variable.** Suppose heights have mean $\mu = 170$ cm and standard</span>
+<span id="cb14-84"><a href="#cb14-84" aria-hidden="true" tabindex="-1"></a>deviation $\sigma = 10$ cm. Someone 190 cm tall is 20 cm above average, which is</span>
+<span id="cb14-85"><a href="#cb14-85" aria-hidden="true" tabindex="-1"></a>2 standard deviations. That is the **z-score**:</span>
+<span id="cb14-86"><a href="#cb14-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-87"><a href="#cb14-87" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-88"><a href="#cb14-88" aria-hidden="true" tabindex="-1"></a>z = \frac{x - \mu}{\sigma} = \frac{190 - 170}{10} = 2 .</span>
+<span id="cb14-89"><a href="#cb14-89" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-90"><a href="#cb14-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-91"><a href="#cb14-91" aria-hidden="true" tabindex="-1"></a>The point of dividing by $\sigma$ is that it makes the number *unitless*, so</span>
+<span id="cb14-92"><a href="#cb14-92" aria-hidden="true" tabindex="-1"></a>"2 standard deviations out" means the same thing for heights in centimetres and</span>
+<span id="cb14-93"><a href="#cb14-93" aria-hidden="true" tabindex="-1"></a>for incomes in pounds. Squaring it gives an unsigned measure of unusualness:</span>
+<span id="cb14-94"><a href="#cb14-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-95"><a href="#cb14-95" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-96"><a href="#cb14-96" aria-hidden="true" tabindex="-1"></a>z^2 = \frac{(x-\mu)^2}{\sigma^2} = (x-\mu)\,(\sigma^2)^{-1}\,(x-\mu) .</span>
+<span id="cb14-97"><a href="#cb14-97" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-98"><a href="#cb14-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-99"><a href="#cb14-99" aria-hidden="true" tabindex="-1"></a>That last way of writing it looks perverse, but it is the form that generalises:</span>
+<span id="cb14-100"><a href="#cb14-100" aria-hidden="true" tabindex="-1"></a>*deviation, times one-over-the-variance, times deviation.*</span>
 <span id="cb14-101"><a href="#cb14-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-102"><a href="#cb14-102" aria-hidden="true" tabindex="-1"></a>That last way of writing it looks perverse, but it is the form that generalises:</span>
-<span id="cb14-103"><a href="#cb14-103" aria-hidden="true" tabindex="-1"></a>*deviation, times one-over-the-variance, times deviation.*</span>
-<span id="cb14-104"><a href="#cb14-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-105"><a href="#cb14-105" aria-hidden="true" tabindex="-1"></a>Now look at where $z^2$ shows up. The normal density is</span>
-<span id="cb14-106"><a href="#cb14-106" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-107"><a href="#cb14-107" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-108"><a href="#cb14-108" aria-hidden="true" tabindex="-1"></a>f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}</span>
-<span id="cb14-109"><a href="#cb14-109" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2}\,\frac{(x-\mu)^2}{\sigma^2}\right)</span>
-<span id="cb14-110"><a href="#cb14-110" aria-hidden="true" tabindex="-1"></a>     = \underbrace{\frac{1}{\sqrt{2\pi\sigma^2}}}_{\text{a constant}}</span>
-<span id="cb14-111"><a href="#cb14-111" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2} z^2\right).</span>
-<span id="cb14-112"><a href="#cb14-112" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-113"><a href="#cb14-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-114"><a href="#cb14-114" aria-hidden="true" tabindex="-1"></a>The only place $x$ appears at all is inside $z^2$. Everything else is a</span>
-<span id="cb14-115"><a href="#cb14-115" aria-hidden="true" tabindex="-1"></a>normalising constant that makes the curve integrate to 1. So **how likely a</span>
-<span id="cb14-116"><a href="#cb14-116" aria-hidden="true" tabindex="-1"></a>point is depends on it only through $z^2$** — through its squared,</span>
-<span id="cb14-117"><a href="#cb14-117" aria-hidden="true" tabindex="-1"></a>variance-adjusted distance from the mean.</span>
-<span id="cb14-118"><a href="#cb14-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-119"><a href="#cb14-119" aria-hidden="true" tabindex="-1"></a>**Several variables.** Now each observation is a list of numbers — say</span>
-<span id="cb14-120"><a href="#cb14-120" aria-hidden="true" tabindex="-1"></a>$x = (\text{age},\ \text{height},\ \text{weight})$ — so $x$ and $\mu$ are</span>
-<span id="cb14-121"><a href="#cb14-121" aria-hidden="true" tabindex="-1"></a>vectors with $p = 3$ entries.</span>
-<span id="cb14-122"><a href="#cb14-122" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-123"><a href="#cb14-123" aria-hidden="true" tabindex="-1"></a>The single variance $\sigma^2$ has to become something richer, because there are</span>
-<span id="cb14-124"><a href="#cb14-124" aria-hidden="true" tabindex="-1"></a>now two kinds of information: how much each variable varies on its own, and</span>
-<span id="cb14-125"><a href="#cb14-125" aria-hidden="true" tabindex="-1"></a>whether variables move together. That object is the **covariance matrix**</span>
-<span id="cb14-126"><a href="#cb14-126" aria-hidden="true" tabindex="-1"></a>$\Sigma$, a $p \times p$ table whose diagonal entry $\Sigma_{jj}$ is the</span>
-<span id="cb14-127"><a href="#cb14-127" aria-hidden="true" tabindex="-1"></a>variance of variable $j$, and whose off-diagonal entry $\Sigma_{jk}$ is the</span>
-<span id="cb14-128"><a href="#cb14-128" aria-hidden="true" tabindex="-1"></a>covariance between variables $j$ and $k$ — positive if they tend to be large</span>
-<span id="cb14-129"><a href="#cb14-129" aria-hidden="true" tabindex="-1"></a>together, zero if they are unrelated.</span>
-<span id="cb14-130"><a href="#cb14-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-131"><a href="#cb14-131" aria-hidden="true" tabindex="-1"></a>Dividing by a matrix is not defined, but *multiplying by its inverse* is, and</span>
-<span id="cb14-132"><a href="#cb14-132" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1}$ is the matrix that plays the role $1/\sigma^2$ played before.</span>
-<span id="cb14-133"><a href="#cb14-133" aria-hidden="true" tabindex="-1"></a>(Concretely: for one variable, $\Sigma$ is the $1\times1$ matrix $<span class="co">[</span><span class="ot">\sigma^2</span><span class="co">]</span>$</span>
-<span id="cb14-134"><a href="#cb14-134" aria-hidden="true" tabindex="-1"></a>and $\Sigma^{-1}$ is $<span class="co">[</span><span class="ot">1/\sigma^2</span><span class="co">]</span>$, so the one-variable case really is a</span>
-<span id="cb14-135"><a href="#cb14-135" aria-hidden="true" tabindex="-1"></a>special case, not an analogy.)</span>
-<span id="cb14-136"><a href="#cb14-136" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-137"><a href="#cb14-137" aria-hidden="true" tabindex="-1"></a>Make those two substitutions in $(x-\mu)(\sigma^2)^{-1}(x-\mu)$ and you get</span>
-<span id="cb14-138"><a href="#cb14-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-139"><a href="#cb14-139" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-140"><a href="#cb14-140" aria-hidden="true" tabindex="-1"></a>(x-\mu)^{<span class="sc">\!</span>\top}\,\Sigma^{-1}\,(x-\mu),</span>
-<span id="cb14-141"><a href="#cb14-141" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-142"><a href="#cb14-142" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-143"><a href="#cb14-143" aria-hidden="true" tabindex="-1"></a>where the $^{\top}$ ("transpose") just turns the first column of numbers on its</span>
-<span id="cb14-144"><a href="#cb14-144" aria-hidden="true" tabindex="-1"></a>side so the multiplication is legal. The result is a single number, not a</span>
-<span id="cb14-145"><a href="#cb14-145" aria-hidden="true" tabindex="-1"></a>vector or a matrix.</span>
+<span id="cb14-102"><a href="#cb14-102" aria-hidden="true" tabindex="-1"></a>Now look at where $z^2$ shows up. The normal density is</span>
+<span id="cb14-103"><a href="#cb14-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-104"><a href="#cb14-104" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-105"><a href="#cb14-105" aria-hidden="true" tabindex="-1"></a>f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}</span>
+<span id="cb14-106"><a href="#cb14-106" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2}\,\frac{(x-\mu)^2}{\sigma^2}\right)</span>
+<span id="cb14-107"><a href="#cb14-107" aria-hidden="true" tabindex="-1"></a>     = \underbrace{\frac{1}{\sqrt{2\pi\sigma^2}}}_{\text{a constant}}</span>
+<span id="cb14-108"><a href="#cb14-108" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2} z^2\right).</span>
+<span id="cb14-109"><a href="#cb14-109" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-110"><a href="#cb14-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-111"><a href="#cb14-111" aria-hidden="true" tabindex="-1"></a>The only place $x$ appears at all is inside $z^2$. Everything else is a</span>
+<span id="cb14-112"><a href="#cb14-112" aria-hidden="true" tabindex="-1"></a>normalising constant that makes the curve integrate to 1. So **how likely a</span>
+<span id="cb14-113"><a href="#cb14-113" aria-hidden="true" tabindex="-1"></a>point is depends on it only through $z^2$** — through its squared,</span>
+<span id="cb14-114"><a href="#cb14-114" aria-hidden="true" tabindex="-1"></a>variance-adjusted distance from the mean.</span>
+<span id="cb14-115"><a href="#cb14-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-116"><a href="#cb14-116" aria-hidden="true" tabindex="-1"></a>**Several variables.** Now each observation is a list of numbers — say</span>
+<span id="cb14-117"><a href="#cb14-117" aria-hidden="true" tabindex="-1"></a>$x = (\text{age},\ \text{height},\ \text{weight})$ — so $x$ and $\mu$ are</span>
+<span id="cb14-118"><a href="#cb14-118" aria-hidden="true" tabindex="-1"></a>vectors with $p = 3$ entries.</span>
+<span id="cb14-119"><a href="#cb14-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-120"><a href="#cb14-120" aria-hidden="true" tabindex="-1"></a>The single variance $\sigma^2$ has to become something richer, because there are</span>
+<span id="cb14-121"><a href="#cb14-121" aria-hidden="true" tabindex="-1"></a>now two kinds of information: how much each variable varies on its own, and</span>
+<span id="cb14-122"><a href="#cb14-122" aria-hidden="true" tabindex="-1"></a>whether variables move together. That object is the **covariance matrix**</span>
+<span id="cb14-123"><a href="#cb14-123" aria-hidden="true" tabindex="-1"></a>$\Sigma$, a $p \times p$ table whose diagonal entry $\Sigma_{jj}$ is the</span>
+<span id="cb14-124"><a href="#cb14-124" aria-hidden="true" tabindex="-1"></a>variance of variable $j$, and whose off-diagonal entry $\Sigma_{jk}$ is the</span>
+<span id="cb14-125"><a href="#cb14-125" aria-hidden="true" tabindex="-1"></a>covariance between variables $j$ and $k$ — positive if they tend to be large</span>
+<span id="cb14-126"><a href="#cb14-126" aria-hidden="true" tabindex="-1"></a>together, zero if they are unrelated.</span>
+<span id="cb14-127"><a href="#cb14-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-128"><a href="#cb14-128" aria-hidden="true" tabindex="-1"></a>Dividing by a matrix is not defined, but *multiplying by its inverse* is, and</span>
+<span id="cb14-129"><a href="#cb14-129" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1}$ is the matrix that plays the role $1/\sigma^2$ played before.</span>
+<span id="cb14-130"><a href="#cb14-130" aria-hidden="true" tabindex="-1"></a>(Concretely: for one variable, $\Sigma$ is the $1\times1$ matrix $<span class="co">[</span><span class="ot">\sigma^2</span><span class="co">]</span>$</span>
+<span id="cb14-131"><a href="#cb14-131" aria-hidden="true" tabindex="-1"></a>and $\Sigma^{-1}$ is $<span class="co">[</span><span class="ot">1/\sigma^2</span><span class="co">]</span>$, so the one-variable case really is a</span>
+<span id="cb14-132"><a href="#cb14-132" aria-hidden="true" tabindex="-1"></a>special case, not an analogy.)</span>
+<span id="cb14-133"><a href="#cb14-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-134"><a href="#cb14-134" aria-hidden="true" tabindex="-1"></a>Make those two substitutions in $(x-\mu)(\sigma^2)^{-1}(x-\mu)$ and you get</span>
+<span id="cb14-135"><a href="#cb14-135" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-136"><a href="#cb14-136" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-137"><a href="#cb14-137" aria-hidden="true" tabindex="-1"></a>(x-\mu)^{<span class="sc">\!</span>\top}\,\Sigma^{-1}\,(x-\mu),</span>
+<span id="cb14-138"><a href="#cb14-138" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-139"><a href="#cb14-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-140"><a href="#cb14-140" aria-hidden="true" tabindex="-1"></a>where the $^{\top}$ ("transpose") just turns the first column of numbers on its</span>
+<span id="cb14-141"><a href="#cb14-141" aria-hidden="true" tabindex="-1"></a>side so the multiplication is legal. The result is a single number, not a</span>
+<span id="cb14-142"><a href="#cb14-142" aria-hidden="true" tabindex="-1"></a>vector or a matrix.</span>
+<span id="cb14-143"><a href="#cb14-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-144"><a href="#cb14-144" aria-hidden="true" tabindex="-1"></a>And this expression sits in exactly the same place in the multivariate normal</span>
+<span id="cb14-145"><a href="#cb14-145" aria-hidden="true" tabindex="-1"></a>density that $z^2$ sat in the univariate one:</span>
 <span id="cb14-146"><a href="#cb14-146" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-147"><a href="#cb14-147" aria-hidden="true" tabindex="-1"></a>And this expression sits in exactly the same place in the multivariate normal</span>
-<span id="cb14-148"><a href="#cb14-148" aria-hidden="true" tabindex="-1"></a>density that $z^2$ sat in the univariate one:</span>
-<span id="cb14-149"><a href="#cb14-149" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-147"><a href="#cb14-147" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-148"><a href="#cb14-148" aria-hidden="true" tabindex="-1"></a>f(x) = \frac{1}{(2\pi)^{p/2}\,|\Sigma|^{1/2}}</span>
+<span id="cb14-149"><a href="#cb14-149" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2}\,(x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1}(x-\mu)\right).</span>
 <span id="cb14-150"><a href="#cb14-150" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-151"><a href="#cb14-151" aria-hidden="true" tabindex="-1"></a>f(x) = \frac{1}{(2\pi)^{p/2}\,|\Sigma|^{1/2}}</span>
-<span id="cb14-152"><a href="#cb14-152" aria-hidden="true" tabindex="-1"></a>       \exp<span class="sc">\!</span>\left(-\tfrac{1}{2}\,(x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1}(x-\mu)\right).</span>
-<span id="cb14-153"><a href="#cb14-153" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-154"><a href="#cb14-154" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-155"><a href="#cb14-155" aria-hidden="true" tabindex="-1"></a>Side by side:</span>
-<span id="cb14-156"><a href="#cb14-156" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-157"><a href="#cb14-157" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>                          <span class="pp">|</span> one variable                        <span class="pp">|</span> several variables                        <span class="pp">|</span></span>
-<span id="cb14-158"><a href="#cb14-158" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------------------------|-------------------------------------|------------------------------------------|</span></span>
-<span id="cb14-159"><a href="#cb14-159" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> deviation                <span class="pp">|</span> $x - \mu$ (a number)                <span class="pp">|</span> $x - \mu$ (a vector)                     <span class="pp">|</span></span>
-<span id="cb14-160"><a href="#cb14-160" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> "divide by the variance" <span class="pp">|</span> $(\sigma^2)^{-1}$                   <span class="pp">|</span> $\Sigma^{-1}$ (a matrix)                 <span class="pp">|</span></span>
-<span id="cb14-161"><a href="#cb14-161" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> squared distance         <span class="pp">|</span> $\dfrac{(x-\mu)^2}{\sigma^2}$       <span class="pp">|</span> $(x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1}(x-\mu)$     <span class="pp">|</span></span>
-<span id="cb14-162"><a href="#cb14-162" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> appears in the density as<span class="pp">|</span> $\exp(-\tfrac12 z^2)$               <span class="pp">|</span> $\exp(-\tfrac12 D^2)$                    <span class="pp">|</span></span>
-<span id="cb14-163"><a href="#cb14-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-164"><a href="#cb14-164" aria-hidden="true" tabindex="-1"></a>So the Mahalanobis distance is the squared z-score, generalised to several</span>
-<span id="cb14-165"><a href="#cb14-165" aria-hidden="true" tabindex="-1"></a>variables at once — and the generalisation is forced, not chosen: it is</span>
-<span id="cb14-166"><a href="#cb14-166" aria-hidden="true" tabindex="-1"></a>whatever has to sit in the exponent of the multivariate normal.</span>
-<span id="cb14-167"><a href="#cb14-167" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb14-168"><a href="#cb14-168" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-169"><a href="#cb14-169" aria-hidden="true" tabindex="-1"></a>Read the formula left to right: $(x-\mu)$ centres, $\Sigma^{-1}$ divides by the</span>
-<span id="cb14-170"><a href="#cb14-170" aria-hidden="true" tabindex="-1"></a>covariance, and the two copies of $(x-\mu)$ square the result, so $D^2 \ge 0$.</span>
-<span id="cb14-171"><a href="#cb14-171" aria-hidden="true" tabindex="-1"></a>If $\Sigma$ is the identity this is ordinary squared Euclidean distance. If</span>
-<span id="cb14-172"><a href="#cb14-172" aria-hidden="true" tabindex="-1"></a>$\Sigma$ is diagonal it is a sum of squared z-scores. Everything interesting</span>
-<span id="cb14-173"><a href="#cb14-173" aria-hidden="true" tabindex="-1"></a>comes from the off-diagonal entries.</span>
-<span id="cb14-174"><a href="#cb14-174" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-175"><a href="#cb14-175" aria-hidden="true" tabindex="-1"></a>Two properties matter throughout what follows:</span>
-<span id="cb14-176"><a href="#cb14-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-177"><a href="#cb14-177" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Contours of constant density are contours of constant $D$.** Since $D^2$</span>
-<span id="cb14-178"><a href="#cb14-178" aria-hidden="true" tabindex="-1"></a>   is the only place $x$ enters the density, the set $<span class="sc">\{</span>x : D(x) = c<span class="sc">\}</span>$ is an</span>
-<span id="cb14-179"><a href="#cb14-179" aria-hidden="true" tabindex="-1"></a>   ellipsoid on which the density is constant. Points at the same Mahalanobis</span>
-<span id="cb14-180"><a href="#cb14-180" aria-hidden="true" tabindex="-1"></a>   distance are equally likely.</span>
-<span id="cb14-181"><a href="#cb14-181" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**$D^2 \sim \chi^2_p$** when $x \sim N(\mu, \Sigma)$. This is what turns a</span>
-<span id="cb14-182"><a href="#cb14-182" aria-hidden="true" tabindex="-1"></a>   distance into a probability, and it is why you can pick a rerandomization</span>
-<span id="cb14-183"><a href="#cb14-183" aria-hidden="true" tabindex="-1"></a>   threshold with a known acceptance rate.</span>
+<span id="cb14-151"><a href="#cb14-151" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-152"><a href="#cb14-152" aria-hidden="true" tabindex="-1"></a>Side by side:</span>
+<span id="cb14-153"><a href="#cb14-153" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-154"><a href="#cb14-154" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>                          <span class="pp">|</span> one variable                        <span class="pp">|</span> several variables                        <span class="pp">|</span></span>
+<span id="cb14-155"><a href="#cb14-155" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------------------------|-------------------------------------|------------------------------------------|</span></span>
+<span id="cb14-156"><a href="#cb14-156" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> deviation                <span class="pp">|</span> $x - \mu$ (a number)                <span class="pp">|</span> $x - \mu$ (a vector)                     <span class="pp">|</span></span>
+<span id="cb14-157"><a href="#cb14-157" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> "divide by the variance" <span class="pp">|</span> $(\sigma^2)^{-1}$                   <span class="pp">|</span> $\Sigma^{-1}$ (a matrix)                 <span class="pp">|</span></span>
+<span id="cb14-158"><a href="#cb14-158" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> squared distance         <span class="pp">|</span> $\dfrac{(x-\mu)^2}{\sigma^2}$       <span class="pp">|</span> $(x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1}(x-\mu)$     <span class="pp">|</span></span>
+<span id="cb14-159"><a href="#cb14-159" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> appears in the density as<span class="pp">|</span> $\exp(-\tfrac12 z^2)$               <span class="pp">|</span> $\exp(-\tfrac12 D^2)$                    <span class="pp">|</span></span>
+<span id="cb14-160"><a href="#cb14-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-161"><a href="#cb14-161" aria-hidden="true" tabindex="-1"></a>So the Mahalanobis distance is the squared z-score, generalised to several</span>
+<span id="cb14-162"><a href="#cb14-162" aria-hidden="true" tabindex="-1"></a>variables at once — and the generalisation is forced, not chosen: it is</span>
+<span id="cb14-163"><a href="#cb14-163" aria-hidden="true" tabindex="-1"></a>whatever has to sit in the exponent of the multivariate normal.</span>
+<span id="cb14-164"><a href="#cb14-164" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-165"><a href="#cb14-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-166"><a href="#cb14-166" aria-hidden="true" tabindex="-1"></a>Read the formula left to right: $(x-\mu)$ centres, $\Sigma^{-1}$ divides by the</span>
+<span id="cb14-167"><a href="#cb14-167" aria-hidden="true" tabindex="-1"></a>covariance, and the two copies of $(x-\mu)$ square the result, so $D^2 \ge 0$.</span>
+<span id="cb14-168"><a href="#cb14-168" aria-hidden="true" tabindex="-1"></a>If $\Sigma$ is the identity this is ordinary squared Euclidean distance. If</span>
+<span id="cb14-169"><a href="#cb14-169" aria-hidden="true" tabindex="-1"></a>$\Sigma$ is diagonal it is a sum of squared z-scores. Everything interesting</span>
+<span id="cb14-170"><a href="#cb14-170" aria-hidden="true" tabindex="-1"></a>comes from the off-diagonal entries.</span>
+<span id="cb14-171"><a href="#cb14-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-172"><a href="#cb14-172" aria-hidden="true" tabindex="-1"></a>Two properties matter throughout what follows:</span>
+<span id="cb14-173"><a href="#cb14-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-174"><a href="#cb14-174" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Contours of constant density are contours of constant $D$.** Since $D^2$</span>
+<span id="cb14-175"><a href="#cb14-175" aria-hidden="true" tabindex="-1"></a>   is the only place $x$ enters the density, the set $<span class="sc">\{</span>x : D(x) = c<span class="sc">\}</span>$ is an</span>
+<span id="cb14-176"><a href="#cb14-176" aria-hidden="true" tabindex="-1"></a>   ellipsoid on which the density is constant. Points at the same Mahalanobis</span>
+<span id="cb14-177"><a href="#cb14-177" aria-hidden="true" tabindex="-1"></a>   distance are equally likely.</span>
+<span id="cb14-178"><a href="#cb14-178" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**$D^2 \sim \chi^2_p$** when $x \sim N(\mu, \Sigma)$. This is what turns a</span>
+<span id="cb14-179"><a href="#cb14-179" aria-hidden="true" tabindex="-1"></a>   distance into a probability, and it is why you can pick a rerandomization</span>
+<span id="cb14-180"><a href="#cb14-180" aria-hidden="true" tabindex="-1"></a>   threshold with a known acceptance rate.</span>
+<span id="cb14-181"><a href="#cb14-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-182"><a href="#cb14-182" aria-hidden="true" tabindex="-1"></a>The payoff — using the distance to split a sample into two balanced halves — is</span>
+<span id="cb14-183"><a href="#cb14-183" aria-hidden="true" tabindex="-1"></a>in <span class="co">[</span><span class="ot">Rerandomization</span><span class="co">](../rerandomization/)</span>.</span>
 <span id="cb14-184"><a href="#cb14-184" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-185"><a href="#cb14-185" aria-hidden="true" tabindex="-1"></a>The payoff — using the distance to split a sample into two balanced halves — is</span>
-<span id="cb14-186"><a href="#cb14-186" aria-hidden="true" tabindex="-1"></a>in <span class="co">[</span><span class="ot">Rerandomization</span><span class="co">](../rerandomization/)</span>.</span>
-<span id="cb14-187"><a href="#cb14-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-188"><a href="#cb14-188" aria-hidden="true" tabindex="-1"></a><span class="fu">## What the matrix product is doing</span></span>
-<span id="cb14-189"><a href="#cb14-189" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-190"><a href="#cb14-190" aria-hidden="true" tabindex="-1"></a>$\Sigma$ is symmetric and positive definite, so it has a symmetric square root</span>
-<span id="cb14-191"><a href="#cb14-191" aria-hidden="true" tabindex="-1"></a>$\Sigma^{1/2}$, and $\Sigma^{-1} = \Sigma^{-1/2}\Sigma^{-1/2}$. Substituting</span>
-<span id="cb14-192"><a href="#cb14-192" aria-hidden="true" tabindex="-1"></a>that in and regrouping:</span>
-<span id="cb14-193"><a href="#cb14-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-185"><a href="#cb14-185" aria-hidden="true" tabindex="-1"></a><span class="fu">## What the matrix product is doing</span></span>
+<span id="cb14-186"><a href="#cb14-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-187"><a href="#cb14-187" aria-hidden="true" tabindex="-1"></a>$\Sigma$ is symmetric and positive definite, so it has a symmetric square root</span>
+<span id="cb14-188"><a href="#cb14-188" aria-hidden="true" tabindex="-1"></a>$\Sigma^{1/2}$, and $\Sigma^{-1} = \Sigma^{-1/2}\Sigma^{-1/2}$. Substituting</span>
+<span id="cb14-189"><a href="#cb14-189" aria-hidden="true" tabindex="-1"></a>that in and regrouping:</span>
+<span id="cb14-190"><a href="#cb14-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-191"><a href="#cb14-191" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-192"><a href="#cb14-192" aria-hidden="true" tabindex="-1"></a>D^2 = (x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1/2}\,\Sigma^{-1/2}(x-\mu)</span>
+<span id="cb14-193"><a href="#cb14-193" aria-hidden="true" tabindex="-1"></a>    = \big<span class="sc">\|</span>\,\underbrace{\Sigma^{-1/2}(x-\mu)}_{\textstyle w}\,\big<span class="sc">\|</span>^2 .</span>
 <span id="cb14-194"><a href="#cb14-194" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-195"><a href="#cb14-195" aria-hidden="true" tabindex="-1"></a>D^2 = (x-\mu)^{<span class="sc">\!</span>\top}\Sigma^{-1/2}\,\Sigma^{-1/2}(x-\mu)</span>
-<span id="cb14-196"><a href="#cb14-196" aria-hidden="true" tabindex="-1"></a>    = \big<span class="sc">\|</span>\,\underbrace{\Sigma^{-1/2}(x-\mu)}_{\textstyle w}\,\big<span class="sc">\|</span>^2 .</span>
-<span id="cb14-197"><a href="#cb14-197" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-198"><a href="#cb14-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-199"><a href="#cb14-199" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
-<span id="cb14-200"><a href="#cb14-200" aria-hidden="true" tabindex="-1"></a>**The Mahalanobis distance is ordinary Euclidean distance, computed after</span>
-<span id="cb14-201"><a href="#cb14-201" aria-hidden="true" tabindex="-1"></a>whitening.** Centre by $\mu$, apply $\Sigma^{-1/2}$, then measure length the</span>
-<span id="cb14-202"><a href="#cb14-202" aria-hidden="true" tabindex="-1"></a>usual way.</span>
-<span id="cb14-203"><a href="#cb14-203" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb14-204"><a href="#cb14-204" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-205"><a href="#cb14-205" aria-hidden="true" tabindex="-1"></a>The transformed vector $w = \Sigma^{-1/2}(x - \mu)$ has mean $0$ and covariance</span>
-<span id="cb14-206"><a href="#cb14-206" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1/2}\Sigma\Sigma^{-1/2} = I$. In $w$-coordinates every variable has</span>
-<span id="cb14-207"><a href="#cb14-207" aria-hidden="true" tabindex="-1"></a>variance one and no two are correlated — the cloud is a sphere, and Euclidean</span>
-<span id="cb14-208"><a href="#cb14-208" aria-hidden="true" tabindex="-1"></a>distance is finally the right tool. In practice use a Cholesky factor</span>
-<span id="cb14-209"><a href="#cb14-209" aria-hidden="true" tabindex="-1"></a>$\Sigma = LL^{\top}$ and $w = L^{-1}(x-\mu)$ instead of the symmetric root: same</span>
-<span id="cb14-210"><a href="#cb14-210" aria-hidden="true" tabindex="-1"></a>$D^2$, much cheaper.</span>
-<span id="cb14-211"><a href="#cb14-211" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-214"><a href="#cb14-214" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-215"><a href="#cb14-215" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-whitening</span></span>
-<span id="cb14-216"><a href="#cb14-216" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The three jobs the quadratic form does, done one at a time. The highlighted point never moves relative to the cloud, but the yardstick changes: its Euclidean distance from the centre is only meaningful in the third panel, where the cloud has been made spherical."</span></span>
-<span id="cb14-217"><a href="#cb14-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 9.6</span></span>
-<span id="cb14-218"><a href="#cb14-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-219"><a href="#cb14-219" aria-hidden="true" tabindex="-1"></a>Sig_demo <span class="op">=</span> np.array([[<span class="fl">9.0</span>, <span class="fl">7.2</span>], [<span class="fl">7.2</span>, <span class="fl">16.0</span>]])</span>
-<span id="cb14-220"><a href="#cb14-220" aria-hidden="true" tabindex="-1"></a>mu_demo <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">120.0</span>])</span>
-<span id="cb14-221"><a href="#cb14-221" aria-hidden="true" tabindex="-1"></a>cloud <span class="op">=</span> rng.multivariate_normal(mu_demo, Sig_demo, size<span class="op">=</span><span class="dv">400</span>)</span>
-<span id="cb14-222"><a href="#cb14-222" aria-hidden="true" tabindex="-1"></a>focus <span class="op">=</span> np.array([<span class="fl">54.0</span>, <span class="fl">116.0</span>])          <span class="co"># the point we track</span></span>
-<span id="cb14-223"><a href="#cb14-223" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-224"><a href="#cb14-224" aria-hidden="true" tabindex="-1"></a>L <span class="op">=</span> np.linalg.cholesky(Sig_demo)</span>
-<span id="cb14-225"><a href="#cb14-225" aria-hidden="true" tabindex="-1"></a>steps <span class="op">=</span> [</span>
-<span id="cb14-226"><a href="#cb14-226" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"1. raw"</span>, cloud, focus, <span class="st">"$x$"</span>, mu_demo),</span>
-<span id="cb14-227"><a href="#cb14-227" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"2. centred"</span>, cloud <span class="op">-</span> mu_demo, focus <span class="op">-</span> mu_demo, <span class="st">"$x-</span><span class="ch">\\</span><span class="st">mu$"</span>, np.zeros(<span class="dv">2</span>)),</span>
-<span id="cb14-228"><a href="#cb14-228" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"3. whitened"</span>, np.linalg.solve(L, (cloud <span class="op">-</span> mu_demo).T).T,</span>
-<span id="cb14-229"><a href="#cb14-229" aria-hidden="true" tabindex="-1"></a>     np.linalg.solve(L, focus <span class="op">-</span> mu_demo), <span class="st">"$L^{-1}(x-</span><span class="ch">\\</span><span class="st">mu)$"</span>, np.zeros(<span class="dv">2</span>)),</span>
-<span id="cb14-230"><a href="#cb14-230" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb14-231"><a href="#cb14-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-232"><a href="#cb14-232" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">5.0</span>, <span class="fl">9.6</span>))</span>
-<span id="cb14-233"><a href="#cb14-233" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, (title, pts_, f_, lab, centre) <span class="kw">in</span> <span class="bu">zip</span>(axes, steps):</span>
-<span id="cb14-234"><a href="#cb14-234" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts_[:, <span class="dv">0</span>], pts_[:, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">9</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.5</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb14-235"><a href="#cb14-235" aria-hidden="true" tabindex="-1"></a>    ax.plot([centre[<span class="dv">0</span>], f_[<span class="dv">0</span>]], [centre[<span class="dv">1</span>], f_[<span class="dv">1</span>]],</span>
-<span id="cb14-236"><a href="#cb14-236" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">1.8</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
-<span id="cb14-237"><a href="#cb14-237" aria-hidden="true" tabindex="-1"></a>    ax.scatter(<span class="op">*</span>f_, s<span class="op">=</span><span class="dv">62</span>, color<span class="op">=</span>C[<span class="st">"red"</span>], zorder<span class="op">=</span><span class="dv">4</span>, edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">0.9</span>)</span>
-<span id="cb14-238"><a href="#cb14-238" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"</span><span class="sc">{</span>title<span class="sc">}</span><span class="ss">    </span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb14-239"><a href="#cb14-239" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> title <span class="op">==</span> <span class="st">"3. whitened"</span>:</span>
-<span id="cb14-240"><a href="#cb14-240" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Equal aspect so the whitened cloud really looks spherical and the</span></span>
-<span id="cb14-241"><a href="#cb14-241" aria-hidden="true" tabindex="-1"></a>        <span class="co"># rings really look circular. adjustable="datalim" widens the x range</span></span>
-<span id="cb14-242"><a href="#cb14-242" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to achieve that instead of shrinking the axes box, so this panel</span></span>
-<span id="cb14-243"><a href="#cb14-243" aria-hidden="true" tabindex="-1"></a>        <span class="co"># keeps the same landscape frame as the two above it.</span></span>
-<span id="cb14-244"><a href="#cb14-244" aria-hidden="true" tabindex="-1"></a>        ax.set_aspect(<span class="st">"equal"</span>, adjustable<span class="op">=</span><span class="st">"datalim"</span>)</span>
-<span id="cb14-245"><a href="#cb14-245" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> r <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]:</span>
-<span id="cb14-246"><a href="#cb14-246" aria-hidden="true" tabindex="-1"></a>            ax.add_patch(plt.Circle((<span class="dv">0</span>, <span class="dv">0</span>), r, fill<span class="op">=</span><span class="va">False</span>, ls<span class="op">=</span><span class="st">"--"</span>,</span>
-<span id="cb14-247"><a href="#cb14-247" aria-hidden="true" tabindex="-1"></a>                                    color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">1.0</span>, alpha<span class="op">=</span><span class="fl">0.7</span>))</span>
+<span id="cb14-195"><a href="#cb14-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-196"><a href="#cb14-196" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-197"><a href="#cb14-197" aria-hidden="true" tabindex="-1"></a>**The Mahalanobis distance is ordinary Euclidean distance, computed after</span>
+<span id="cb14-198"><a href="#cb14-198" aria-hidden="true" tabindex="-1"></a>whitening.** Centre by $\mu$, apply $\Sigma^{-1/2}$, then measure length the</span>
+<span id="cb14-199"><a href="#cb14-199" aria-hidden="true" tabindex="-1"></a>usual way.</span>
+<span id="cb14-200"><a href="#cb14-200" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-201"><a href="#cb14-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-202"><a href="#cb14-202" aria-hidden="true" tabindex="-1"></a>The transformed vector $w = \Sigma^{-1/2}(x - \mu)$ has mean $0$ and covariance</span>
+<span id="cb14-203"><a href="#cb14-203" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1/2}\Sigma\Sigma^{-1/2} = I$. In $w$-coordinates every variable has</span>
+<span id="cb14-204"><a href="#cb14-204" aria-hidden="true" tabindex="-1"></a>variance one and no two are correlated — the cloud is a sphere, and Euclidean</span>
+<span id="cb14-205"><a href="#cb14-205" aria-hidden="true" tabindex="-1"></a>distance is finally the right tool. In practice use a Cholesky factor</span>
+<span id="cb14-206"><a href="#cb14-206" aria-hidden="true" tabindex="-1"></a>$\Sigma = LL^{\top}$ and $w = L^{-1}(x-\mu)$ instead of the symmetric root: same</span>
+<span id="cb14-207"><a href="#cb14-207" aria-hidden="true" tabindex="-1"></a>$D^2$, much cheaper.</span>
+<span id="cb14-208"><a href="#cb14-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-211"><a href="#cb14-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-212"><a href="#cb14-212" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-whitening</span></span>
+<span id="cb14-213"><a href="#cb14-213" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The three jobs the quadratic form does, done one at a time. The highlighted point never moves relative to the cloud, but the yardstick changes: its Euclidean distance from the centre is only meaningful in the third panel, where the cloud has been made spherical."</span></span>
+<span id="cb14-214"><a href="#cb14-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 9.6</span></span>
+<span id="cb14-215"><a href="#cb14-215" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-216"><a href="#cb14-216" aria-hidden="true" tabindex="-1"></a>Sig_demo <span class="op">=</span> np.array([[<span class="fl">9.0</span>, <span class="fl">7.2</span>], [<span class="fl">7.2</span>, <span class="fl">16.0</span>]])</span>
+<span id="cb14-217"><a href="#cb14-217" aria-hidden="true" tabindex="-1"></a>mu_demo <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">120.0</span>])</span>
+<span id="cb14-218"><a href="#cb14-218" aria-hidden="true" tabindex="-1"></a>cloud <span class="op">=</span> rng.multivariate_normal(mu_demo, Sig_demo, size<span class="op">=</span><span class="dv">400</span>)</span>
+<span id="cb14-219"><a href="#cb14-219" aria-hidden="true" tabindex="-1"></a>focus <span class="op">=</span> np.array([<span class="fl">54.0</span>, <span class="fl">116.0</span>])          <span class="co"># the point we track</span></span>
+<span id="cb14-220"><a href="#cb14-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-221"><a href="#cb14-221" aria-hidden="true" tabindex="-1"></a>L <span class="op">=</span> np.linalg.cholesky(Sig_demo)</span>
+<span id="cb14-222"><a href="#cb14-222" aria-hidden="true" tabindex="-1"></a>steps <span class="op">=</span> [</span>
+<span id="cb14-223"><a href="#cb14-223" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"1. raw"</span>, cloud, focus, <span class="st">"$x$"</span>, mu_demo),</span>
+<span id="cb14-224"><a href="#cb14-224" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"2. centred"</span>, cloud <span class="op">-</span> mu_demo, focus <span class="op">-</span> mu_demo, <span class="st">"$x-</span><span class="ch">\\</span><span class="st">mu$"</span>, np.zeros(<span class="dv">2</span>)),</span>
+<span id="cb14-225"><a href="#cb14-225" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"3. whitened"</span>, np.linalg.solve(L, (cloud <span class="op">-</span> mu_demo).T).T,</span>
+<span id="cb14-226"><a href="#cb14-226" aria-hidden="true" tabindex="-1"></a>     np.linalg.solve(L, focus <span class="op">-</span> mu_demo), <span class="st">"$L^{-1}(x-</span><span class="ch">\\</span><span class="st">mu)$"</span>, np.zeros(<span class="dv">2</span>)),</span>
+<span id="cb14-227"><a href="#cb14-227" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb14-228"><a href="#cb14-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-229"><a href="#cb14-229" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="fl">5.0</span>, <span class="fl">9.6</span>))</span>
+<span id="cb14-230"><a href="#cb14-230" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, (title, pts_, f_, lab, centre) <span class="kw">in</span> <span class="bu">zip</span>(axes, steps):</span>
+<span id="cb14-231"><a href="#cb14-231" aria-hidden="true" tabindex="-1"></a>    ax.scatter(pts_[:, <span class="dv">0</span>], pts_[:, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">9</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.5</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb14-232"><a href="#cb14-232" aria-hidden="true" tabindex="-1"></a>    ax.plot([centre[<span class="dv">0</span>], f_[<span class="dv">0</span>]], [centre[<span class="dv">1</span>], f_[<span class="dv">1</span>]],</span>
+<span id="cb14-233"><a href="#cb14-233" aria-hidden="true" tabindex="-1"></a>            color<span class="op">=</span>C[<span class="st">"red"</span>], lw<span class="op">=</span><span class="fl">1.8</span>, zorder<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb14-234"><a href="#cb14-234" aria-hidden="true" tabindex="-1"></a>    ax.scatter(<span class="op">*</span>f_, s<span class="op">=</span><span class="dv">62</span>, color<span class="op">=</span>C[<span class="st">"red"</span>], zorder<span class="op">=</span><span class="dv">4</span>, edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">0.9</span>)</span>
+<span id="cb14-235"><a href="#cb14-235" aria-hidden="true" tabindex="-1"></a>    ax.set_title(<span class="ss">f"</span><span class="sc">{</span>title<span class="sc">}</span><span class="ss">    </span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb14-236"><a href="#cb14-236" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> title <span class="op">==</span> <span class="st">"3. whitened"</span>:</span>
+<span id="cb14-237"><a href="#cb14-237" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Equal aspect so the whitened cloud really looks spherical and the</span></span>
+<span id="cb14-238"><a href="#cb14-238" aria-hidden="true" tabindex="-1"></a>        <span class="co"># rings really look circular. adjustable="datalim" widens the x range</span></span>
+<span id="cb14-239"><a href="#cb14-239" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to achieve that instead of shrinking the axes box, so this panel</span></span>
+<span id="cb14-240"><a href="#cb14-240" aria-hidden="true" tabindex="-1"></a>        <span class="co"># keeps the same landscape frame as the two above it.</span></span>
+<span id="cb14-241"><a href="#cb14-241" aria-hidden="true" tabindex="-1"></a>        ax.set_aspect(<span class="st">"equal"</span>, adjustable<span class="op">=</span><span class="st">"datalim"</span>)</span>
+<span id="cb14-242"><a href="#cb14-242" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> r <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]:</span>
+<span id="cb14-243"><a href="#cb14-243" aria-hidden="true" tabindex="-1"></a>            ax.add_patch(plt.Circle((<span class="dv">0</span>, <span class="dv">0</span>), r, fill<span class="op">=</span><span class="va">False</span>, ls<span class="op">=</span><span class="st">"--"</span>,</span>
+<span id="cb14-244"><a href="#cb14-244" aria-hidden="true" tabindex="-1"></a>                                    color<span class="op">=</span>C[<span class="st">"dark"</span>], lw<span class="op">=</span><span class="fl">1.0</span>, alpha<span class="op">=</span><span class="fl">0.7</span>))</span>
+<span id="cb14-245"><a href="#cb14-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-246"><a href="#cb14-246" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-247"><a href="#cb14-247" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
 <span id="cb14-248"><a href="#cb14-248" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-249"><a href="#cb14-249" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
-<span id="cb14-250"><a href="#cb14-250" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb14-251"><a href="#cb14-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-252"><a href="#cb14-252" aria-hidden="true" tabindex="-1"></a>d_raw <span class="op">=</span> focus <span class="op">-</span> mu_demo</span>
-<span id="cb14-253"><a href="#cb14-253" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Euclidean distance, raw units      : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>norm(d_raw)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb14-254"><a href="#cb14-254" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Euclidean distance, whitened       : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>norm(np.linalg.solve(L, d_raw))<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb14-255"><a href="#cb14-255" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mahalanobis distance D             : </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(d_raw <span class="op">@</span> np.linalg.solve(Sig_demo, d_raw))<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb14-256"><a href="#cb14-256" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-257"><a href="#cb14-257" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-258"><a href="#cb14-258" aria-hidden="true" tabindex="-1"></a><span class="fu">## Three columns, two of them correlated</span></span>
-<span id="cb14-259"><a href="#cb14-259" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-260"><a href="#cb14-260" aria-hidden="true" tabindex="-1"></a>Here is the case you actually meet. Take $X$ with three columns — <span class="in">`age`</span>,</span>
-<span id="cb14-261"><a href="#cb14-261" aria-hidden="true" tabindex="-1"></a><span class="in">`height_cm`</span>, <span class="in">`weight_kg`</span> — where height and weight are correlated at $0.7$ and</span>
-<span id="cb14-262"><a href="#cb14-262" aria-hidden="true" tabindex="-1"></a>age is uncorrelated with both.</span>
-<span id="cb14-263"><a href="#cb14-263" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-266"><a href="#cb14-266" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-267"><a href="#cb14-267" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: example-setup</span></span>
-<span id="cb14-268"><a href="#cb14-268" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-269"><a href="#cb14-269" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> [<span class="st">"age"</span>, <span class="st">"height_cm"</span>, <span class="st">"weight_kg"</span>]</span>
-<span id="cb14-270"><a href="#cb14-270" aria-hidden="true" tabindex="-1"></a>mu_x  <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">170.0</span>, <span class="fl">75.0</span>])</span>
-<span id="cb14-271"><a href="#cb14-271" aria-hidden="true" tabindex="-1"></a>sd_x  <span class="op">=</span> np.array([<span class="fl">12.0</span>,  <span class="fl">10.0</span>,  <span class="fl">15.0</span>])</span>
-<span id="cb14-272"><a href="#cb14-272" aria-hidden="true" tabindex="-1"></a>R_x   <span class="op">=</span> np.array([[<span class="fl">1.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
-<span id="cb14-273"><a href="#cb14-273" aria-hidden="true" tabindex="-1"></a>                  [<span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="fl">0.7</span>],</span>
-<span id="cb14-274"><a href="#cb14-274" aria-hidden="true" tabindex="-1"></a>                  [<span class="fl">0.0</span>, <span class="fl">0.7</span>, <span class="fl">1.0</span>]])</span>
-<span id="cb14-275"><a href="#cb14-275" aria-hidden="true" tabindex="-1"></a>S_x   <span class="op">=</span> np.outer(sd_x, sd_x) <span class="op">*</span> R_x          <span class="co"># covariance = D R D</span></span>
-<span id="cb14-276"><a href="#cb14-276" aria-hidden="true" tabindex="-1"></a>S_inv <span class="op">=</span> np.linalg.inv(S_x)</span>
-<span id="cb14-277"><a href="#cb14-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-249"><a href="#cb14-249" aria-hidden="true" tabindex="-1"></a>d_raw <span class="op">=</span> focus <span class="op">-</span> mu_demo</span>
+<span id="cb14-250"><a href="#cb14-250" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Euclidean distance, raw units      : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>norm(d_raw)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb14-251"><a href="#cb14-251" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Euclidean distance, whitened       : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>norm(np.linalg.solve(L, d_raw))<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb14-252"><a href="#cb14-252" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mahalanobis distance D             : </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(d_raw <span class="op">@</span> np.linalg.solve(Sig_demo, d_raw))<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb14-253"><a href="#cb14-253" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-254"><a href="#cb14-254" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-255"><a href="#cb14-255" aria-hidden="true" tabindex="-1"></a><span class="fu">## Three columns, two of them correlated</span></span>
+<span id="cb14-256"><a href="#cb14-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-257"><a href="#cb14-257" aria-hidden="true" tabindex="-1"></a>Here is the case you actually meet. Take $X$ with three columns — <span class="in">`age`</span>,</span>
+<span id="cb14-258"><a href="#cb14-258" aria-hidden="true" tabindex="-1"></a><span class="in">`height_cm`</span>, <span class="in">`weight_kg`</span> — where height and weight are correlated at $0.7$ and</span>
+<span id="cb14-259"><a href="#cb14-259" aria-hidden="true" tabindex="-1"></a>age is uncorrelated with both.</span>
+<span id="cb14-260"><a href="#cb14-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-263"><a href="#cb14-263" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-264"><a href="#cb14-264" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: example-setup</span></span>
+<span id="cb14-265"><a href="#cb14-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-266"><a href="#cb14-266" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> [<span class="st">"age"</span>, <span class="st">"height_cm"</span>, <span class="st">"weight_kg"</span>]</span>
+<span id="cb14-267"><a href="#cb14-267" aria-hidden="true" tabindex="-1"></a>mu_x  <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">170.0</span>, <span class="fl">75.0</span>])</span>
+<span id="cb14-268"><a href="#cb14-268" aria-hidden="true" tabindex="-1"></a>sd_x  <span class="op">=</span> np.array([<span class="fl">12.0</span>,  <span class="fl">10.0</span>,  <span class="fl">15.0</span>])</span>
+<span id="cb14-269"><a href="#cb14-269" aria-hidden="true" tabindex="-1"></a>R_x   <span class="op">=</span> np.array([[<span class="fl">1.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb14-270"><a href="#cb14-270" aria-hidden="true" tabindex="-1"></a>                  [<span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="fl">0.7</span>],</span>
+<span id="cb14-271"><a href="#cb14-271" aria-hidden="true" tabindex="-1"></a>                  [<span class="fl">0.0</span>, <span class="fl">0.7</span>, <span class="fl">1.0</span>]])</span>
+<span id="cb14-272"><a href="#cb14-272" aria-hidden="true" tabindex="-1"></a>S_x   <span class="op">=</span> np.outer(sd_x, sd_x) <span class="op">*</span> R_x          <span class="co"># covariance = D R D</span></span>
+<span id="cb14-273"><a href="#cb14-273" aria-hidden="true" tabindex="-1"></a>S_inv <span class="op">=</span> np.linalg.inv(S_x)</span>
+<span id="cb14-274"><a href="#cb14-274" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-275"><a href="#cb14-275" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-276"><a href="#cb14-276" aria-hidden="true" tabindex="-1"></a>Now consider two people, both aged 50 (exactly average, so age contributes</span>
+<span id="cb14-277"><a href="#cb14-277" aria-hidden="true" tabindex="-1"></a>nothing) and both exactly one standard deviation above average in height:</span>
 <span id="cb14-278"><a href="#cb14-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-279"><a href="#cb14-279" aria-hidden="true" tabindex="-1"></a>Now consider two people, both aged 50 (exactly average, so age contributes</span>
-<span id="cb14-280"><a href="#cb14-280" aria-hidden="true" tabindex="-1"></a>nothing) and both exactly one standard deviation above average in height:</span>
+<span id="cb14-279"><a href="#cb14-279" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**A** is also one SD *above* average weight: <span class="in">`(50, 180, 90)`</span> — tall and heavy.</span>
+<span id="cb14-280"><a href="#cb14-280" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**B** is one SD *below* average weight: <span class="in">`(50, 180, 60)`</span> — tall and light.</span>
 <span id="cb14-281"><a href="#cb14-281" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-282"><a href="#cb14-282" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**A** is also one SD *above* average weight: <span class="in">`(50, 180, 90)`</span> — tall and heavy.</span>
-<span id="cb14-283"><a href="#cb14-283" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**B** is one SD *below* average weight: <span class="in">`(50, 180, 60)`</span> — tall and light.</span>
-<span id="cb14-284"><a href="#cb14-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-285"><a href="#cb14-285" aria-hidden="true" tabindex="-1"></a>In raw units both are $(0, +10, \pm 15)$ away from the mean, so their Euclidean</span>
-<span id="cb14-286"><a href="#cb14-286" aria-hidden="true" tabindex="-1"></a>distances are identical. After standardising, both are at $\sqrt{2} = 1.414$.</span>
-<span id="cb14-287"><a href="#cb14-287" aria-hidden="true" tabindex="-1"></a>Neither yardstick can tell them apart.</span>
-<span id="cb14-288"><a href="#cb14-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-291"><a href="#cb14-291" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-292"><a href="#cb14-292" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: tbl-two-people</span></span>
+<span id="cb14-282"><a href="#cb14-282" aria-hidden="true" tabindex="-1"></a>In raw units both are $(0, +10, \pm 15)$ away from the mean, so their Euclidean</span>
+<span id="cb14-283"><a href="#cb14-283" aria-hidden="true" tabindex="-1"></a>distances are identical. After standardising, both are at $\sqrt{2} = 1.414$.</span>
+<span id="cb14-284"><a href="#cb14-284" aria-hidden="true" tabindex="-1"></a>Neither yardstick can tell them apart.</span>
+<span id="cb14-285"><a href="#cb14-285" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-288"><a href="#cb14-288" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-289"><a href="#cb14-289" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: tbl-two-people</span></span>
+<span id="cb14-290"><a href="#cb14-290" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-291"><a href="#cb14-291" aria-hidden="true" tabindex="-1"></a>A_person <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">180.0</span>, <span class="fl">90.0</span>])</span>
+<span id="cb14-292"><a href="#cb14-292" aria-hidden="true" tabindex="-1"></a>B_person <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">180.0</span>, <span class="fl">60.0</span>])</span>
 <span id="cb14-293"><a href="#cb14-293" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-294"><a href="#cb14-294" aria-hidden="true" tabindex="-1"></a>A_person <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">180.0</span>, <span class="fl">90.0</span>])</span>
-<span id="cb14-295"><a href="#cb14-295" aria-hidden="true" tabindex="-1"></a>B_person <span class="op">=</span> np.array([<span class="fl">50.0</span>, <span class="fl">180.0</span>, <span class="fl">60.0</span>])</span>
-<span id="cb14-296"><a href="#cb14-296" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-297"><a href="#cb14-297" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
-<span id="cb14-298"><a href="#cb14-298" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, v <span class="kw">in</span> [(<span class="st">"A: tall &amp; heavy"</span>, A_person), (<span class="st">"B: tall &amp; light"</span>, B_person)]:</span>
-<span id="cb14-299"><a href="#cb14-299" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> mu_x</span>
-<span id="cb14-300"><a href="#cb14-300" aria-hidden="true" tabindex="-1"></a>    rows.append({</span>
-<span id="cb14-301"><a href="#cb14-301" aria-hidden="true" tabindex="-1"></a>        <span class="st">"person"</span>: lab,</span>
-<span id="cb14-302"><a href="#cb14-302" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Euclidean (raw units)"</span>: np.linalg.norm(d),</span>
-<span id="cb14-303"><a href="#cb14-303" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Euclidean (standardised)"</span>: np.linalg.norm(d <span class="op">/</span> sd_x),</span>
-<span id="cb14-304"><a href="#cb14-304" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Mahalanobis D"</span>: np.sqrt(d <span class="op">@</span> S_inv <span class="op">@</span> d),</span>
-<span id="cb14-305"><a href="#cb14-305" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Mahalanobis D^2"</span>: d <span class="op">@</span> S_inv <span class="op">@</span> d,</span>
-<span id="cb14-306"><a href="#cb14-306" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb14-294"><a href="#cb14-294" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb14-295"><a href="#cb14-295" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, v <span class="kw">in</span> [(<span class="st">"A: tall &amp; heavy"</span>, A_person), (<span class="st">"B: tall &amp; light"</span>, B_person)]:</span>
+<span id="cb14-296"><a href="#cb14-296" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> mu_x</span>
+<span id="cb14-297"><a href="#cb14-297" aria-hidden="true" tabindex="-1"></a>    rows.append({</span>
+<span id="cb14-298"><a href="#cb14-298" aria-hidden="true" tabindex="-1"></a>        <span class="st">"person"</span>: lab,</span>
+<span id="cb14-299"><a href="#cb14-299" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Euclidean (raw units)"</span>: np.linalg.norm(d),</span>
+<span id="cb14-300"><a href="#cb14-300" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Euclidean (standardised)"</span>: np.linalg.norm(d <span class="op">/</span> sd_x),</span>
+<span id="cb14-301"><a href="#cb14-301" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Mahalanobis D"</span>: np.sqrt(d <span class="op">@</span> S_inv <span class="op">@</span> d),</span>
+<span id="cb14-302"><a href="#cb14-302" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Mahalanobis D^2"</span>: d <span class="op">@</span> S_inv <span class="op">@</span> d,</span>
+<span id="cb14-303"><a href="#cb14-303" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb14-304"><a href="#cb14-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-305"><a href="#cb14-305" aria-hidden="true" tabindex="-1"></a>pd.DataFrame(rows).set_index(<span class="st">"person"</span>).<span class="bu">round</span>(<span class="dv">3</span>)</span>
+<span id="cb14-306"><a href="#cb14-306" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb14-307"><a href="#cb14-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-308"><a href="#cb14-308" aria-hidden="true" tabindex="-1"></a>pd.DataFrame(rows).set_index(<span class="st">"person"</span>).<span class="bu">round</span>(<span class="dv">3</span>)</span>
-<span id="cb14-309"><a href="#cb14-309" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-308"><a href="#cb14-308" aria-hidden="true" tabindex="-1"></a>::: {.callout-note collapse="true"}</span>
+<span id="cb14-309"><a href="#cb14-309" aria-hidden="true" tabindex="-1"></a><span class="fu">## Maths: where the factor of two comes from</span></span>
 <span id="cb14-310"><a href="#cb14-310" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-311"><a href="#cb14-311" aria-hidden="true" tabindex="-1"></a>::: {.callout-note collapse="true"}</span>
-<span id="cb14-312"><a href="#cb14-312" aria-hidden="true" tabindex="-1"></a><span class="fu">## Maths: where the factor of two comes from</span></span>
+<span id="cb14-311"><a href="#cb14-311" aria-hidden="true" tabindex="-1"></a>The Mahalanobis distance separates them by a factor of more than two. For two</span>
+<span id="cb14-312"><a href="#cb14-312" aria-hidden="true" tabindex="-1"></a>correlated variables the quadratic form works out to</span>
 <span id="cb14-313"><a href="#cb14-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-314"><a href="#cb14-314" aria-hidden="true" tabindex="-1"></a>The Mahalanobis distance separates them by a factor of more than two. For two</span>
-<span id="cb14-315"><a href="#cb14-315" aria-hidden="true" tabindex="-1"></a>correlated variables the quadratic form works out to</span>
-<span id="cb14-316"><a href="#cb14-316" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-317"><a href="#cb14-317" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-318"><a href="#cb14-318" aria-hidden="true" tabindex="-1"></a>D^2 \;=\; \frac{1}{1-\rho^2}\Big(z_1^2 \;-\; 2\rho\, z_1 z_2 \;+\; z_2^2\Big),</span>
-<span id="cb14-319"><a href="#cb14-319" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-314"><a href="#cb14-314" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-315"><a href="#cb14-315" aria-hidden="true" tabindex="-1"></a>D^2 \;=\; \frac{1}{1-\rho^2}\Big(z_1^2 \;-\; 2\rho\, z_1 z_2 \;+\; z_2^2\Big),</span>
+<span id="cb14-316"><a href="#cb14-316" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-317"><a href="#cb14-317" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-318"><a href="#cb14-318" aria-hidden="true" tabindex="-1"></a>with $z_j$ the ordinary z-scores. Age drops out because it is uncorrelated,</span>
+<span id="cb14-319"><a href="#cb14-319" aria-hidden="true" tabindex="-1"></a>leaving $z_1 = z_2 = 1$ for A and $z_1 = 1, z_2 = -1$ for B, with $\rho = 0.7$:</span>
 <span id="cb14-320"><a href="#cb14-320" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-321"><a href="#cb14-321" aria-hidden="true" tabindex="-1"></a>with $z_j$ the ordinary z-scores. Age drops out because it is uncorrelated,</span>
-<span id="cb14-322"><a href="#cb14-322" aria-hidden="true" tabindex="-1"></a>leaving $z_1 = z_2 = 1$ for A and $z_1 = 1, z_2 = -1$ for B, with $\rho = 0.7$:</span>
-<span id="cb14-323"><a href="#cb14-323" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-324"><a href="#cb14-324" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-325"><a href="#cb14-325" aria-hidden="true" tabindex="-1"></a>D^2_A = \frac{1 - 2(0.7) + 1}{1 - 0.49} = \frac{0.6}{0.51} = 1.176,</span>
-<span id="cb14-326"><a href="#cb14-326" aria-hidden="true" tabindex="-1"></a>\qquad</span>
-<span id="cb14-327"><a href="#cb14-327" aria-hidden="true" tabindex="-1"></a>D^2_B = \frac{1 + 2(0.7) + 1}{1 - 0.49} = \frac{3.4}{0.51} = 6.667 .</span>
-<span id="cb14-328"><a href="#cb14-328" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-321"><a href="#cb14-321" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-322"><a href="#cb14-322" aria-hidden="true" tabindex="-1"></a>D^2_A = \frac{1 - 2(0.7) + 1}{1 - 0.49} = \frac{0.6}{0.51} = 1.176,</span>
+<span id="cb14-323"><a href="#cb14-323" aria-hidden="true" tabindex="-1"></a>\qquad</span>
+<span id="cb14-324"><a href="#cb14-324" aria-hidden="true" tabindex="-1"></a>D^2_B = \frac{1 + 2(0.7) + 1}{1 - 0.49} = \frac{3.4}{0.51} = 6.667 .</span>
+<span id="cb14-325"><a href="#cb14-325" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-326"><a href="#cb14-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-327"><a href="#cb14-327" aria-hidden="true" tabindex="-1"></a>The cross term $-2\rho z_1 z_2$ is doing the work.</span>
+<span id="cb14-328"><a href="#cb14-328" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb14-329"><a href="#cb14-329" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-330"><a href="#cb14-330" aria-hidden="true" tabindex="-1"></a>The cross term $-2\rho z_1 z_2$ is doing the work.</span>
-<span id="cb14-331"><a href="#cb14-331" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb14-332"><a href="#cb14-332" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-333"><a href="#cb14-333" aria-hidden="true" tabindex="-1"></a>Being tall *and* heavy is the ordinary way to be unusual; the two deviations</span>
-<span id="cb14-334"><a href="#cb14-334" aria-hidden="true" tabindex="-1"></a>largely explain each other, and $D^2$ counts them close to once rather than</span>
-<span id="cb14-335"><a href="#cb14-335" aria-hidden="true" tabindex="-1"></a>twice. Being tall *and* light is a genuine anomaly: it is unusual in a direction</span>
-<span id="cb14-336"><a href="#cb14-336" aria-hidden="true" tabindex="-1"></a>the data almost never goes.</span>
-<span id="cb14-337"><a href="#cb14-337" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-340"><a href="#cb14-340" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-341"><a href="#cb14-341" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-correlation-ellipse</span></span>
-<span id="cb14-342"><a href="#cb14-342" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The height–weight plane with contours of constant Mahalanobis distance (solid, tilted). The dotted orange curve is the contour of constant *standardised* Euclidean distance through A and B — it is axis-aligned, and it passes through both points, because standardising alone cannot tell them apart. The tilt is the entire contribution of Σ⁻¹."</span></span>
-<span id="cb14-343"><a href="#cb14-343" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 4.8</span></span>
-<span id="cb14-344"><a href="#cb14-344" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-345"><a href="#cb14-345" aria-hidden="true" tabindex="-1"></a>S_hw <span class="op">=</span> S_x[<span class="dv">1</span>:, <span class="dv">1</span>:]</span>
-<span id="cb14-346"><a href="#cb14-346" aria-hidden="true" tabindex="-1"></a>mu_hw <span class="op">=</span> mu_x[<span class="dv">1</span>:]</span>
-<span id="cb14-347"><a href="#cb14-347" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> rng.multivariate_normal(mu_hw, S_hw, <span class="dv">1200</span>)</span>
+<span id="cb14-330"><a href="#cb14-330" aria-hidden="true" tabindex="-1"></a>Being tall *and* heavy is the ordinary way to be unusual; the two deviations</span>
+<span id="cb14-331"><a href="#cb14-331" aria-hidden="true" tabindex="-1"></a>largely explain each other, and $D^2$ counts them close to once rather than</span>
+<span id="cb14-332"><a href="#cb14-332" aria-hidden="true" tabindex="-1"></a>twice. Being tall *and* light is a genuine anomaly: it is unusual in a direction</span>
+<span id="cb14-333"><a href="#cb14-333" aria-hidden="true" tabindex="-1"></a>the data almost never goes.</span>
+<span id="cb14-334"><a href="#cb14-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-337"><a href="#cb14-337" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-338"><a href="#cb14-338" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-correlation-ellipse</span></span>
+<span id="cb14-339"><a href="#cb14-339" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "The height–weight plane with contours of constant Mahalanobis distance (solid, tilted). The dotted orange curve is the contour of constant *standardised* Euclidean distance through A and B — it is axis-aligned, and it passes through both points, because standardising alone cannot tell them apart. The tilt is the entire contribution of Σ⁻¹."</span></span>
+<span id="cb14-340"><a href="#cb14-340" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-height: 4.8</span></span>
+<span id="cb14-341"><a href="#cb14-341" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-342"><a href="#cb14-342" aria-hidden="true" tabindex="-1"></a>S_hw <span class="op">=</span> S_x[<span class="dv">1</span>:, <span class="dv">1</span>:]</span>
+<span id="cb14-343"><a href="#cb14-343" aria-hidden="true" tabindex="-1"></a>mu_hw <span class="op">=</span> mu_x[<span class="dv">1</span>:]</span>
+<span id="cb14-344"><a href="#cb14-344" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> rng.multivariate_normal(mu_hw, S_hw, <span class="dv">1200</span>)</span>
+<span id="cb14-345"><a href="#cb14-345" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-346"><a href="#cb14-346" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">4.8</span>))</span>
+<span id="cb14-347"><a href="#cb14-347" aria-hidden="true" tabindex="-1"></a>ax.scatter(sample[:, <span class="dv">0</span>], sample[:, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">8</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.4</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
 <span id="cb14-348"><a href="#cb14-348" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-349"><a href="#cb14-349" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="fl">6.4</span>, <span class="fl">4.8</span>))</span>
-<span id="cb14-350"><a href="#cb14-350" aria-hidden="true" tabindex="-1"></a>ax.scatter(sample[:, <span class="dv">0</span>], sample[:, <span class="dv">1</span>], s<span class="op">=</span><span class="dv">8</span>, color<span class="op">=</span>C[<span class="st">"grey"</span>], alpha<span class="op">=</span><span class="fl">0.4</span>, lw<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb14-351"><a href="#cb14-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-352"><a href="#cb14-352" aria-hidden="true" tabindex="-1"></a><span class="co"># Mahalanobis contours</span></span>
-<span id="cb14-353"><a href="#cb14-353" aria-hidden="true" tabindex="-1"></a>gx <span class="op">=</span> np.linspace(mu_hw[<span class="dv">0</span>] <span class="op">-</span> <span class="dv">40</span>, mu_hw[<span class="dv">0</span>] <span class="op">+</span> <span class="dv">40</span>, <span class="dv">400</span>)</span>
-<span id="cb14-354"><a href="#cb14-354" aria-hidden="true" tabindex="-1"></a>gy <span class="op">=</span> np.linspace(mu_hw[<span class="dv">1</span>] <span class="op">-</span> <span class="dv">60</span>, mu_hw[<span class="dv">1</span>] <span class="op">+</span> <span class="dv">60</span>, <span class="dv">400</span>)</span>
-<span id="cb14-355"><a href="#cb14-355" aria-hidden="true" tabindex="-1"></a>GX, GY <span class="op">=</span> np.meshgrid(gx, gy)</span>
-<span id="cb14-356"><a href="#cb14-356" aria-hidden="true" tabindex="-1"></a>dd <span class="op">=</span> np.dstack([GX <span class="op">-</span> mu_hw[<span class="dv">0</span>], GY <span class="op">-</span> mu_hw[<span class="dv">1</span>]])</span>
-<span id="cb14-357"><a href="#cb14-357" aria-hidden="true" tabindex="-1"></a>Dgrid <span class="op">=</span> np.sqrt(np.einsum(<span class="st">"...i,ij,...j-&gt;..."</span>, dd, np.linalg.inv(S_hw), dd))</span>
-<span id="cb14-358"><a href="#cb14-358" aria-hidden="true" tabindex="-1"></a>cs <span class="op">=</span> ax.contour(GX, GY, Dgrid, levels<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">2.0</span>, <span class="fl">3.0</span>],</span>
-<span id="cb14-359"><a href="#cb14-359" aria-hidden="true" tabindex="-1"></a>                colors<span class="op">=</span>C[<span class="st">"dark"</span>], linewidths<span class="op">=</span><span class="fl">1.1</span>, alpha<span class="op">=</span><span class="fl">0.8</span>)</span>
-<span id="cb14-360"><a href="#cb14-360" aria-hidden="true" tabindex="-1"></a>ax.clabel(cs, fmt<span class="op">=</span><span class="kw">lambda</span> v: <span class="ss">f"D=</span><span class="sc">{</span>v<span class="sc">:.0f}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb14-361"><a href="#cb14-361" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-362"><a href="#cb14-362" aria-hidden="true" tabindex="-1"></a><span class="co"># Contour of constant STANDARDISED Euclidean distance through A and B.</span></span>
-<span id="cb14-363"><a href="#cb14-363" aria-hidden="true" tabindex="-1"></a><span class="co"># Both sit at sum of squared z-scores = 2, so this is the axis-aligned</span></span>
-<span id="cb14-364"><a href="#cb14-364" aria-hidden="true" tabindex="-1"></a><span class="co"># ellipse with semi-axes sqrt(2) * sd in each direction.</span></span>
-<span id="cb14-365"><a href="#cb14-365" aria-hidden="true" tabindex="-1"></a>sd_hw <span class="op">=</span> np.sqrt(np.diag(S_hw))</span>
-<span id="cb14-366"><a href="#cb14-366" aria-hidden="true" tabindex="-1"></a>th <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span> <span class="op">*</span> np.pi, <span class="dv">400</span>)</span>
-<span id="cb14-367"><a href="#cb14-367" aria-hidden="true" tabindex="-1"></a>ax.plot(mu_hw[<span class="dv">0</span>] <span class="op">+</span> np.sqrt(<span class="dv">2</span>) <span class="op">*</span> sd_hw[<span class="dv">0</span>] <span class="op">*</span> np.cos(th),</span>
-<span id="cb14-368"><a href="#cb14-368" aria-hidden="true" tabindex="-1"></a>        mu_hw[<span class="dv">1</span>] <span class="op">+</span> np.sqrt(<span class="dv">2</span>) <span class="op">*</span> sd_hw[<span class="dv">1</span>] <span class="op">*</span> np.sin(th),</span>
-<span id="cb14-369"><a href="#cb14-369" aria-hidden="true" tabindex="-1"></a>        ls<span class="op">=</span><span class="st">":"</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>], lw<span class="op">=</span><span class="fl">2.0</span>,</span>
-<span id="cb14-370"><a href="#cb14-370" aria-hidden="true" tabindex="-1"></a>        label<span class="op">=</span><span class="st">"equal standardised distance"</span>)</span>
-<span id="cb14-371"><a href="#cb14-371" aria-hidden="true" tabindex="-1"></a>ax.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb14-372"><a href="#cb14-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-373"><a href="#cb14-373" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, v, col <span class="kw">in</span> [(<span class="st">"A"</span>, A_person, C[<span class="st">"green"</span>]), (<span class="st">"B"</span>, B_person, C[<span class="st">"red"</span>])]:</span>
-<span id="cb14-374"><a href="#cb14-374" aria-hidden="true" tabindex="-1"></a>    ax.scatter(v[<span class="dv">1</span>], v[<span class="dv">2</span>], s<span class="op">=</span><span class="dv">95</span>, color<span class="op">=</span>col, zorder<span class="op">=</span><span class="dv">5</span>,</span>
-<span id="cb14-375"><a href="#cb14-375" aria-hidden="true" tabindex="-1"></a>               edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">1.2</span>)</span>
-<span id="cb14-376"><a href="#cb14-376" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> mu_x</span>
-<span id="cb14-377"><a href="#cb14-377" aria-hidden="true" tabindex="-1"></a>    ax.annotate(<span class="ss">f"</span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss">   D = </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(d <span class="op">@</span> S_inv <span class="op">@</span> d)<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
-<span id="cb14-378"><a href="#cb14-378" aria-hidden="true" tabindex="-1"></a>                (v[<span class="dv">1</span>], v[<span class="dv">2</span>]), textcoords<span class="op">=</span><span class="st">"offset points"</span>, xytext<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">7</span>),</span>
-<span id="cb14-379"><a href="#cb14-379" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="dv">10</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>, color<span class="op">=</span>col)</span>
-<span id="cb14-380"><a href="#cb14-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-381"><a href="#cb14-381" aria-hidden="true" tabindex="-1"></a>ax.scatter(<span class="op">*</span>mu_hw, marker<span class="op">=</span><span class="st">"+"</span>, s<span class="op">=</span><span class="dv">140</span>, color<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="fl">1.8</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
-<span id="cb14-382"><a href="#cb14-382" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"height (cm)"</span>)</span>
-<span id="cb14-383"><a href="#cb14-383" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"weight (kg)"</span>)</span>
-<span id="cb14-384"><a href="#cb14-384" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Standardising cannot separate A from B.</span><span class="ch">\n</span><span class="st">The tilt of the ellipse can."</span>)</span>
-<span id="cb14-385"><a href="#cb14-385" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">False</span>)</span>
-<span id="cb14-386"><a href="#cb14-386" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
-<span id="cb14-387"><a href="#cb14-387" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb14-388"><a href="#cb14-388" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-389"><a href="#cb14-389" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-390"><a href="#cb14-390" aria-hidden="true" tabindex="-1"></a><span class="fu">### Redundant columns are not double-counted</span></span>
-<span id="cb14-391"><a href="#cb14-391" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-392"><a href="#cb14-392" aria-hidden="true" tabindex="-1"></a>This is the property that matters most if you are going to balance covariates.</span>
-<span id="cb14-393"><a href="#cb14-393" aria-hidden="true" tabindex="-1"></a>Suppose weight gets recorded twice by two slightly different scales, and you</span>
-<span id="cb14-394"><a href="#cb14-394" aria-hidden="true" tabindex="-1"></a>carelessly leave both columns in. Then you add a third scale, and a fourth.</span>
-<span id="cb14-395"><a href="#cb14-395" aria-hidden="true" tabindex="-1"></a>Standardised Euclidean distance treats each copy as fresh evidence and lets</span>
-<span id="cb14-396"><a href="#cb14-396" aria-hidden="true" tabindex="-1"></a>"weight" quietly take over the metric. Mahalanobis does not: $\Sigma^{-1}$</span>
-<span id="cb14-397"><a href="#cb14-397" aria-hidden="true" tabindex="-1"></a>already knows the copies are redundant, and the squared distance is unchanged</span>
-<span id="cb14-398"><a href="#cb14-398" aria-hidden="true" tabindex="-1"></a>no matter how many of them you add.</span>
-<span id="cb14-399"><a href="#cb14-399" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-400"><a href="#cb14-400" aria-hidden="true" tabindex="-1"></a><span class="fu">## Categorical features</span></span>
+<span id="cb14-349"><a href="#cb14-349" aria-hidden="true" tabindex="-1"></a><span class="co"># Mahalanobis contours</span></span>
+<span id="cb14-350"><a href="#cb14-350" aria-hidden="true" tabindex="-1"></a>gx <span class="op">=</span> np.linspace(mu_hw[<span class="dv">0</span>] <span class="op">-</span> <span class="dv">40</span>, mu_hw[<span class="dv">0</span>] <span class="op">+</span> <span class="dv">40</span>, <span class="dv">400</span>)</span>
+<span id="cb14-351"><a href="#cb14-351" aria-hidden="true" tabindex="-1"></a>gy <span class="op">=</span> np.linspace(mu_hw[<span class="dv">1</span>] <span class="op">-</span> <span class="dv">60</span>, mu_hw[<span class="dv">1</span>] <span class="op">+</span> <span class="dv">60</span>, <span class="dv">400</span>)</span>
+<span id="cb14-352"><a href="#cb14-352" aria-hidden="true" tabindex="-1"></a>GX, GY <span class="op">=</span> np.meshgrid(gx, gy)</span>
+<span id="cb14-353"><a href="#cb14-353" aria-hidden="true" tabindex="-1"></a>dd <span class="op">=</span> np.dstack([GX <span class="op">-</span> mu_hw[<span class="dv">0</span>], GY <span class="op">-</span> mu_hw[<span class="dv">1</span>]])</span>
+<span id="cb14-354"><a href="#cb14-354" aria-hidden="true" tabindex="-1"></a>Dgrid <span class="op">=</span> np.sqrt(np.einsum(<span class="st">"...i,ij,...j-&gt;..."</span>, dd, np.linalg.inv(S_hw), dd))</span>
+<span id="cb14-355"><a href="#cb14-355" aria-hidden="true" tabindex="-1"></a>cs <span class="op">=</span> ax.contour(GX, GY, Dgrid, levels<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">2.0</span>, <span class="fl">3.0</span>],</span>
+<span id="cb14-356"><a href="#cb14-356" aria-hidden="true" tabindex="-1"></a>                colors<span class="op">=</span>C[<span class="st">"dark"</span>], linewidths<span class="op">=</span><span class="fl">1.1</span>, alpha<span class="op">=</span><span class="fl">0.8</span>)</span>
+<span id="cb14-357"><a href="#cb14-357" aria-hidden="true" tabindex="-1"></a>ax.clabel(cs, fmt<span class="op">=</span><span class="kw">lambda</span> v: <span class="ss">f"D=</span><span class="sc">{</span>v<span class="sc">:.0f}</span><span class="ss">"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb14-358"><a href="#cb14-358" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-359"><a href="#cb14-359" aria-hidden="true" tabindex="-1"></a><span class="co"># Contour of constant STANDARDISED Euclidean distance through A and B.</span></span>
+<span id="cb14-360"><a href="#cb14-360" aria-hidden="true" tabindex="-1"></a><span class="co"># Both sit at sum of squared z-scores = 2, so this is the axis-aligned</span></span>
+<span id="cb14-361"><a href="#cb14-361" aria-hidden="true" tabindex="-1"></a><span class="co"># ellipse with semi-axes sqrt(2) * sd in each direction.</span></span>
+<span id="cb14-362"><a href="#cb14-362" aria-hidden="true" tabindex="-1"></a>sd_hw <span class="op">=</span> np.sqrt(np.diag(S_hw))</span>
+<span id="cb14-363"><a href="#cb14-363" aria-hidden="true" tabindex="-1"></a>th <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span> <span class="op">*</span> np.pi, <span class="dv">400</span>)</span>
+<span id="cb14-364"><a href="#cb14-364" aria-hidden="true" tabindex="-1"></a>ax.plot(mu_hw[<span class="dv">0</span>] <span class="op">+</span> np.sqrt(<span class="dv">2</span>) <span class="op">*</span> sd_hw[<span class="dv">0</span>] <span class="op">*</span> np.cos(th),</span>
+<span id="cb14-365"><a href="#cb14-365" aria-hidden="true" tabindex="-1"></a>        mu_hw[<span class="dv">1</span>] <span class="op">+</span> np.sqrt(<span class="dv">2</span>) <span class="op">*</span> sd_hw[<span class="dv">1</span>] <span class="op">*</span> np.sin(th),</span>
+<span id="cb14-366"><a href="#cb14-366" aria-hidden="true" tabindex="-1"></a>        ls<span class="op">=</span><span class="st">":"</span>, color<span class="op">=</span>C[<span class="st">"orange"</span>], lw<span class="op">=</span><span class="fl">2.0</span>,</span>
+<span id="cb14-367"><a href="#cb14-367" aria-hidden="true" tabindex="-1"></a>        label<span class="op">=</span><span class="st">"equal standardised distance"</span>)</span>
+<span id="cb14-368"><a href="#cb14-368" aria-hidden="true" tabindex="-1"></a>ax.legend(loc<span class="op">=</span><span class="st">"upper left"</span>, fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb14-369"><a href="#cb14-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-370"><a href="#cb14-370" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, v, col <span class="kw">in</span> [(<span class="st">"A"</span>, A_person, C[<span class="st">"green"</span>]), (<span class="st">"B"</span>, B_person, C[<span class="st">"red"</span>])]:</span>
+<span id="cb14-371"><a href="#cb14-371" aria-hidden="true" tabindex="-1"></a>    ax.scatter(v[<span class="dv">1</span>], v[<span class="dv">2</span>], s<span class="op">=</span><span class="dv">95</span>, color<span class="op">=</span>col, zorder<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb14-372"><a href="#cb14-372" aria-hidden="true" tabindex="-1"></a>               edgecolor<span class="op">=</span><span class="st">"white"</span>, lw<span class="op">=</span><span class="fl">1.2</span>)</span>
+<span id="cb14-373"><a href="#cb14-373" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> mu_x</span>
+<span id="cb14-374"><a href="#cb14-374" aria-hidden="true" tabindex="-1"></a>    ax.annotate(<span class="ss">f"</span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss">   D = </span><span class="sc">{</span>np<span class="sc">.</span>sqrt(d <span class="op">@</span> S_inv <span class="op">@</span> d)<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
+<span id="cb14-375"><a href="#cb14-375" aria-hidden="true" tabindex="-1"></a>                (v[<span class="dv">1</span>], v[<span class="dv">2</span>]), textcoords<span class="op">=</span><span class="st">"offset points"</span>, xytext<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">7</span>),</span>
+<span id="cb14-376"><a href="#cb14-376" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="dv">10</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>, color<span class="op">=</span>col)</span>
+<span id="cb14-377"><a href="#cb14-377" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-378"><a href="#cb14-378" aria-hidden="true" tabindex="-1"></a>ax.scatter(<span class="op">*</span>mu_hw, marker<span class="op">=</span><span class="st">"+"</span>, s<span class="op">=</span><span class="dv">140</span>, color<span class="op">=</span><span class="st">"black"</span>, lw<span class="op">=</span><span class="fl">1.8</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb14-379"><a href="#cb14-379" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"height (cm)"</span>)</span>
+<span id="cb14-380"><a href="#cb14-380" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"weight (kg)"</span>)</span>
+<span id="cb14-381"><a href="#cb14-381" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"Standardising cannot separate A from B.</span><span class="ch">\n</span><span class="st">The tilt of the ellipse can."</span>)</span>
+<span id="cb14-382"><a href="#cb14-382" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">False</span>)</span>
+<span id="cb14-383"><a href="#cb14-383" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb14-384"><a href="#cb14-384" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb14-385"><a href="#cb14-385" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-386"><a href="#cb14-386" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-387"><a href="#cb14-387" aria-hidden="true" tabindex="-1"></a><span class="fu">### Redundant columns are not double-counted</span></span>
+<span id="cb14-388"><a href="#cb14-388" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-389"><a href="#cb14-389" aria-hidden="true" tabindex="-1"></a>This is the property that matters most if you are going to balance covariates.</span>
+<span id="cb14-390"><a href="#cb14-390" aria-hidden="true" tabindex="-1"></a>Suppose weight gets recorded twice by two slightly different scales, and you</span>
+<span id="cb14-391"><a href="#cb14-391" aria-hidden="true" tabindex="-1"></a>carelessly leave both columns in. Then you add a third scale, and a fourth.</span>
+<span id="cb14-392"><a href="#cb14-392" aria-hidden="true" tabindex="-1"></a>Standardised Euclidean distance treats each copy as fresh evidence and lets</span>
+<span id="cb14-393"><a href="#cb14-393" aria-hidden="true" tabindex="-1"></a>"weight" quietly take over the metric. Mahalanobis does not: $\Sigma^{-1}$</span>
+<span id="cb14-394"><a href="#cb14-394" aria-hidden="true" tabindex="-1"></a>already knows the copies are redundant, and the squared distance is unchanged</span>
+<span id="cb14-395"><a href="#cb14-395" aria-hidden="true" tabindex="-1"></a>no matter how many of them you add.</span>
+<span id="cb14-396"><a href="#cb14-396" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-397"><a href="#cb14-397" aria-hidden="true" tabindex="-1"></a><span class="fu">## Categorical features</span></span>
+<span id="cb14-398"><a href="#cb14-398" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-399"><a href="#cb14-399" aria-hidden="true" tabindex="-1"></a>Everything so far assumed continuous covariates. Categorical ones need one extra</span>
+<span id="cb14-400"><a href="#cb14-400" aria-hidden="true" tabindex="-1"></a>step, and it is the step people most often get wrong.</span>
 <span id="cb14-401"><a href="#cb14-401" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-402"><a href="#cb14-402" aria-hidden="true" tabindex="-1"></a>Everything so far assumed continuous covariates. Categorical ones need one extra</span>
-<span id="cb14-403"><a href="#cb14-403" aria-hidden="true" tabindex="-1"></a>step, and it is the step people most often get wrong.</span>
-<span id="cb14-404"><a href="#cb14-404" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-405"><a href="#cb14-405" aria-hidden="true" tabindex="-1"></a>Throughout this section the running example is a fourth covariate alongside</span>
-<span id="cb14-406"><a href="#cb14-406" aria-hidden="true" tabindex="-1"></a><span class="in">`age`</span>, <span class="in">`height_cm`</span> and <span class="in">`weight_kg`</span>: a **recruitment region** with $K = 4$</span>
-<span id="cb14-407"><a href="#cb14-407" aria-hidden="true" tabindex="-1"></a>levels, <span class="in">`north`</span>, <span class="in">`south`</span>, <span class="in">`east`</span> and <span class="in">`west`</span>, occurring with prevalences</span>
-<span id="cb14-408"><a href="#cb14-408" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-409"><a href="#cb14-409" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-410"><a href="#cb14-410" aria-hidden="true" tabindex="-1"></a>p = (0.50,\; 0.30,\; 0.15,\; 0.05).</span>
-<span id="cb14-411"><a href="#cb14-411" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-412"><a href="#cb14-412" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-413"><a href="#cb14-413" aria-hidden="true" tabindex="-1"></a>The names carry no meaning — they are just four labels. What matters is the</span>
-<span id="cb14-414"><a href="#cb14-414" aria-hidden="true" tabindex="-1"></a>shape of that vector: one dominant level, two middling ones, and one deliberately</span>
-<span id="cb14-415"><a href="#cb14-415" aria-hidden="true" tabindex="-1"></a>rare level at 5%, because the rare level is where the interesting behaviour is.</span>
-<span id="cb14-416"><a href="#cb14-416" aria-hidden="true" tabindex="-1"></a>Below, 50,000 units are drawn from it.</span>
-<span id="cb14-417"><a href="#cb14-417" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-418"><a href="#cb14-418" aria-hidden="true" tabindex="-1"></a>Encode <span class="in">`region`</span> as four indicator (dummy) columns, one per level. **This breaks</span>
-<span id="cb14-419"><a href="#cb14-419" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1}$.** Every row of that block sums to exactly one, which is an exact</span>
-<span id="cb14-420"><a href="#cb14-420" aria-hidden="true" tabindex="-1"></a>linear dependency, so $\Sigma$ is singular and cannot be inverted — with $m$</span>
-<span id="cb14-421"><a href="#cb14-421" aria-hidden="true" tabindex="-1"></a>fully one-hot encoded categoricals the rank deficiency is $m$, one per block.</span>
-<span id="cb14-422"><a href="#cb14-422" aria-hidden="true" tabindex="-1"></a>Nothing is wrong with the data; the encoding is just carrying one redundant</span>
-<span id="cb14-423"><a href="#cb14-423" aria-hidden="true" tabindex="-1"></a>coordinate per categorical. There are two standard ways to deal with it, and</span>
-<span id="cb14-424"><a href="#cb14-424" aria-hidden="true" tabindex="-1"></a>they give identical answers.</span>
-<span id="cb14-425"><a href="#cb14-425" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-426"><a href="#cb14-426" aria-hidden="true" tabindex="-1"></a><span class="fu">### Fix A: drop a baseline level</span></span>
+<span id="cb14-402"><a href="#cb14-402" aria-hidden="true" tabindex="-1"></a>Throughout this section the running example is a fourth covariate alongside</span>
+<span id="cb14-403"><a href="#cb14-403" aria-hidden="true" tabindex="-1"></a><span class="in">`age`</span>, <span class="in">`height_cm`</span> and <span class="in">`weight_kg`</span>: a **recruitment region** with $K = 4$</span>
+<span id="cb14-404"><a href="#cb14-404" aria-hidden="true" tabindex="-1"></a>levels, <span class="in">`north`</span>, <span class="in">`south`</span>, <span class="in">`east`</span> and <span class="in">`west`</span>, occurring with prevalences</span>
+<span id="cb14-405"><a href="#cb14-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-406"><a href="#cb14-406" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-407"><a href="#cb14-407" aria-hidden="true" tabindex="-1"></a>p = (0.50,\; 0.30,\; 0.15,\; 0.05).</span>
+<span id="cb14-408"><a href="#cb14-408" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-409"><a href="#cb14-409" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-410"><a href="#cb14-410" aria-hidden="true" tabindex="-1"></a>The names carry no meaning — they are just four labels. What matters is the</span>
+<span id="cb14-411"><a href="#cb14-411" aria-hidden="true" tabindex="-1"></a>shape of that vector: one dominant level, two middling ones, and one deliberately</span>
+<span id="cb14-412"><a href="#cb14-412" aria-hidden="true" tabindex="-1"></a>rare level at 5%, because the rare level is where the interesting behaviour is.</span>
+<span id="cb14-413"><a href="#cb14-413" aria-hidden="true" tabindex="-1"></a>Below, 50,000 units are drawn from it.</span>
+<span id="cb14-414"><a href="#cb14-414" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-415"><a href="#cb14-415" aria-hidden="true" tabindex="-1"></a>Encode <span class="in">`region`</span> as four indicator (dummy) columns, one per level. **This breaks</span>
+<span id="cb14-416"><a href="#cb14-416" aria-hidden="true" tabindex="-1"></a>$\Sigma^{-1}$.** Every row of that block sums to exactly one, which is an exact</span>
+<span id="cb14-417"><a href="#cb14-417" aria-hidden="true" tabindex="-1"></a>linear dependency, so $\Sigma$ is singular and cannot be inverted — with $m$</span>
+<span id="cb14-418"><a href="#cb14-418" aria-hidden="true" tabindex="-1"></a>fully one-hot encoded categoricals the rank deficiency is $m$, one per block.</span>
+<span id="cb14-419"><a href="#cb14-419" aria-hidden="true" tabindex="-1"></a>Nothing is wrong with the data; the encoding is just carrying one redundant</span>
+<span id="cb14-420"><a href="#cb14-420" aria-hidden="true" tabindex="-1"></a>coordinate per categorical. There are two standard ways to deal with it, and</span>
+<span id="cb14-421"><a href="#cb14-421" aria-hidden="true" tabindex="-1"></a>they give identical answers.</span>
+<span id="cb14-422"><a href="#cb14-422" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-423"><a href="#cb14-423" aria-hidden="true" tabindex="-1"></a><span class="fu">### Fix A: drop a baseline level</span></span>
+<span id="cb14-424"><a href="#cb14-424" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-425"><a href="#cb14-425" aria-hidden="true" tabindex="-1"></a>Keep $K-1$ dummies and let one level be the implicit reference. The dependency</span>
+<span id="cb14-426"><a href="#cb14-426" aria-hidden="true" tabindex="-1"></a>disappears, $\Sigma$ becomes invertible, and everything proceeds as normal.</span>
 <span id="cb14-427"><a href="#cb14-427" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-428"><a href="#cb14-428" aria-hidden="true" tabindex="-1"></a>Keep $K-1$ dummies and let one level be the implicit reference. The dependency</span>
-<span id="cb14-429"><a href="#cb14-429" aria-hidden="true" tabindex="-1"></a>disappears, $\Sigma$ becomes invertible, and everything proceeds as normal.</span>
-<span id="cb14-430"><a href="#cb14-430" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-431"><a href="#cb14-431" aria-hidden="true" tabindex="-1"></a><span class="fu">### Fix B: keep all $K$ and use the pseudo-inverse</span></span>
+<span id="cb14-428"><a href="#cb14-428" aria-hidden="true" tabindex="-1"></a><span class="fu">### Fix B: keep all $K$ and use the pseudo-inverse</span></span>
+<span id="cb14-429"><a href="#cb14-429" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-430"><a href="#cb14-430" aria-hidden="true" tabindex="-1"></a>Keep the full block and replace $\Sigma^{-1}$ with the Moore–Penrose</span>
+<span id="cb14-431"><a href="#cb14-431" aria-hidden="true" tabindex="-1"></a>pseudo-inverse $\Sigma^{+}$:</span>
 <span id="cb14-432"><a href="#cb14-432" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-433"><a href="#cb14-433" aria-hidden="true" tabindex="-1"></a>Keep the full block and replace $\Sigma^{-1}$ with the Moore–Penrose</span>
-<span id="cb14-434"><a href="#cb14-434" aria-hidden="true" tabindex="-1"></a>pseudo-inverse $\Sigma^{+}$:</span>
-<span id="cb14-435"><a href="#cb14-435" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-436"><a href="#cb14-436" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-437"><a href="#cb14-437" aria-hidden="true" tabindex="-1"></a>D^2 = (x - \mu)^{<span class="sc">\!</span>\top}\,\Sigma^{+}\,(x - \mu).</span>
-<span id="cb14-438"><a href="#cb14-438" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-433"><a href="#cb14-433" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-434"><a href="#cb14-434" aria-hidden="true" tabindex="-1"></a>D^2 = (x - \mu)^{<span class="sc">\!</span>\top}\,\Sigma^{+}\,(x - \mu).</span>
+<span id="cb14-435"><a href="#cb14-435" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-436"><a href="#cb14-436" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-437"><a href="#cb14-437" aria-hidden="true" tabindex="-1"></a>$\Sigma^{+}$ inverts $\Sigma$ on its row space and sends the null space to zero.</span>
+<span id="cb14-438"><a href="#cb14-438" aria-hidden="true" tabindex="-1"></a>Since all the centred data already lives in that row space, nothing is lost.</span>
 <span id="cb14-439"><a href="#cb14-439" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-440"><a href="#cb14-440" aria-hidden="true" tabindex="-1"></a>$\Sigma^{+}$ inverts $\Sigma$ on its row space and sends the null space to zero.</span>
-<span id="cb14-441"><a href="#cb14-441" aria-hidden="true" tabindex="-1"></a>Since all the centred data already lives in that row space, nothing is lost.</span>
-<span id="cb14-442"><a href="#cb14-442" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-443"><a href="#cb14-443" aria-hidden="true" tabindex="-1"></a><span class="fu">### The two fixes give the same answer</span></span>
-<span id="cb14-444"><a href="#cb14-444" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-445"><a href="#cb14-445" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
-<span id="cb14-446"><a href="#cb14-446" aria-hidden="true" tabindex="-1"></a>**Fix A and Fix B are not two approximations to trade off. They give exactly the</span>
-<span id="cb14-447"><a href="#cb14-447" aria-hidden="true" tabindex="-1"></a>same $D^2$ — and it does not matter which level you drop.**</span>
-<span id="cb14-448"><a href="#cb14-448" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb14-449"><a href="#cb14-449" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-450"><a href="#cb14-450" aria-hidden="true" tabindex="-1"></a>The reason: the two encodings hold identical information in different</span>
-<span id="cb14-451"><a href="#cb14-451" aria-hidden="true" tabindex="-1"></a>coordinates (given any three of the four dummies, the fourth is determined), and</span>
-<span id="cb14-452"><a href="#cb14-452" aria-hidden="true" tabindex="-1"></a>$D^2$ is unchanged by any invertible linear reparameterisation of the</span>
-<span id="cb14-453"><a href="#cb14-453" aria-hidden="true" tabindex="-1"></a>covariates. That same property is why you never have to standardise your columns</span>
-<span id="cb14-454"><a href="#cb14-454" aria-hidden="true" tabindex="-1"></a>first, and why centimetres and inches give the same answer.</span>
-<span id="cb14-455"><a href="#cb14-455" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-456"><a href="#cb14-456" aria-hidden="true" tabindex="-1"></a>So pick on convenience.</span>
-<span id="cb14-457"><a href="#cb14-457" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-458"><a href="#cb14-458" aria-hidden="true" tabindex="-1"></a>**Drop a baseline** if you want a well-conditioned, genuinely invertible $S$ and</span>
-<span id="cb14-459"><a href="#cb14-459" aria-hidden="true" tabindex="-1"></a>a Cholesky factor you can reuse — which is what you want inside a</span>
-<span id="cb14-460"><a href="#cb14-460" aria-hidden="true" tabindex="-1"></a>rerandomization loop. This is the default I would reach for.</span>
-<span id="cb14-461"><a href="#cb14-461" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-462"><a href="#cb14-462" aria-hidden="true" tabindex="-1"></a>**Use the pseudo-inverse** if you would rather not choose reference levels, if</span>
-<span id="cb14-463"><a href="#cb14-463" aria-hidden="true" tabindex="-1"></a>you are handling several categoricals programmatically, or if $S$ may be</span>
-<span id="cb14-464"><a href="#cb14-464" aria-hidden="true" tabindex="-1"></a>singular for other reasons anyway: more covariates than units, an all-constant</span>
-<span id="cb14-465"><a href="#cb14-465" aria-hidden="true" tabindex="-1"></a>column, a covariate that is an exact linear combination of others. Just set</span>
-<span id="cb14-466"><a href="#cb14-466" aria-hidden="true" tabindex="-1"></a><span class="in">`rcond`</span> explicitly — see <span class="co">[</span><span class="ot">Practical notes</span><span class="co">](#practical-notes-and-failure-modes)</span>.</span>
-<span id="cb14-467"><a href="#cb14-467" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-468"><a href="#cb14-468" aria-hidden="true" tabindex="-1"></a>Both methods, end to end, for a unit from <span class="in">`west`</span>:</span>
-<span id="cb14-469"><a href="#cb14-469" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-472"><a href="#cb14-472" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-473"><a href="#cb14-473" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: categorical-both-methods</span></span>
-<span id="cb14-474"><a href="#cb14-474" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-475"><a href="#cb14-475" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="st">"north"</span>, <span class="st">"south"</span>, <span class="st">"east"</span>, <span class="st">"west"</span>]</span>
-<span id="cb14-476"><a href="#cb14-476" aria-hidden="true" tabindex="-1"></a>p_true <span class="op">=</span> np.array([<span class="fl">0.50</span>, <span class="fl">0.30</span>, <span class="fl">0.15</span>, <span class="fl">0.05</span>])</span>
-<span id="cb14-477"><a href="#cb14-477" aria-hidden="true" tabindex="-1"></a>TOL    <span class="op">=</span> <span class="fl">1e-10</span>                  <span class="co"># never rely on pinv's default; see the notes</span></span>
+<span id="cb14-440"><a href="#cb14-440" aria-hidden="true" tabindex="-1"></a><span class="fu">### The two fixes give the same answer</span></span>
+<span id="cb14-441"><a href="#cb14-441" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-442"><a href="#cb14-442" aria-hidden="true" tabindex="-1"></a>::: {.keybox}</span>
+<span id="cb14-443"><a href="#cb14-443" aria-hidden="true" tabindex="-1"></a>**Fix A and Fix B are not two approximations to trade off. They give exactly the</span>
+<span id="cb14-444"><a href="#cb14-444" aria-hidden="true" tabindex="-1"></a>same $D^2$ — and it does not matter which level you drop.**</span>
+<span id="cb14-445"><a href="#cb14-445" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb14-446"><a href="#cb14-446" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-447"><a href="#cb14-447" aria-hidden="true" tabindex="-1"></a>The reason: the two encodings hold identical information in different</span>
+<span id="cb14-448"><a href="#cb14-448" aria-hidden="true" tabindex="-1"></a>coordinates (given any three of the four dummies, the fourth is determined), and</span>
+<span id="cb14-449"><a href="#cb14-449" aria-hidden="true" tabindex="-1"></a>$D^2$ is unchanged by any invertible linear reparameterisation of the</span>
+<span id="cb14-450"><a href="#cb14-450" aria-hidden="true" tabindex="-1"></a>covariates. That same property is why you never have to standardise your columns</span>
+<span id="cb14-451"><a href="#cb14-451" aria-hidden="true" tabindex="-1"></a>first, and why centimetres and inches give the same answer.</span>
+<span id="cb14-452"><a href="#cb14-452" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-453"><a href="#cb14-453" aria-hidden="true" tabindex="-1"></a>So pick on convenience.</span>
+<span id="cb14-454"><a href="#cb14-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-455"><a href="#cb14-455" aria-hidden="true" tabindex="-1"></a>**Drop a baseline** if you want a well-conditioned, genuinely invertible $S$ and</span>
+<span id="cb14-456"><a href="#cb14-456" aria-hidden="true" tabindex="-1"></a>a Cholesky factor you can reuse — which is what you want inside a</span>
+<span id="cb14-457"><a href="#cb14-457" aria-hidden="true" tabindex="-1"></a>rerandomization loop. This is the default I would reach for.</span>
+<span id="cb14-458"><a href="#cb14-458" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-459"><a href="#cb14-459" aria-hidden="true" tabindex="-1"></a>**Use the pseudo-inverse** if you would rather not choose reference levels, if</span>
+<span id="cb14-460"><a href="#cb14-460" aria-hidden="true" tabindex="-1"></a>you are handling several categoricals programmatically, or if $S$ may be</span>
+<span id="cb14-461"><a href="#cb14-461" aria-hidden="true" tabindex="-1"></a>singular for other reasons anyway: more covariates than units, an all-constant</span>
+<span id="cb14-462"><a href="#cb14-462" aria-hidden="true" tabindex="-1"></a>column, a covariate that is an exact linear combination of others. Just set</span>
+<span id="cb14-463"><a href="#cb14-463" aria-hidden="true" tabindex="-1"></a><span class="in">`rcond`</span> explicitly — see <span class="co">[</span><span class="ot">Practical notes</span><span class="co">](#practical-notes-and-failure-modes)</span>.</span>
+<span id="cb14-464"><a href="#cb14-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-465"><a href="#cb14-465" aria-hidden="true" tabindex="-1"></a>Both methods, end to end, for a unit from <span class="in">`west`</span>:</span>
+<span id="cb14-466"><a href="#cb14-466" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-469"><a href="#cb14-469" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-470"><a href="#cb14-470" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: categorical-both-methods</span></span>
+<span id="cb14-471"><a href="#cb14-471" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-472"><a href="#cb14-472" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> [<span class="st">"north"</span>, <span class="st">"south"</span>, <span class="st">"east"</span>, <span class="st">"west"</span>]</span>
+<span id="cb14-473"><a href="#cb14-473" aria-hidden="true" tabindex="-1"></a>p_true <span class="op">=</span> np.array([<span class="fl">0.50</span>, <span class="fl">0.30</span>, <span class="fl">0.15</span>, <span class="fl">0.05</span>])</span>
+<span id="cb14-474"><a href="#cb14-474" aria-hidden="true" tabindex="-1"></a>TOL    <span class="op">=</span> <span class="fl">1e-10</span>                  <span class="co"># never rely on pinv's default; see the notes</span></span>
+<span id="cb14-475"><a href="#cb14-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-476"><a href="#cb14-476" aria-hidden="true" tabindex="-1"></a>region <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span><span class="dv">50_000</span>, p<span class="op">=</span>p_true)</span>
+<span id="cb14-477"><a href="#cb14-477" aria-hidden="true" tabindex="-1"></a>unit   <span class="op">=</span> <span class="dv">3</span>                      <span class="co"># the unit whose distance we want: 'west'</span></span>
 <span id="cb14-478"><a href="#cb14-478" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-479"><a href="#cb14-479" aria-hidden="true" tabindex="-1"></a>region <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span><span class="dv">50_000</span>, p<span class="op">=</span>p_true)</span>
-<span id="cb14-480"><a href="#cb14-480" aria-hidden="true" tabindex="-1"></a>unit   <span class="op">=</span> <span class="dv">3</span>                      <span class="co"># the unit whose distance we want: 'west'</span></span>
-<span id="cb14-481"><a href="#cb14-481" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-482"><a href="#cb14-482" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Fix A: drop a baseline (north) -------------------------------------</span></span>
-<span id="cb14-483"><a href="#cb14-483" aria-hidden="true" tabindex="-1"></a>X_a    <span class="op">=</span> np.eye(<span class="dv">4</span>)[region][:, <span class="dv">1</span>:]        <span class="co"># south, east, west; north is implied</span></span>
-<span id="cb14-484"><a href="#cb14-484" aria-hidden="true" tabindex="-1"></a>S_a    <span class="op">=</span> np.cov(X_a, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb14-485"><a href="#cb14-485" aria-hidden="true" tabindex="-1"></a>d_a    <span class="op">=</span> np.eye(<span class="dv">4</span>)[unit][<span class="dv">1</span>:] <span class="op">-</span> X_a.mean(<span class="dv">0</span>)</span>
-<span id="cb14-486"><a href="#cb14-486" aria-hidden="true" tabindex="-1"></a>D2_a   <span class="op">=</span> d_a <span class="op">@</span> np.linalg.solve(S_a, d_a)</span>
-<span id="cb14-487"><a href="#cb14-487" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-488"><a href="#cb14-488" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Fix B: keep all four levels, use the pseudo-inverse ----------------</span></span>
-<span id="cb14-489"><a href="#cb14-489" aria-hidden="true" tabindex="-1"></a>Dfull  <span class="op">=</span> np.eye(<span class="dv">4</span>)[region]</span>
-<span id="cb14-490"><a href="#cb14-490" aria-hidden="true" tabindex="-1"></a>S_full <span class="op">=</span> np.cov(Dfull, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>)     <span class="co"># singular by construction</span></span>
-<span id="cb14-491"><a href="#cb14-491" aria-hidden="true" tabindex="-1"></a>p_hat  <span class="op">=</span> Dfull.mean(<span class="dv">0</span>)</span>
-<span id="cb14-492"><a href="#cb14-492" aria-hidden="true" tabindex="-1"></a>d_b    <span class="op">=</span> np.eye(<span class="dv">4</span>)[unit] <span class="op">-</span> p_hat</span>
-<span id="cb14-493"><a href="#cb14-493" aria-hidden="true" tabindex="-1"></a>D2_b   <span class="op">=</span> d_b <span class="op">@</span> np.linalg.pinv(S_full, rcond<span class="op">=</span>TOL) <span class="op">@</span> d_b</span>
-<span id="cb14-494"><a href="#cb14-494" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-495"><a href="#cb14-495" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Fix A, baseline = north : D^2 = </span><span class="sc">{</span>D2_a<span class="sc">:.10f}</span><span class="ss">"</span>)</span>
-<span id="cb14-496"><a href="#cb14-496" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Fix B, pseudo-inverse   : D^2 = </span><span class="sc">{</span>D2_b<span class="sc">:.10f}</span><span class="ss">"</span>)</span>
-<span id="cb14-497"><a href="#cb14-497" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"difference              : </span><span class="sc">{</span><span class="bu">abs</span>(D2_a <span class="op">-</span> D2_b)<span class="sc">:.2e}</span><span class="ss">"</span>)</span>
-<span id="cb14-498"><a href="#cb14-498" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-499"><a href="#cb14-499" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-500"><a href="#cb14-500" aria-hidden="true" tabindex="-1"></a><span class="fu">### Mixing continuous and categorical covariates</span></span>
-<span id="cb14-501"><a href="#cb14-501" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-502"><a href="#cb14-502" aria-hidden="true" tabindex="-1"></a>Nothing special is required: stack the continuous columns and the dummy columns</span>
-<span id="cb14-503"><a href="#cb14-503" aria-hidden="true" tabindex="-1"></a>into one design matrix and take the covariance of the whole thing. The</span>
-<span id="cb14-504"><a href="#cb14-504" aria-hidden="true" tabindex="-1"></a>cross-covariances between the dummies and the continuous columns are estimated</span>
-<span id="cb14-505"><a href="#cb14-505" aria-hidden="true" tabindex="-1"></a>along with everything else, so a categorical that is correlated with age gets</span>
-<span id="cb14-506"><a href="#cb14-506" aria-hidden="true" tabindex="-1"></a>discounted against age automatically.</span>
-<span id="cb14-507"><a href="#cb14-507" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-510"><a href="#cb14-510" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-511"><a href="#cb14-511" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: mixed-design</span></span>
-<span id="cb14-512"><a href="#cb14-512" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-513"><a href="#cb14-513" aria-hidden="true" tabindex="-1"></a>n_mix <span class="op">=</span> <span class="dv">20_000</span></span>
-<span id="cb14-514"><a href="#cb14-514" aria-hidden="true" tabindex="-1"></a>region <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span>n_mix, p<span class="op">=</span>p_true)</span>
-<span id="cb14-515"><a href="#cb14-515" aria-hidden="true" tabindex="-1"></a><span class="co"># Make region genuinely correlated with the continuous block: shift age by region.</span></span>
-<span id="cb14-516"><a href="#cb14-516" aria-hidden="true" tabindex="-1"></a>cont <span class="op">=</span> rng.multivariate_normal(mu_x, S_x, n_mix)</span>
-<span id="cb14-517"><a href="#cb14-517" aria-hidden="true" tabindex="-1"></a>cont[:, <span class="dv">0</span>] <span class="op">+=</span> np.array([<span class="op">-</span><span class="fl">6.0</span>, <span class="fl">0.0</span>, <span class="fl">4.0</span>, <span class="fl">12.0</span>])[region]</span>
-<span id="cb14-518"><a href="#cb14-518" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-519"><a href="#cb14-519" aria-hidden="true" tabindex="-1"></a>onehot <span class="op">=</span> np.eye(<span class="dv">4</span>)[region]</span>
-<span id="cb14-520"><a href="#cb14-520" aria-hidden="true" tabindex="-1"></a>X_full <span class="op">=</span> np.hstack([cont, onehot])            <span class="co"># 3 continuous + 4 dummies (singular)</span></span>
-<span id="cb14-521"><a href="#cb14-521" aria-hidden="true" tabindex="-1"></a>X_drop <span class="op">=</span> np.hstack([cont, onehot[:, <span class="dv">1</span>:]])     <span class="co"># 3 continuous + 3 dummies (invertible)</span></span>
-<span id="cb14-522"><a href="#cb14-522" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-523"><a href="#cb14-523" aria-hidden="true" tabindex="-1"></a>unit <span class="op">=</span> np.array([<span class="fl">62.0</span>, <span class="fl">180.0</span>, <span class="fl">60.0</span>])          <span class="co"># older, tall, light ...</span></span>
-<span id="cb14-524"><a href="#cb14-524" aria-hidden="true" tabindex="-1"></a>unit_full <span class="op">=</span> np.concatenate([unit, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>]])   <span class="co"># ... and from 'west'</span></span>
-<span id="cb14-525"><a href="#cb14-525" aria-hidden="true" tabindex="-1"></a>unit_drop <span class="op">=</span> np.concatenate([unit, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>][<span class="dv">1</span>:]])</span>
-<span id="cb14-526"><a href="#cb14-526" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-527"><a href="#cb14-527" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> d2_pinv(X, v, tol<span class="op">=</span>TOL):</span>
-<span id="cb14-528"><a href="#cb14-528" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> X.mean(<span class="dv">0</span>)</span>
-<span id="cb14-529"><a href="#cb14-529" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(d <span class="op">@</span> np.linalg.pinv(np.cov(X, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>), rcond<span class="op">=</span>tol) <span class="op">@</span> d)</span>
-<span id="cb14-530"><a href="#cb14-530" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-531"><a href="#cb14-531" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> d2_inv(X, v):</span>
-<span id="cb14-532"><a href="#cb14-532" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> X.mean(<span class="dv">0</span>)</span>
-<span id="cb14-533"><a href="#cb14-533" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(d <span class="op">@</span> np.linalg.solve(np.cov(X, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>), d))</span>
-<span id="cb14-534"><a href="#cb14-534" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-535"><a href="#cb14-535" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"full one-hot + pseudo-inverse : </span><span class="sc">{</span>d2_pinv(X_full, unit_full)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
-<span id="cb14-536"><a href="#cb14-536" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"baseline dropped + inverse    : </span><span class="sc">{</span>d2_inv(X_drop, unit_drop)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
-<span id="cb14-537"><a href="#cb14-537" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"continuous columns alone      : </span><span class="sc">{</span>d2_inv(cont, unit)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
-<span id="cb14-538"><a href="#cb14-538" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-539"><a href="#cb14-539" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-540"><a href="#cb14-540" aria-hidden="true" tabindex="-1"></a>The first two agree, as they must. The third is smaller, which is the point: it</span>
-<span id="cb14-541"><a href="#cb14-541" aria-hidden="true" tabindex="-1"></a>is the distance that ignores the fact that this person also comes from the</span>
-<span id="cb14-542"><a href="#cb14-542" aria-hidden="true" tabindex="-1"></a>rarest region.</span>
-<span id="cb14-543"><a href="#cb14-543" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-544"><a href="#cb14-544" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical notes and failure modes</span></span>
-<span id="cb14-545"><a href="#cb14-545" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-546"><a href="#cb14-546" aria-hidden="true" tabindex="-1"></a>**Singular or ill-conditioned $S$.** With $p$ close to $N$, exact collinearity,</span>
-<span id="cb14-547"><a href="#cb14-547" aria-hidden="true" tabindex="-1"></a>or full one-hot encodings, $S^{-1}$ does not exist. Use $S^{+}$ with an explicit</span>
-<span id="cb14-548"><a href="#cb14-548" aria-hidden="true" tabindex="-1"></a>tolerance, or drop columns until it is invertible. Watch <span class="in">`np.linalg.cond(S)`</span>:</span>
-<span id="cb14-549"><a href="#cb14-549" aria-hidden="true" tabindex="-1"></a>once it passes roughly $10^{10}$, $D^2$ is being driven by directions in which</span>
-<span id="cb14-550"><a href="#cb14-550" aria-hidden="true" tabindex="-1"></a>the data barely varies, and those directions are usually noise.</span>
-<span id="cb14-551"><a href="#cb14-551" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-552"><a href="#cb14-552" aria-hidden="true" tabindex="-1"></a>**Redundancy is free, but only statistically.** Adding correlated covariates</span>
-<span id="cb14-553"><a href="#cb14-553" aria-hidden="true" tabindex="-1"></a>does not upweight them. It does worsen the conditioning of $S$, and it raises</span>
-<span id="cb14-554"><a href="#cb14-554" aria-hidden="true" tabindex="-1"></a>$p$, which matters as soon as you start comparing $D^2$ against a $\chi^2_p$</span>
-<span id="cb14-555"><a href="#cb14-555" aria-hidden="true" tabindex="-1"></a>reference.</span>
-<span id="cb14-556"><a href="#cb14-556" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-557"><a href="#cb14-557" aria-hidden="true" tabindex="-1"></a>**Set your own tolerance on `pinv` and `matrix_rank`.** A one-hot covariance has</span>
-<span id="cb14-558"><a href="#cb14-558" aria-hidden="true" tabindex="-1"></a>an eigenvalue that is exactly zero in theory, but floating-point arithmetic</span>
-<span id="cb14-559"><a href="#cb14-559" aria-hidden="true" tabindex="-1"></a>returns something around $\pm 10^{-16}$ instead. NumPy's default cutoff is</span>
-<span id="cb14-560"><a href="#cb14-560" aria-hidden="true" tabindex="-1"></a>relative to the largest singular value and is tight enough that this</span>
-<span id="cb14-561"><a href="#cb14-561" aria-hidden="true" tabindex="-1"></a>structurally-zero eigenvalue is not reliably discarded:</span>
-<span id="cb14-562"><a href="#cb14-562" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-565"><a href="#cb14-565" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-566"><a href="#cb14-566" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: pinv-tolerance</span></span>
-<span id="cb14-567"><a href="#cb14-567" aria-hidden="true" tabindex="-1"></a><span class="co">#| code-fold: true</span></span>
-<span id="cb14-568"><a href="#cb14-568" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-569"><a href="#cb14-569" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"eigenvalues       :"</span>, np.<span class="bu">round</span>(np.linalg.eigvalsh(S_full), <span class="dv">18</span>))</span>
-<span id="cb14-570"><a href="#cb14-570" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"smallest, in full :"</span>, <span class="ss">f"</span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>eigvalsh(S_full)[<span class="dv">0</span>]<span class="sc">:.3e}</span><span class="ss">"</span>)</span>
-<span id="cb14-571"><a href="#cb14-571" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
-<span id="cb14-572"><a href="#cb14-572" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"matrix_rank, default tol : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>matrix_rank(S_full)<span class="sc">}</span><span class="ss"> of 4   &lt;- wrong"</span>)</span>
-<span id="cb14-573"><a href="#cb14-573" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"matrix_rank, tol=1e-10   : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>matrix_rank(S_full, tol<span class="op">=</span>TOL)<span class="sc">}</span><span class="ss"> of 4   &lt;- right"</span>)</span>
-<span id="cb14-574"><a href="#cb14-574" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-575"><a href="#cb14-575" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-576"><a href="#cb14-576" aria-hidden="true" tabindex="-1"></a>Whether it bites depends on exactly where that eigenvalue lands, which varies</span>
-<span id="cb14-577"><a href="#cb14-577" aria-hidden="true" tabindex="-1"></a>with the data — on this particular matrix <span class="in">`pinv`</span> happens to be fine, but</span>
-<span id="cb14-578"><a href="#cb14-578" aria-hidden="true" tabindex="-1"></a><span class="in">`matrix_rank`</span> already reports a singular matrix as full rank. The failure mode</span>
-<span id="cb14-579"><a href="#cb14-579" aria-hidden="true" tabindex="-1"></a>for <span class="in">`pinv`</span> is worse than for <span class="in">`matrix_rank`</span>, because it is silent: you get a</span>
-<span id="cb14-580"><a href="#cb14-580" aria-hidden="true" tabindex="-1"></a>plausible number that is quietly wrong rather than an obviously wrong integer.</span>
-<span id="cb14-581"><a href="#cb14-581" aria-hidden="true" tabindex="-1"></a>Pass <span class="in">`np.linalg.pinv(S, rcond=1e-10)`</span> and <span class="in">`matrix_rank(S, tol=1e-10)`</span> as a</span>
-<span id="cb14-582"><a href="#cb14-582" aria-hidden="true" tabindex="-1"></a>matter of habit — or sidestep both by dropping a baseline.</span>
+<span id="cb14-479"><a href="#cb14-479" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Fix A: drop a baseline (north) -------------------------------------</span></span>
+<span id="cb14-480"><a href="#cb14-480" aria-hidden="true" tabindex="-1"></a>X_a    <span class="op">=</span> np.eye(<span class="dv">4</span>)[region][:, <span class="dv">1</span>:]        <span class="co"># south, east, west; north is implied</span></span>
+<span id="cb14-481"><a href="#cb14-481" aria-hidden="true" tabindex="-1"></a>S_a    <span class="op">=</span> np.cov(X_a, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb14-482"><a href="#cb14-482" aria-hidden="true" tabindex="-1"></a>d_a    <span class="op">=</span> np.eye(<span class="dv">4</span>)[unit][<span class="dv">1</span>:] <span class="op">-</span> X_a.mean(<span class="dv">0</span>)</span>
+<span id="cb14-483"><a href="#cb14-483" aria-hidden="true" tabindex="-1"></a>D2_a   <span class="op">=</span> d_a <span class="op">@</span> np.linalg.solve(S_a, d_a)</span>
+<span id="cb14-484"><a href="#cb14-484" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-485"><a href="#cb14-485" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Fix B: keep all four levels, use the pseudo-inverse ----------------</span></span>
+<span id="cb14-486"><a href="#cb14-486" aria-hidden="true" tabindex="-1"></a>Dfull  <span class="op">=</span> np.eye(<span class="dv">4</span>)[region]</span>
+<span id="cb14-487"><a href="#cb14-487" aria-hidden="true" tabindex="-1"></a>S_full <span class="op">=</span> np.cov(Dfull, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>)     <span class="co"># singular by construction</span></span>
+<span id="cb14-488"><a href="#cb14-488" aria-hidden="true" tabindex="-1"></a>p_hat  <span class="op">=</span> Dfull.mean(<span class="dv">0</span>)</span>
+<span id="cb14-489"><a href="#cb14-489" aria-hidden="true" tabindex="-1"></a>d_b    <span class="op">=</span> np.eye(<span class="dv">4</span>)[unit] <span class="op">-</span> p_hat</span>
+<span id="cb14-490"><a href="#cb14-490" aria-hidden="true" tabindex="-1"></a>D2_b   <span class="op">=</span> d_b <span class="op">@</span> np.linalg.pinv(S_full, rcond<span class="op">=</span>TOL) <span class="op">@</span> d_b</span>
+<span id="cb14-491"><a href="#cb14-491" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-492"><a href="#cb14-492" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Fix A, baseline = north : D^2 = </span><span class="sc">{</span>D2_a<span class="sc">:.10f}</span><span class="ss">"</span>)</span>
+<span id="cb14-493"><a href="#cb14-493" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Fix B, pseudo-inverse   : D^2 = </span><span class="sc">{</span>D2_b<span class="sc">:.10f}</span><span class="ss">"</span>)</span>
+<span id="cb14-494"><a href="#cb14-494" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"difference              : </span><span class="sc">{</span><span class="bu">abs</span>(D2_a <span class="op">-</span> D2_b)<span class="sc">:.2e}</span><span class="ss">"</span>)</span>
+<span id="cb14-495"><a href="#cb14-495" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-496"><a href="#cb14-496" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-497"><a href="#cb14-497" aria-hidden="true" tabindex="-1"></a><span class="fu">### Mixing continuous and categorical covariates</span></span>
+<span id="cb14-498"><a href="#cb14-498" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-499"><a href="#cb14-499" aria-hidden="true" tabindex="-1"></a>Nothing special is required: stack the continuous columns and the dummy columns</span>
+<span id="cb14-500"><a href="#cb14-500" aria-hidden="true" tabindex="-1"></a>into one design matrix and take the covariance of the whole thing. The</span>
+<span id="cb14-501"><a href="#cb14-501" aria-hidden="true" tabindex="-1"></a>cross-covariances between the dummies and the continuous columns are estimated</span>
+<span id="cb14-502"><a href="#cb14-502" aria-hidden="true" tabindex="-1"></a>along with everything else, so a categorical that is correlated with age gets</span>
+<span id="cb14-503"><a href="#cb14-503" aria-hidden="true" tabindex="-1"></a>discounted against age automatically.</span>
+<span id="cb14-504"><a href="#cb14-504" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-507"><a href="#cb14-507" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-508"><a href="#cb14-508" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: mixed-design</span></span>
+<span id="cb14-509"><a href="#cb14-509" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-510"><a href="#cb14-510" aria-hidden="true" tabindex="-1"></a>n_mix <span class="op">=</span> <span class="dv">20_000</span></span>
+<span id="cb14-511"><a href="#cb14-511" aria-hidden="true" tabindex="-1"></a>region <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span>n_mix, p<span class="op">=</span>p_true)</span>
+<span id="cb14-512"><a href="#cb14-512" aria-hidden="true" tabindex="-1"></a><span class="co"># Make region genuinely correlated with the continuous block: shift age by region.</span></span>
+<span id="cb14-513"><a href="#cb14-513" aria-hidden="true" tabindex="-1"></a>cont <span class="op">=</span> rng.multivariate_normal(mu_x, S_x, n_mix)</span>
+<span id="cb14-514"><a href="#cb14-514" aria-hidden="true" tabindex="-1"></a>cont[:, <span class="dv">0</span>] <span class="op">+=</span> np.array([<span class="op">-</span><span class="fl">6.0</span>, <span class="fl">0.0</span>, <span class="fl">4.0</span>, <span class="fl">12.0</span>])[region]</span>
+<span id="cb14-515"><a href="#cb14-515" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-516"><a href="#cb14-516" aria-hidden="true" tabindex="-1"></a>onehot <span class="op">=</span> np.eye(<span class="dv">4</span>)[region]</span>
+<span id="cb14-517"><a href="#cb14-517" aria-hidden="true" tabindex="-1"></a>X_full <span class="op">=</span> np.hstack([cont, onehot])            <span class="co"># 3 continuous + 4 dummies (singular)</span></span>
+<span id="cb14-518"><a href="#cb14-518" aria-hidden="true" tabindex="-1"></a>X_drop <span class="op">=</span> np.hstack([cont, onehot[:, <span class="dv">1</span>:]])     <span class="co"># 3 continuous + 3 dummies (invertible)</span></span>
+<span id="cb14-519"><a href="#cb14-519" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-520"><a href="#cb14-520" aria-hidden="true" tabindex="-1"></a>unit <span class="op">=</span> np.array([<span class="fl">62.0</span>, <span class="fl">180.0</span>, <span class="fl">60.0</span>])          <span class="co"># older, tall, light ...</span></span>
+<span id="cb14-521"><a href="#cb14-521" aria-hidden="true" tabindex="-1"></a>unit_full <span class="op">=</span> np.concatenate([unit, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>]])   <span class="co"># ... and from 'west'</span></span>
+<span id="cb14-522"><a href="#cb14-522" aria-hidden="true" tabindex="-1"></a>unit_drop <span class="op">=</span> np.concatenate([unit, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>][<span class="dv">1</span>:]])</span>
+<span id="cb14-523"><a href="#cb14-523" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-524"><a href="#cb14-524" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> d2_pinv(X, v, tol<span class="op">=</span>TOL):</span>
+<span id="cb14-525"><a href="#cb14-525" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> X.mean(<span class="dv">0</span>)</span>
+<span id="cb14-526"><a href="#cb14-526" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(d <span class="op">@</span> np.linalg.pinv(np.cov(X, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>), rcond<span class="op">=</span>tol) <span class="op">@</span> d)</span>
+<span id="cb14-527"><a href="#cb14-527" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-528"><a href="#cb14-528" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> d2_inv(X, v):</span>
+<span id="cb14-529"><a href="#cb14-529" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> v <span class="op">-</span> X.mean(<span class="dv">0</span>)</span>
+<span id="cb14-530"><a href="#cb14-530" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(d <span class="op">@</span> np.linalg.solve(np.cov(X, rowvar<span class="op">=</span><span class="va">False</span>, bias<span class="op">=</span><span class="va">True</span>), d))</span>
+<span id="cb14-531"><a href="#cb14-531" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-532"><a href="#cb14-532" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"full one-hot + pseudo-inverse : </span><span class="sc">{</span>d2_pinv(X_full, unit_full)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
+<span id="cb14-533"><a href="#cb14-533" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"baseline dropped + inverse    : </span><span class="sc">{</span>d2_inv(X_drop, unit_drop)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
+<span id="cb14-534"><a href="#cb14-534" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"continuous columns alone      : </span><span class="sc">{</span>d2_inv(cont, unit)<span class="sc">:.8f}</span><span class="ss">"</span>)</span>
+<span id="cb14-535"><a href="#cb14-535" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-536"><a href="#cb14-536" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-537"><a href="#cb14-537" aria-hidden="true" tabindex="-1"></a>The first two agree, as they must. The third is smaller, which is the point: it</span>
+<span id="cb14-538"><a href="#cb14-538" aria-hidden="true" tabindex="-1"></a>is the distance that ignores the fact that this person also comes from the</span>
+<span id="cb14-539"><a href="#cb14-539" aria-hidden="true" tabindex="-1"></a>rarest region.</span>
+<span id="cb14-540"><a href="#cb14-540" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-541"><a href="#cb14-541" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical notes and failure modes</span></span>
+<span id="cb14-542"><a href="#cb14-542" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-543"><a href="#cb14-543" aria-hidden="true" tabindex="-1"></a>**Singular or ill-conditioned $S$.** With $p$ close to $N$, exact collinearity,</span>
+<span id="cb14-544"><a href="#cb14-544" aria-hidden="true" tabindex="-1"></a>or full one-hot encodings, $S^{-1}$ does not exist. Use $S^{+}$ with an explicit</span>
+<span id="cb14-545"><a href="#cb14-545" aria-hidden="true" tabindex="-1"></a>tolerance, or drop columns until it is invertible. Watch <span class="in">`np.linalg.cond(S)`</span>:</span>
+<span id="cb14-546"><a href="#cb14-546" aria-hidden="true" tabindex="-1"></a>once it passes roughly $10^{10}$, $D^2$ is being driven by directions in which</span>
+<span id="cb14-547"><a href="#cb14-547" aria-hidden="true" tabindex="-1"></a>the data barely varies, and those directions are usually noise.</span>
+<span id="cb14-548"><a href="#cb14-548" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-549"><a href="#cb14-549" aria-hidden="true" tabindex="-1"></a>**Redundancy is free, but only statistically.** Adding correlated covariates</span>
+<span id="cb14-550"><a href="#cb14-550" aria-hidden="true" tabindex="-1"></a>does not upweight them. It does worsen the conditioning of $S$, and it raises</span>
+<span id="cb14-551"><a href="#cb14-551" aria-hidden="true" tabindex="-1"></a>$p$, which matters as soon as you start comparing $D^2$ against a $\chi^2_p$</span>
+<span id="cb14-552"><a href="#cb14-552" aria-hidden="true" tabindex="-1"></a>reference.</span>
+<span id="cb14-553"><a href="#cb14-553" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-554"><a href="#cb14-554" aria-hidden="true" tabindex="-1"></a>**Set your own tolerance on `pinv` and `matrix_rank`.** A one-hot covariance has</span>
+<span id="cb14-555"><a href="#cb14-555" aria-hidden="true" tabindex="-1"></a>an eigenvalue that is exactly zero in theory, but floating-point arithmetic</span>
+<span id="cb14-556"><a href="#cb14-556" aria-hidden="true" tabindex="-1"></a>returns something around $\pm 10^{-16}$ instead. NumPy's default cutoff is</span>
+<span id="cb14-557"><a href="#cb14-557" aria-hidden="true" tabindex="-1"></a>relative to the largest singular value and is tight enough that this</span>
+<span id="cb14-558"><a href="#cb14-558" aria-hidden="true" tabindex="-1"></a>structurally-zero eigenvalue is not reliably discarded:</span>
+<span id="cb14-559"><a href="#cb14-559" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-562"><a href="#cb14-562" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-563"><a href="#cb14-563" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: pinv-tolerance</span></span>
+<span id="cb14-564"><a href="#cb14-564" aria-hidden="true" tabindex="-1"></a><span class="co">#| code-fold: true</span></span>
+<span id="cb14-565"><a href="#cb14-565" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-566"><a href="#cb14-566" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"eigenvalues       :"</span>, np.<span class="bu">round</span>(np.linalg.eigvalsh(S_full), <span class="dv">18</span>))</span>
+<span id="cb14-567"><a href="#cb14-567" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"smallest, in full :"</span>, <span class="ss">f"</span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>eigvalsh(S_full)[<span class="dv">0</span>]<span class="sc">:.3e}</span><span class="ss">"</span>)</span>
+<span id="cb14-568"><a href="#cb14-568" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
+<span id="cb14-569"><a href="#cb14-569" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"matrix_rank, default tol : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>matrix_rank(S_full)<span class="sc">}</span><span class="ss"> of 4   &lt;- wrong"</span>)</span>
+<span id="cb14-570"><a href="#cb14-570" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"matrix_rank, tol=1e-10   : </span><span class="sc">{</span>np<span class="sc">.</span>linalg<span class="sc">.</span>matrix_rank(S_full, tol<span class="op">=</span>TOL)<span class="sc">}</span><span class="ss"> of 4   &lt;- right"</span>)</span>
+<span id="cb14-571"><a href="#cb14-571" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-572"><a href="#cb14-572" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-573"><a href="#cb14-573" aria-hidden="true" tabindex="-1"></a>Whether it bites depends on exactly where that eigenvalue lands, which varies</span>
+<span id="cb14-574"><a href="#cb14-574" aria-hidden="true" tabindex="-1"></a>with the data — on this particular matrix <span class="in">`pinv`</span> happens to be fine, but</span>
+<span id="cb14-575"><a href="#cb14-575" aria-hidden="true" tabindex="-1"></a><span class="in">`matrix_rank`</span> already reports a singular matrix as full rank. The failure mode</span>
+<span id="cb14-576"><a href="#cb14-576" aria-hidden="true" tabindex="-1"></a>for <span class="in">`pinv`</span> is worse than for <span class="in">`matrix_rank`</span>, because it is silent: you get a</span>
+<span id="cb14-577"><a href="#cb14-577" aria-hidden="true" tabindex="-1"></a>plausible number that is quietly wrong rather than an obviously wrong integer.</span>
+<span id="cb14-578"><a href="#cb14-578" aria-hidden="true" tabindex="-1"></a>Pass <span class="in">`np.linalg.pinv(S, rcond=1e-10)`</span> and <span class="in">`matrix_rank(S, tol=1e-10)`</span> as a</span>
+<span id="cb14-579"><a href="#cb14-579" aria-hidden="true" tabindex="-1"></a>matter of habit — or sidestep both by dropping a baseline.</span>
+<span id="cb14-580"><a href="#cb14-580" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-581"><a href="#cb14-581" aria-hidden="true" tabindex="-1"></a>**Rare categorical levels dominate the metric.** A single unit's squared</span>
+<span id="cb14-582"><a href="#cb14-582" aria-hidden="true" tabindex="-1"></a>distance from membership of level $k$ alone is</span>
 <span id="cb14-583"><a href="#cb14-583" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-584"><a href="#cb14-584" aria-hidden="true" tabindex="-1"></a>**Rare categorical levels dominate the metric.** A single unit's squared</span>
-<span id="cb14-585"><a href="#cb14-585" aria-hidden="true" tabindex="-1"></a>distance from membership of level $k$ alone is</span>
-<span id="cb14-586"><a href="#cb14-586" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-587"><a href="#cb14-587" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-588"><a href="#cb14-588" aria-hidden="true" tabindex="-1"></a>D^2 = \frac{1 - p_k}{p_k},</span>
-<span id="cb14-589"><a href="#cb14-589" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb14-590"><a href="#cb14-590" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-591"><a href="#cb14-591" aria-hidden="true" tabindex="-1"></a>which grows without bound as the level gets rarer:</span>
-<span id="cb14-592"><a href="#cb14-592" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-593"><a href="#cb14-593" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> prevalence $p_k$ <span class="pp">|</span> 50% <span class="pp">|</span> 10% <span class="pp">|</span> 5% <span class="pp">|</span> 1% <span class="pp">|</span></span>
-<span id="cb14-594"><a href="#cb14-594" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|</span></span>
-<span id="cb14-595"><a href="#cb14-595" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $D^2$ <span class="pp">|</span> 1 <span class="pp">|</span> **9** | 19 | **99** <span class="pp">|</span></span>
-<span id="cb14-596"><a href="#cb14-596" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $D$   <span class="pp">|</span> 1 <span class="pp">|</span> 3 <span class="pp">|</span> 4.4 <span class="pp">|</span> 9.9 <span class="pp">|</span></span>
-<span id="cb14-597"><a href="#cb14-597" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-598"><a href="#cb14-598" aria-hidden="true" tabindex="-1"></a>At $p_k = 0.01$, belonging to that one level puts a unit as far from the centre</span>
-<span id="cb14-599"><a href="#cb14-599" aria-hidden="true" tabindex="-1"></a>as a continuous covariate sitting **ten standard deviations** from its mean.</span>
-<span id="cb14-600"><a href="#cb14-600" aria-hidden="true" tabindex="-1"></a>Collapse levels below a few percent into an <span class="in">`other`</span> category, or the metric</span>
-<span id="cb14-601"><a href="#cb14-601" aria-hidden="true" tabindex="-1"></a>quietly becomes a metric about that one level.</span>
-<span id="cb14-602"><a href="#cb14-602" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-603"><a href="#cb14-603" aria-hidden="true" tabindex="-1"></a>**Yes, that formula assumes no correlation.** $(1-p_k)/p_k$ is exact when the</span>
-<span id="cb14-604"><a href="#cb14-604" aria-hidden="true" tabindex="-1"></a>categorical block is uncorrelated with every other column, so that $S$ is block</span>
-<span id="cb14-605"><a href="#cb14-605" aria-hidden="true" tabindex="-1"></a>diagonal and the categorical's contribution simply adds to the rest. Once the</span>
-<span id="cb14-606"><a href="#cb14-606" aria-hidden="true" tabindex="-1"></a>categorical is correlated with other covariates the clean split breaks:</span>
-<span id="cb14-607"><a href="#cb14-607" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-610"><a href="#cb14-610" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb14-611"><a href="#cb14-611" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: rare-level-correlation</span></span>
-<span id="cb14-612"><a href="#cb14-612" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-613"><a href="#cb14-613" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> categorical_contribution(shift):</span>
-<span id="cb14-614"><a href="#cb14-614" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""How much a 'west' unit's D^2 rises because of its region alone, for a</span></span>
-<span id="cb14-615"><a href="#cb14-615" aria-hidden="true" tabindex="-1"></a><span class="co">    unit that is dead average on every continuous covariate. Returned next to</span></span>
-<span id="cb14-616"><a href="#cb14-616" aria-hidden="true" tabindex="-1"></a><span class="co">    the closed form evaluated at the *observed* prevalence, so the only</span></span>
-<span id="cb14-617"><a href="#cb14-617" aria-hidden="true" tabindex="-1"></a><span class="co">    difference left is the correlation."""</span></span>
-<span id="cb14-618"><a href="#cb14-618" aria-hidden="true" tabindex="-1"></a>    reg <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span><span class="dv">100_000</span>, p<span class="op">=</span>p_true)</span>
-<span id="cb14-619"><a href="#cb14-619" aria-hidden="true" tabindex="-1"></a>    cts <span class="op">=</span> rng.multivariate_normal(mu_x, S_x, <span class="dv">100_000</span>)</span>
-<span id="cb14-620"><a href="#cb14-620" aria-hidden="true" tabindex="-1"></a>    cts[:, <span class="dv">0</span>] <span class="op">+=</span> shift[reg]                     <span class="co"># correlate region with age</span></span>
-<span id="cb14-621"><a href="#cb14-621" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> np.concatenate([mu_x, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>]])</span>
-<span id="cb14-622"><a href="#cb14-622" aria-hidden="true" tabindex="-1"></a>    actual <span class="op">=</span> d2_pinv(np.hstack([cts, np.eye(<span class="dv">4</span>)[reg]]), v) <span class="op">-</span> d2_inv(cts, mu_x)</span>
-<span id="cb14-623"><a href="#cb14-623" aria-hidden="true" tabindex="-1"></a>    p_obs <span class="op">=</span> (reg <span class="op">==</span> <span class="dv">3</span>).mean()</span>
-<span id="cb14-624"><a href="#cb14-624" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> actual, (<span class="dv">1</span> <span class="op">-</span> p_obs) <span class="op">/</span> p_obs</span>
-<span id="cb14-625"><a href="#cb14-625" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-626"><a href="#cb14-626" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, shift <span class="kw">in</span> [(<span class="st">"region uncorrelated with age"</span>, np.zeros(<span class="dv">4</span>)),</span>
-<span id="cb14-627"><a href="#cb14-627" aria-hidden="true" tabindex="-1"></a>                   (<span class="st">"region correlated with age  "</span>, np.array([<span class="op">-</span><span class="fl">6.</span>, <span class="fl">0.</span>, <span class="fl">4.</span>, <span class="fl">12.</span>]))]:</span>
-<span id="cb14-628"><a href="#cb14-628" aria-hidden="true" tabindex="-1"></a>    actual, closed <span class="op">=</span> categorical_contribution(shift)</span>
-<span id="cb14-629"><a href="#cb14-629" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss"> : actual </span><span class="sc">{</span>actual<span class="sc">:6.3f}</span><span class="ss">   closed form </span><span class="sc">{</span>closed<span class="sc">:6.3f}</span><span class="ss">"</span>)</span>
-<span id="cb14-630"><a href="#cb14-630" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb14-631"><a href="#cb14-631" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-632"><a href="#cb14-632" aria-hidden="true" tabindex="-1"></a>It also uses the *observed* prevalence, so it drifts with sampling error in small</span>
-<span id="cb14-633"><a href="#cb14-633" aria-hidden="true" tabindex="-1"></a>samples. Treat $(1-p_k)/p_k$ as the right order of magnitude rather than a</span>
-<span id="cb14-634"><a href="#cb14-634" aria-hidden="true" tabindex="-1"></a>guarantee — the qualitative point, that rare levels are expensive, holds either</span>
-<span id="cb14-635"><a href="#cb14-635" aria-hidden="true" tabindex="-1"></a>way.</span>
-<span id="cb14-636"><a href="#cb14-636" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-637"><a href="#cb14-637" aria-hidden="true" tabindex="-1"></a>**Every covariate is treated as equally important.** $D^2$ is invariant to</span>
-<span id="cb14-638"><a href="#cb14-638" aria-hidden="true" tabindex="-1"></a>rescaling, which is a virtue for units and a limitation for priorities: it has</span>
-<span id="cb14-639"><a href="#cb14-639" aria-hidden="true" tabindex="-1"></a>no way to know that the baseline outcome measurement matters more than the</span>
-<span id="cb14-640"><a href="#cb14-640" aria-hidden="true" tabindex="-1"></a>recruitment site.</span>
-<span id="cb14-641"><a href="#cb14-641" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-642"><a href="#cb14-642" aria-hidden="true" tabindex="-1"></a>**Outliers inflate $S$.** The covariance is estimated from the same data you are</span>
-<span id="cb14-643"><a href="#cb14-643" aria-hidden="true" tabindex="-1"></a>measuring against, so a handful of extreme units widen the ellipse and make</span>
-<span id="cb14-644"><a href="#cb14-644" aria-hidden="true" tabindex="-1"></a>everything look closer to the centre than it is. Look at your covariates before</span>
-<span id="cb14-645"><a href="#cb14-645" aria-hidden="true" tabindex="-1"></a>trusting the metric.</span>
-<span id="cb14-646"><a href="#cb14-646" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-647"><a href="#cb14-647" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
-<span id="cb14-648"><a href="#cb14-648" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-649"><a href="#cb14-649" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Mahalanobis, P. C. (1936). On the generalised distance in statistics.</span>
-<span id="cb14-650"><a href="#cb14-650" aria-hidden="true" tabindex="-1"></a>  *Proceedings of the National Institute of Sciences of India*, 2(1), 49–55.</span>
-<span id="cb14-651"><a href="#cb14-651" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Rubin, D. B. (1976). Multivariate matching methods that are equal percent bias</span>
-<span id="cb14-652"><a href="#cb14-652" aria-hidden="true" tabindex="-1"></a>  reducing. *Biometrics*, 32(1), 109–120.</span>
+<span id="cb14-584"><a href="#cb14-584" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-585"><a href="#cb14-585" aria-hidden="true" tabindex="-1"></a>D^2 = \frac{1 - p_k}{p_k},</span>
+<span id="cb14-586"><a href="#cb14-586" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb14-587"><a href="#cb14-587" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-588"><a href="#cb14-588" aria-hidden="true" tabindex="-1"></a>which grows without bound as the level gets rarer:</span>
+<span id="cb14-589"><a href="#cb14-589" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-590"><a href="#cb14-590" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> prevalence $p_k$ <span class="pp">|</span> 50% <span class="pp">|</span> 10% <span class="pp">|</span> 5% <span class="pp">|</span> 1% <span class="pp">|</span></span>
+<span id="cb14-591"><a href="#cb14-591" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|</span></span>
+<span id="cb14-592"><a href="#cb14-592" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $D^2$ <span class="pp">|</span> 1 <span class="pp">|</span> **9** | 19 | **99** <span class="pp">|</span></span>
+<span id="cb14-593"><a href="#cb14-593" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> $D$   <span class="pp">|</span> 1 <span class="pp">|</span> 3 <span class="pp">|</span> 4.4 <span class="pp">|</span> 9.9 <span class="pp">|</span></span>
+<span id="cb14-594"><a href="#cb14-594" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-595"><a href="#cb14-595" aria-hidden="true" tabindex="-1"></a>At $p_k = 0.01$, belonging to that one level puts a unit as far from the centre</span>
+<span id="cb14-596"><a href="#cb14-596" aria-hidden="true" tabindex="-1"></a>as a continuous covariate sitting **ten standard deviations** from its mean.</span>
+<span id="cb14-597"><a href="#cb14-597" aria-hidden="true" tabindex="-1"></a>Collapse levels below a few percent into an <span class="in">`other`</span> category, or the metric</span>
+<span id="cb14-598"><a href="#cb14-598" aria-hidden="true" tabindex="-1"></a>quietly becomes a metric about that one level.</span>
+<span id="cb14-599"><a href="#cb14-599" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-600"><a href="#cb14-600" aria-hidden="true" tabindex="-1"></a>**Yes, that formula assumes no correlation.** $(1-p_k)/p_k$ is exact when the</span>
+<span id="cb14-601"><a href="#cb14-601" aria-hidden="true" tabindex="-1"></a>categorical block is uncorrelated with every other column, so that $S$ is block</span>
+<span id="cb14-602"><a href="#cb14-602" aria-hidden="true" tabindex="-1"></a>diagonal and the categorical's contribution simply adds to the rest. Once the</span>
+<span id="cb14-603"><a href="#cb14-603" aria-hidden="true" tabindex="-1"></a>categorical is correlated with other covariates the clean split breaks:</span>
+<span id="cb14-604"><a href="#cb14-604" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-607"><a href="#cb14-607" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb14-608"><a href="#cb14-608" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: rare-level-correlation</span></span>
+<span id="cb14-609"><a href="#cb14-609" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-610"><a href="#cb14-610" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> categorical_contribution(shift):</span>
+<span id="cb14-611"><a href="#cb14-611" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""How much a 'west' unit's D^2 rises because of its region alone, for a</span></span>
+<span id="cb14-612"><a href="#cb14-612" aria-hidden="true" tabindex="-1"></a><span class="co">    unit that is dead average on every continuous covariate. Returned next to</span></span>
+<span id="cb14-613"><a href="#cb14-613" aria-hidden="true" tabindex="-1"></a><span class="co">    the closed form evaluated at the *observed* prevalence, so the only</span></span>
+<span id="cb14-614"><a href="#cb14-614" aria-hidden="true" tabindex="-1"></a><span class="co">    difference left is the correlation."""</span></span>
+<span id="cb14-615"><a href="#cb14-615" aria-hidden="true" tabindex="-1"></a>    reg <span class="op">=</span> rng.choice(<span class="dv">4</span>, size<span class="op">=</span><span class="dv">100_000</span>, p<span class="op">=</span>p_true)</span>
+<span id="cb14-616"><a href="#cb14-616" aria-hidden="true" tabindex="-1"></a>    cts <span class="op">=</span> rng.multivariate_normal(mu_x, S_x, <span class="dv">100_000</span>)</span>
+<span id="cb14-617"><a href="#cb14-617" aria-hidden="true" tabindex="-1"></a>    cts[:, <span class="dv">0</span>] <span class="op">+=</span> shift[reg]                     <span class="co"># correlate region with age</span></span>
+<span id="cb14-618"><a href="#cb14-618" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> np.concatenate([mu_x, np.eye(<span class="dv">4</span>)[<span class="dv">3</span>]])</span>
+<span id="cb14-619"><a href="#cb14-619" aria-hidden="true" tabindex="-1"></a>    actual <span class="op">=</span> d2_pinv(np.hstack([cts, np.eye(<span class="dv">4</span>)[reg]]), v) <span class="op">-</span> d2_inv(cts, mu_x)</span>
+<span id="cb14-620"><a href="#cb14-620" aria-hidden="true" tabindex="-1"></a>    p_obs <span class="op">=</span> (reg <span class="op">==</span> <span class="dv">3</span>).mean()</span>
+<span id="cb14-621"><a href="#cb14-621" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> actual, (<span class="dv">1</span> <span class="op">-</span> p_obs) <span class="op">/</span> p_obs</span>
+<span id="cb14-622"><a href="#cb14-622" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-623"><a href="#cb14-623" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lab, shift <span class="kw">in</span> [(<span class="st">"region uncorrelated with age"</span>, np.zeros(<span class="dv">4</span>)),</span>
+<span id="cb14-624"><a href="#cb14-624" aria-hidden="true" tabindex="-1"></a>                   (<span class="st">"region correlated with age  "</span>, np.array([<span class="op">-</span><span class="fl">6.</span>, <span class="fl">0.</span>, <span class="fl">4.</span>, <span class="fl">12.</span>]))]:</span>
+<span id="cb14-625"><a href="#cb14-625" aria-hidden="true" tabindex="-1"></a>    actual, closed <span class="op">=</span> categorical_contribution(shift)</span>
+<span id="cb14-626"><a href="#cb14-626" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>lab<span class="sc">}</span><span class="ss"> : actual </span><span class="sc">{</span>actual<span class="sc">:6.3f}</span><span class="ss">   closed form </span><span class="sc">{</span>closed<span class="sc">:6.3f}</span><span class="ss">"</span>)</span>
+<span id="cb14-627"><a href="#cb14-627" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb14-628"><a href="#cb14-628" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-629"><a href="#cb14-629" aria-hidden="true" tabindex="-1"></a>It also uses the *observed* prevalence, so it drifts with sampling error in small</span>
+<span id="cb14-630"><a href="#cb14-630" aria-hidden="true" tabindex="-1"></a>samples. Treat $(1-p_k)/p_k$ as the right order of magnitude rather than a</span>
+<span id="cb14-631"><a href="#cb14-631" aria-hidden="true" tabindex="-1"></a>guarantee — the qualitative point, that rare levels are expensive, holds either</span>
+<span id="cb14-632"><a href="#cb14-632" aria-hidden="true" tabindex="-1"></a>way.</span>
+<span id="cb14-633"><a href="#cb14-633" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-634"><a href="#cb14-634" aria-hidden="true" tabindex="-1"></a>**Every covariate is treated as equally important.** $D^2$ is invariant to</span>
+<span id="cb14-635"><a href="#cb14-635" aria-hidden="true" tabindex="-1"></a>rescaling, which is a virtue for units and a limitation for priorities: it has</span>
+<span id="cb14-636"><a href="#cb14-636" aria-hidden="true" tabindex="-1"></a>no way to know that the baseline outcome measurement matters more than the</span>
+<span id="cb14-637"><a href="#cb14-637" aria-hidden="true" tabindex="-1"></a>recruitment site.</span>
+<span id="cb14-638"><a href="#cb14-638" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-639"><a href="#cb14-639" aria-hidden="true" tabindex="-1"></a>**Outliers inflate $S$.** The covariance is estimated from the same data you are</span>
+<span id="cb14-640"><a href="#cb14-640" aria-hidden="true" tabindex="-1"></a>measuring against, so a handful of extreme units widen the ellipse and make</span>
+<span id="cb14-641"><a href="#cb14-641" aria-hidden="true" tabindex="-1"></a>everything look closer to the centre than it is. Look at your covariates before</span>
+<span id="cb14-642"><a href="#cb14-642" aria-hidden="true" tabindex="-1"></a>trusting the metric.</span>
+<span id="cb14-643"><a href="#cb14-643" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-644"><a href="#cb14-644" aria-hidden="true" tabindex="-1"></a><span class="fu">## References</span></span>
+<span id="cb14-645"><a href="#cb14-645" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-646"><a href="#cb14-646" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Mahalanobis, P. C. (1936). On the generalised distance in statistics.</span>
+<span id="cb14-647"><a href="#cb14-647" aria-hidden="true" tabindex="-1"></a>  *Proceedings of the National Institute of Sciences of India*, 2(1), 49–55.</span>
+<span id="cb14-648"><a href="#cb14-648" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Rubin, D. B. (1976). Multivariate matching methods that are equal percent bias</span>
+<span id="cb14-649"><a href="#cb14-649" aria-hidden="true" tabindex="-1"></a>  reducing. *Biometrics*, 32(1), 109–120.</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->
