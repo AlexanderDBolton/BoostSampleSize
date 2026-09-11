@@ -232,8 +232,11 @@ display(HTML("""
    so pad the label row to match. Without this the thumb at minimum sits ~9px
    to the right of where "raw x" begins. */
 .mahal-widget .mw-labels { display:flex; justify-content:space-between;
-  font-size:.82rem; color:#8a929a; margin-top:.3rem; padding:0 9px; }
-.mahal-widget .mw-labels span { cursor:pointer; flex:1; }
+  font-size:.82rem; color:#8a929a; margin-top:.3rem; padding:0 9px;
+  /* fig-align:center puts text-align:center on the figure wrapper, which
+     would centre the first label inside its own column. Reset it here. */
+  text-align:left; }
+.mahal-widget .mw-labels span { cursor:pointer; flex:1; text-align:left; }
 .mahal-widget .mw-labels span:nth-child(2) { text-align:center; }
 .mahal-widget .mw-labels span:nth-child(3) { text-align:right; }
 .mahal-widget .mw-labels span.mw-on { color:#2c4a63; font-weight:600; }
