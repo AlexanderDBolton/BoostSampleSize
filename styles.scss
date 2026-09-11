@@ -67,6 +67,27 @@ div.table-responsive {
   overflow-x: auto;
 }
 
+/* Long display equations scroll rather than widening the page. */
+mjx-container[display="true"] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* On narrow screens the generated tables and source blocks are the last
+   things wide enough to force a horizontal page scroll. display:block lets
+   a table carry its own scrollbar; it is scoped to small widths so desktop
+   table layout is untouched. */
+@media (max-width: 680px) {
+  main table {
+    display: block;
+    overflow-x: auto;
+  }
+  main pre {
+    overflow-x: auto;
+  }
+}
+
 /* Tables: lighter, no zebra stripes */
 table {
   font-size: 0.92rem;

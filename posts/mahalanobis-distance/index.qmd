@@ -182,48 +182,68 @@ distance is finally the right tool. In practice, we use a Cholesky factor
 $\Sigma = LL^{\top}$ and $w = L^{-1}(x-\mu)$ instead of the symmetric root: same
 $D^2$, much cheaper.
 
+Drag the slider below to watch it happen. The dashed rings are contours of
+constant Mahalanobis distance at every stage, so they begin as the data's own
+tilted ellipses and end as true circles. The red segment marks one fixed
+observation: its length on screen changes, its Mahalanobis distance does not.
+
 ```{python}
 #| label: fig-whitening
-#| fig-cap: "The three jobs the quadratic form does, done one at a time. The highlighted point never moves relative to the cloud, but the yardstick changes: its Euclidean distance from the centre is only meaningful in the third panel, where the cloud has been made spherical."
-#| fig-height: 9.6
+#| classes: preview-image
+
+import json, pathlib
+from IPython.display import HTML, display
 
 Sig_demo = np.array([[9.0, 7.2], [7.2, 16.0]])
 mu_demo = np.array([50.0, 120.0])
 cloud = rng.multivariate_normal(mu_demo, Sig_demo, size=400)
-focus = np.array([54.0, 116.0])          # the point we track
+focus = np.array([54.0, 116.0])          # the observation we track
 
 L = np.linalg.cholesky(Sig_demo)
-steps = [
-    ("1. raw", cloud, focus, "$x$", mu_demo),
-    ("2. centred", cloud - mu_demo, focus - mu_demo, "$x-\\mu$", np.zeros(2)),
-    ("3. whitened", np.linalg.solve(L, (cloud - mu_demo).T).T,
-     np.linalg.solve(L, focus - mu_demo), "$L^{-1}(x-\\mu)$", np.zeros(2)),
-]
-
-fig, axes = plt.subplots(3, 1, figsize=(5.0, 9.6))
-for ax, (title, pts_, f_, lab, centre) in zip(axes, steps):
-    ax.scatter(pts_[:, 0], pts_[:, 1], s=9, color=C["grey"], alpha=0.5, lw=0)
-    ax.plot([centre[0], f_[0]], [centre[1], f_[1]],
-            color=C["red"], lw=1.8, zorder=3)
-    ax.scatter(*f_, s=62, color=C["red"], zorder=4, edgecolor="white", lw=0.9)
-    ax.set_title(f"{title}    {lab}")
-    if title == "3. whitened":
-        # Equal aspect so the whitened cloud really looks spherical and the
-        # rings really look circular. adjustable="datalim" widens the x range
-        # to achieve that instead of shrinking the axes box, so this panel
-        # keeps the same landscape frame as the two above it.
-        ax.set_aspect("equal", adjustable="datalim")
-        for r in [1, 2, 3]:
-            ax.add_patch(plt.Circle((0, 0), r, fill=False, ls="--",
-                                    color=C["dark"], lw=1.0, alpha=0.7))
-
-fig.tight_layout()
-plt.show()
-
 d_raw = focus - mu_demo
-print(f"Euclidean distance, raw units      : {np.linalg.norm(d_raw):.4f}")
-print(f"Euclidean distance, whitened       : {np.linalg.norm(np.linalg.solve(L, d_raw)):.4f}")
-print(f"Mahalanobis distance D             : {np.sqrt(d_raw @ np.linalg.solve(Sig_demo, d_raw)):.4f}")
+
+payload = {
+    "pts":   np.round(cloud - mu_demo, 3).tolist(),   # centred cloud
+    "focus": np.round(d_raw, 6).tolist(),
+    "mu":    mu_demo.tolist(),
+    "L":     L.tolist(),
+    "Linv":  np.linalg.inv(L).tolist(),
+    "Dval":  float(np.sqrt(d_raw @ np.linalg.solve(Sig_demo, d_raw))),
+    "colors": {"grey": C["grey"], "red": C["red"], "dark": C["dark"],
+               "grid": "#e6e9ec", "axis": "#b9c0c7", "tick": "#5b6570"},
+}
+
+js = pathlib.Path("whitening-widget.js").read_text(encoding="utf-8")
+js = js.replace("__ID__", "mw-whiten").replace("__DATA__", json.dumps(payload))
+
+display(HTML("""
+<style>
+.mahal-widget { margin: 1.2rem 0 1.6rem; }
+.mahal-widget canvas { display:block; width:100%; touch-action:manipulation; }
+.mahal-widget .mw-readout { font-size:.82rem; color:#5b6570; text-align:center;
+  margin:.35rem 0 .7rem; }
+.mahal-widget .mw-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
+.mahal-widget .mw-sep { margin:0 .6rem; opacity:.45; }
+.mahal-widget input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
+.mahal-widget .mw-labels { display:flex; justify-content:space-between;
+  font-size:.82rem; color:#8a929a; margin-top:.3rem; }
+.mahal-widget .mw-labels span { cursor:pointer; flex:1; }
+.mahal-widget .mw-labels span:nth-child(2) { text-align:center; }
+.mahal-widget .mw-labels span:nth-child(3) { text-align:right; }
+.mahal-widget .mw-labels span.mw-on { color:#2c4a63; font-weight:600; }
+</style>
+<div class="mahal-widget" id="mw-whiten">
+  <canvas></canvas>
+  <div class="mw-readout"></div>
+  <input type="range" min="0" max="1000" step="1" value="0"
+         aria-label="Transformation: raw, centred, or whitened">
+  <div class="mw-labels">
+    <span data-at="0">raw &nbsp;<i>x</i></span>
+    <span data-at="500">centred &nbsp;<i>x</i> − <i>μ</i></span>
+    <span data-at="1000">whitened &nbsp;<i>L</i>⁻¹(<i>x</i> − <i>μ</i>)</span>
+  </div>
+</div>
+<script>""" + js + "</script>"))
 ```
 
 ## Three columns, two of them correlated
