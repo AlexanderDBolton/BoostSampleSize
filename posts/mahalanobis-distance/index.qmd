@@ -209,8 +209,11 @@ payload = {
     "L":     L.tolist(),
     "Linv":  np.linalg.inv(L).tolist(),
     "Dval":  float(np.sqrt(d_raw @ np.linalg.solve(Sig_demo, d_raw))),
+    # The grid and its labels carry the first half of the slider on their own
+    # — centring only changes the numbers — so they are drawn stronger here
+    # than in the static figures, where they are just background.
     "colors": {"grey": C["grey"], "red": C["red"], "dark": C["dark"],
-               "grid": "#e6e9ec", "axis": "#b9c0c7", "tick": "#5b6570"},
+               "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"},
 }
 
 js = pathlib.Path("whitening-widget.js").read_text(encoding="utf-8")
@@ -225,8 +228,11 @@ display(HTML("""
 .mahal-widget .mw-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
 .mahal-widget .mw-sep { margin:0 .6rem; opacity:.45; }
 .mahal-widget input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
+/* A native range input insets its thumb by half a thumb width at each end,
+   so pad the label row to match. Without this the thumb at minimum sits ~9px
+   to the right of where "raw x" begins. */
 .mahal-widget .mw-labels { display:flex; justify-content:space-between;
-  font-size:.82rem; color:#8a929a; margin-top:.3rem; }
+  font-size:.82rem; color:#8a929a; margin-top:.3rem; padding:0 9px; }
 .mahal-widget .mw-labels span { cursor:pointer; flex:1; }
 .mahal-widget .mw-labels span:nth-child(2) { text-align:center; }
 .mahal-widget .mw-labels span:nth-child(3) { text-align:right; }

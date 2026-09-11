@@ -22,8 +22,8 @@
   var readout = root.querySelector(".mw-readout");
   var labels = root.querySelectorAll(".mw-labels span");
 
-  var PAD = { l: 52, r: 16, t: 16, b: 28 };
-  var FONT = '11px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var PAD = { l: 56, r: 16, t: 16, b: 30 };
+  var FONT = '12.5px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
   function mul(M, v) {
     return [M[0][0] * v[0] + M[0][1] * v[1], M[1][0] * v[0] + M[1][1] * v[1]];
@@ -93,7 +93,7 @@
     var off = [(1 - sA) * D.mu[0], (1 - sA) * D.mu[1]];
     var halfX = pw / (2 * s), halfY = ph / (2 * s);
     ctx.font = FONT;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.2;
 
     var stepX = niceStep(2 * halfX, 6), stepY = niceStep(2 * halfY, 5);
     ctx.textAlign = "center"; ctx.textBaseline = "top";
