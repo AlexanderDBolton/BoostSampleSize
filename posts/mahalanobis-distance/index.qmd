@@ -179,8 +179,7 @@ The transformed vector $w = \Sigma^{-1/2}(x - \mu)$ has mean $0$ and covariance
 $\Sigma^{-1/2}\Sigma\Sigma^{-1/2} = I$. In $w$-coordinates every variable has
 variance one and no two are correlated, so the cloud is a sphere, and Euclidean
 distance is finally the right tool. In practice, we use a Cholesky factor
-$\Sigma = LL^{\top}$ and $w = L^{-1}(x-\mu)$ instead of the symmetric root: same
-$D^2$, much cheaper.
+$\Sigma = LL^{\top}$ and $w = L^{-1}(x-\mu)$ instead of the symmetric root.
 
 Drag the slider below to watch it happen. The dashed rings are contours of
 constant Mahalanobis distance at every stage, so they begin as the data's own
@@ -282,7 +281,6 @@ nothing) and both exactly one standard deviation above average in height:
 
 In raw units both are $(0, +10, \pm 15)$ away from the mean, so their Euclidean
 distances are identical. After standardising, both are at $\sqrt{2} = 1.414$.
-Neither yardstick can tell them apart.
 
 ```{python}
 #| label: tbl-two-people
@@ -326,10 +324,12 @@ $$
 The cross term $-2\rho z_1 z_2$ is doing the work.
 :::
 
-Being tall *and* heavy is the ordinary way to be unusual; the two deviations
-largely explain each other, and $D^2$ counts them close to once rather than
-twice. Being tall *and* light is a genuine anomaly: it is unusual in a direction
-the data almost never goes.
+If a person is taller than average then we expect them to be heavier than
+average, since height and weight are positively correlated. The Mahalanobis
+distance counts height and weight almost as a single feature, rather than two
+separate features.
+Being tall and light is unusual. B is represented as far from the centre of
+the cloud by the Mahalanobis distance and A is not.
 
 ```{python}
 #| label: fig-correlation-ellipse
@@ -383,38 +383,36 @@ plt.show()
 
 ### Redundant columns are not double-counted
 
-This is the property that matters most if you are going to balance covariates.
-Suppose weight gets recorded twice by two slightly different scales, and you
-carelessly leave both columns in. Then you add a third scale, and a fourth.
+Suppose weight gets recorded twice by two related scales, and you
+include both columns. Then you add a third related scale, and a fourth.
 Standardised Euclidean distance treats each copy as fresh evidence and lets
-"weight" quietly take over the metric. Mahalanobis does not: $\Sigma^{-1}$
-already knows the copies are redundant, and the squared distance is unchanged
+"weight" dominate the metric. Mahalanobis does not: $\Sigma^{-1}$
+records that the copies are redundant, and the squared distance is unchanged
 no matter how many of them you add.
 
 ## Categorical features
 
 Everything so far assumed continuous covariates. Categorical ones need one extra
-step, and it is the step people most often get wrong.
+step.
 
 Throughout this section the running example is a fourth covariate alongside
-`age`, `height_cm` and `weight_kg`: a **recruitment region** with $K = 4$
+`age`, `height_cm` and `weight_kg`: a **region** with $K = 4$
 levels, `north`, `south`, `east` and `west`, occurring with prevalences
 
 $$
 p = (0.50,\; 0.30,\; 0.15,\; 0.05).
 $$
 
-The names carry no meaning — they are just four labels. What matters is the
-shape of that vector: one dominant level, two middling ones, and one deliberately
+There is one dominant level, two middling ones, and one deliberately
 rare level at 5%, because the rare level is where the interesting behaviour is.
 Below, 50,000 units are drawn from it.
 
-Encode `region` as four indicator (dummy) columns, one per level. **This breaks
-$\Sigma^{-1}$.** Every row of that block sums to exactly one, which is an exact
-linear dependency, so $\Sigma$ is singular and cannot be inverted — with $m$
-fully one-hot encoded categoricals the rank deficiency is $m$, one per block.
-Nothing is wrong with the data; the encoding is just carrying one redundant
-coordinate per categorical. There are two standard ways to deal with it, and
+If we encode `region` as four indicator (dummy) columns, one per level, this
+breaks $\Sigma^{-1}$. Every row of the indicator block sums to exactly one,
+which is an exact linear dependency, so $\Sigma$ is singular and cannot be
+inverted. With $m$ fully one-hot encoded categoricals the rank deficiency is
+$m$, one per block.
+There are two standard ways to deal with it, and
 they give identical answers.
 
 ### Fix A: drop a baseline level
@@ -437,7 +435,7 @@ Since all the centred data already lives in that row space, nothing is lost.
 ### The two fixes give the same answer
 
 ::: {.keybox}
-**Fix A and Fix B are not two approximations to trade off. They give exactly the
+**Fixes A and B are not two approximations to trade off. They give exactly the
 same $D^2$ — and it does not matter which level you drop.**
 :::
 
@@ -449,11 +447,11 @@ first, and why centimetres and inches give the same answer.
 
 So pick on convenience.
 
-**Drop a baseline** if you want a well-conditioned, genuinely invertible $S$ and
-a Cholesky factor you can reuse — which is what you want inside a
+**Drop a baseline** if you want a well-conditioned, invertible $S$ and
+a Cholesky factor you can reuse. This is what you want inside a
 rerandomization loop. This is the default I would reach for.
 
-**Use the pseudo-inverse** if you would rather not choose reference levels, if
+**Use the pseudo-inverse** if you would rather not choose a reference level, if
 you are handling several categoricals programmatically, or if $S$ may be
 singular for other reasons anyway: more covariates than units, an all-constant
 column, a covariate that is an exact linear combination of others. Just set
@@ -569,8 +567,9 @@ plausible number that is quietly wrong rather than an obviously wrong integer.
 Pass `np.linalg.pinv(S, rcond=1e-10)` and `matrix_rank(S, tol=1e-10)` as a
 matter of habit — or sidestep both by dropping a baseline.
 
-**Rare categorical levels dominate the metric.** A single unit's squared
-distance from membership of level $k$ alone is
+**Rare categorical levels dominate the metric.** Assuming that the categorical
+block is uncorrelated with every other column, a single unit's squared distance
+from the centre, from its level membership alone, is
 
 $$
 D^2 = \frac{1 - p_k}{p_k},
@@ -580,7 +579,7 @@ which grows without bound as the level gets rarer:
 
 | prevalence $p_k$ | 50% | 10% | 5% | 1% |
 |---|---|---|---|---|
-| $D^2$ | 1 | **9** | 19 | **99** |
+| $D^2$ | 1 | 9 | 19 | 99 |
 | $D$   | 1 | 3 | 4.4 | 9.9 |
 
 At $p_k = 0.01$, belonging to that one level puts a unit as far from the centre
@@ -588,41 +587,9 @@ as a continuous covariate sitting **ten standard deviations** from its mean.
 Collapse levels below a few percent into an `other` category, or the metric
 quietly becomes a metric about that one level.
 
-**Yes, that formula assumes no correlation.** $(1-p_k)/p_k$ is exact when the
-categorical block is uncorrelated with every other column, so that $S$ is block
-diagonal and the categorical's contribution simply adds to the rest. Once the
-categorical is correlated with other covariates the clean split breaks:
-
-```{python}
-#| label: rare-level-correlation
-
-def categorical_contribution(shift):
-    """How much a 'west' unit's D^2 rises because of its region alone, for a
-    unit that is dead average on every continuous covariate. Returned next to
-    the closed form evaluated at the *observed* prevalence, so the only
-    difference left is the correlation."""
-    reg = rng.choice(4, size=100_000, p=p_true)
-    cts = rng.multivariate_normal(mu_x, S_x, 100_000)
-    cts[:, 0] += shift[reg]                     # correlate region with age
-    v = np.concatenate([mu_x, np.eye(4)[3]])
-    actual = d2_pinv(np.hstack([cts, np.eye(4)[reg]]), v) - d2_inv(cts, mu_x)
-    p_obs = (reg == 3).mean()
-    return actual, (1 - p_obs) / p_obs
-
-for lab, shift in [("region uncorrelated with age", np.zeros(4)),
-                   ("region correlated with age  ", np.array([-6., 0., 4., 12.]))]:
-    actual, closed = categorical_contribution(shift)
-    print(f"{lab} : actual {actual:6.3f}   closed form {closed:6.3f}")
-```
-
-It also uses the *observed* prevalence, so it drifts with sampling error in small
-samples. Treat $(1-p_k)/p_k$ as the right order of magnitude rather than a
-guarantee — the qualitative point, that rare levels are expensive, holds either
-way.
-
 **Every covariate is treated as equally important.** $D^2$ is invariant to
-rescaling, which is a virtue for units and a limitation for priorities: it has
-no way to know that the baseline outcome measurement matters more than the
+rescaling, which is a virtue for units and a limitation for priorities. It has
+no way to include that the baseline outcome measurement matters more than the
 recruitment site.
 
 **Outliers inflate $S$.** The covariance is estimated from the same data you are
