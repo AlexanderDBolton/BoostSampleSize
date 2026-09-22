@@ -126,6 +126,7 @@ entire cost model: a 1-in-1,000 threshold costs about 1,000 draws.
 ```{python}
 #| label: tbl-thresholds
 #| echo: false
+#| tbl-cap: 'Threshold $a$ for a given acceptance rate $p_a$ (rows) and number of covariates $k$ (columns). Accept a split when $M \le a$. The first column is the average number of draws you will get through before one is accepted.'
 
 rows = []
 for p_a_ in [0.5, 0.1, 0.05, 0.01, 0.001, 0.0001]:
@@ -138,23 +139,29 @@ thr.insert(0, "expected draws", [round(1 / x) for x in thr.index])
 thr.round(3)
 ```
 
-: Threshold $a$ to use for a given acceptance rate $p_a$ (rows) and number of covariates $k$ (columns). Accept a split when $M \le a$. The second column is the average number of draws you will get through before one is accepted. {#tbl-thresholds}
-
 ## A budget instead of a threshold
 
 Picking $p_a$ means committing to an unbounded loop: you will *probably* accept
 within a few thousand draws, but nothing guarantees it. The alternative is to
 fix a budget — draw 10,000 splits, keep the single best one — which runs in
-known time and requires no threshold at all.
+known time and needs no threshold at all.
 
-These are not the same procedure, and the difference goes the way most people
-guess wrong. Drawing $B$ and keeping the best is **worse** than thresholding at
-$p_a = 1/B$, because the winner of a tournament of $B$ is not guaranteed to clear
-the 1-in-$B$ bar: it misses it about $(1 - 1/B)^B \approx 37\%$ of the time.
+Morgan and Rubin recommend exactly this, in §5.2 of their 2015 tiers paper:
+
+> In practice we expect to see little difference between rerandomizing until an
+> allocation with $M \le a$ is obtained, and choosing the allocation with the
+> smallest $M$ from $1/p_a$ randomizations, where $p_a = P(M \le a)$.
+
+That is offered as an expectation rather than a result — the paper gives no
+proof or simulation for it — so it is worth checking. The two schemes are
+genuinely different: the winner of a tournament of $B$ draws is not guaranteed
+to clear the 1-in-$B$ bar, and misses it about $(1 - 1/B)^B \approx 37\%$ of the
+time. Best-of-$B$ is therefore always the weaker of the two.
 
 ```{python}
 #| label: tbl-budget
 #| echo: false
+#| tbl-cap: 'Residual imbalance variance $v$ under the two schemes, as a fraction of what complete randomisation leaves. Lower is better. Best-of-10,000 is never better than thresholding at 1 in 10,000, but the gap closes quickly as covariates are added.'
 
 rows = []
 for k_ in [2, 5, 10, 20, 50]:
@@ -169,15 +176,20 @@ for k_ in [2, 5, 10, 20, 50]:
 pd.DataFrame(rows).set_index("covariates k")
 ```
 
-: Residual imbalance variance $v$ under the two schemes, as a fraction of what complete randomisation leaves. Lower is better. Best-of-10,000 is never better than thresholding at 1 in 10,000, but the gap closes quickly as covariates are added. {#tbl-budget}
+The ratio column looks alarming at $k = 2$ — twice the imbalance variance — but
+read the absolute numbers next to it: $0.00005$ against $0.00010$. Both schemes
+have annihilated the imbalance, and doubling almost nothing leaves almost
+nothing. The place where the difference could matter is at large $k$, where a
+meaningful fraction of the imbalance survives, and that is precisely where the
+two schemes converge: 6% apart at twenty covariates, 3% at fifty.
 
-With two covariates the budget approach leaves twice the imbalance variance. By
-ten covariates the penalty is 11%, and by twenty it is 6% — small enough that
-the predictable runtime is usually worth it. **If you have more than a handful of
-covariates, picking a budget you can afford and keeping the best draw is a
-perfectly respectable design**, and it removes the one genuinely awkward
-parameter. Just record that this is what you did, because the inference has to
-match the scheme you actually ran.
+So Morgan and Rubin's expectation holds up, for a reason their sentence does not
+give: the gap is largest exactly where both schemes are already good enough for
+it not to matter.
+
+**Pick a budget you can afford and keep the best draw.** It removes the one
+genuinely awkward parameter and it runs in known time. Just record that this is
+what you did, because the inference has to match the scheme you actually ran.
 
 ## The acceptance region
 
@@ -193,6 +205,7 @@ honest visual point — so drag to zoom in on it.
 ```{python}
 #| label: fig-acceptance-zoom
 #| echo: false
+#| fig-cap: 'Each dot is one of 8,000 candidate splits, positioned at its pair of covariate mean differences. The solid ellipse is the 5% acceptance region; the dashed ellipses are the 50%, 20% and 1% regions. Drag the slider to magnify towards the origin.'
 
 N = 200
 n_T = N // 2
@@ -293,22 +306,21 @@ covariate count grows.
 ```{python}
 #| label: fig-variance-reduction
 #| echo: false
-#| fig-cap: "Fraction of the imbalance variance that survives rerandomization at a 1-in-10,000 acceptance rate, as the number of covariates grows. Balancing a handful of covariates removes almost all of it; balancing fifty removes less than half, for the same 10,000 draws."
+#| fig-cap: "Fraction of the imbalance variance that survives rerandomization at a 1-in-10,000 acceptance rate, as the number of covariates grows. Balancing a handful removes almost all of it; balancing fifty removes less than half, for the same 10,000 draws."
 #| fig-height: 3.9
 
 ks = np.arange(1, 61)
+a_g = stats.chi2.ppf(1e-4, ks)
+v_g = stats.chi2.cdf(a_g, ks + 2) / stats.chi2.cdf(a_g, ks)
+
 fig, ax = plt.subplots(figsize=(6.8, 3.9))
-for p_a_, col, lab in [(1e-4, C["blue"], "$p_a = 1/10{,}000$"),
-                       (1e-3, C["orange"], "$p_a = 1/1{,}000$")]:
-    a_g = stats.chi2.ppf(p_a_, ks)
-    ax.plot(ks, stats.chi2.cdf(a_g, ks + 2) / stats.chi2.cdf(a_g, ks),
-            color=col, lw=2.2, label=lab)
+ax.plot(ks, v_g, color=C["blue"], lw=2.2)
+ax.fill_between(ks, 0, v_g, color=C["blue"], alpha=0.10, lw=0)
 ax.set_xlabel("number of covariates $k$")
 ax.set_ylabel("$v_a$ = fraction of imbalance left")
-ax.set_title("The benefit erodes as you add covariates")
+ax.set_title("A 1-in-10,000 threshold, as covariates are added")
 ax.set_ylim(0, 1)
 ax.set_xlim(1, 60)
-ax.legend(loc="lower right")
 
 for k_ in (5, 20, 50):
     a_ = stats.chi2.ppf(1e-4, k_)
@@ -345,24 +357,75 @@ them — and it is the decision people spend the least time on.
 
 *Outline — to be written.*
 
-Rerandomization changes the design, so it changes what "by chance" means. Two
-positions to reconcile:
+Rerandomization changes the design, so it changes what "by chance" means. If you
+rerandomize and then run an ordinary $t$-test on the difference in means, the
+test is *conservative*: it prices in imbalance the design already removed, so
+your intervals are too wide and you give back the precision you just paid for.
 
-1. **Adjust for the balancing covariates in the analysis.** This is what most
-   practitioners do: regress the outcome on treatment plus the covariates used
-   in the design. It is simple, familiar, and largely self-correcting.
-2. **Use the rerandomization distribution directly.** Li, Ding and Rubin (2018)
-   show that the unadjusted difference in means is no longer asymptotically
-   normal after rerandomization — it is a normal plus a truncated-normal term,
-   because the design has removed exactly the part of the imbalance that the
-   covariates explain. A conventional $t$-test is therefore *conservative*:
-   intervals are too wide, and you lose the precision the design just bought.
+Li, Ding and Rubin (2018) derive what the distribution actually is. The
+difference in means is no longer asymptotically normal — it is a normal plus a
+truncated-normal term, the truncation coming from the acceptance rule. Its
+variance is a factor $1 - (1 - v_a)R^2$ smaller than the $t$-test assumes, where
+$R^2$ is the squared multiple correlation between the outcome and the balanced
+covariates.
 
-Planned content: why the two views mostly agree when the analysis adjusts for
-the same covariates used in the design; how to run a randomisation test that
-redraws under the same acceptance rule (including the best-of-$B$ variant, where
-the rule is not a simple threshold); and when the truncated-normal correction is
-worth the trouble.
+### How much is that worth?
+
+Standard errors shrink by $\sqrt{1 - (1 - v_a)R^2}$, so the whole gain is
+governed by $R^2$ — how well the covariates predict the outcome — and barely at
+all by how hard you rerandomized.
+
+```{python}
+#| label: tbl-ldr-gain
+#| echo: false
+#| tbl-cap: 'How much narrower a confidence interval becomes if you use the rerandomization distribution instead of a conventional $t$-test, for a 1-in-10,000 acceptance rate. The payoff comes almost entirely from $R^2$; the number of covariates barely matters.'
+
+rows = []
+for k_ in (5, 20):
+    a_ = stats.chi2.ppf(1e-4, k_)
+    v_ = stats.chi2.cdf(a_, k_ + 2) / stats.chi2.cdf(a_, k_)
+    row = {"covariates k": k_}
+    for R2 in (0.2, 0.4, 0.6, 0.8):
+        row[f"R² = {R2}"] = f"{100 * (1 - np.sqrt(1 - (1 - v_) * R2)):.0f}% narrower"
+    rows.append(row)
+pd.DataFrame(rows).set_index("covariates k")
+```
+
+With covariates that explain 20% of the outcome, the correction is worth about
+a tenth of your interval width — real, but unlikely to change a conclusion. At
+$R^2 = 0.8$ it halves the interval, which certainly would. So the question is
+not "did I rerandomize hard enough" but "do my covariates predict the outcome at
+all".
+
+### Do you have to derive it for your own estimator?
+
+Mostly, no — and this is the part worth knowing before you reach for the
+closed form. Three routes, in increasing order of effort:
+
+1. **Adjust for the balancing covariates in your regression.** Li and Ding
+   (2020) show that once the analysis adjusts for the variables used in the
+   design, asymptotic normality comes back and conventional standard errors are
+   justified again. The truncated term was the part of the imbalance the
+   covariates explain, so regressing on them absorbs it. This is what most
+   practitioners already do by instinct, it costs nothing, and it is the default
+   I would recommend.
+2. **Randomisation inference.** Re-draw assignments under the *same* acceptance
+   rule, recompute your estimator each time, and read the reference distribution
+   off the results. This needs no new theory and works for any estimator —
+   difference-in-differences, clustered errors, instrumental variables — which
+   makes it the general answer. The cost is compute: your whole estimation
+   routine runs thousands of times. It is also the only clean option if you used
+   a best-of-$B$ budget, since the acceptance rule is then not a simple
+   threshold.
+3. **A closed-form correction for your estimator.** The Li–Ding–Rubin result is
+   for the difference in means. For a difference-in-differences regression you
+   would need the corresponding theory; recent work extends this to general
+   M-estimators, but deriving it yourself for a bespoke specification is a
+   research project, not an analysis step.
+
+Planned content: a worked randomisation test against the same acceptance rule,
+and a simulation checking how much the adjusted-regression route gives up
+against the exact correction.
 
 ::: {.callout-warning}
 ## Use the covariate values as they stood at the moment of splitting
@@ -437,6 +500,9 @@ changing the covariate set changes the metric and therefore the accepted split.
 - Li, X., Ding, P. and Rubin, D. B. (2018).
   [Asymptotic theory of rerandomization in treatment–control experiments](https://doi.org/10.1073/pnas.1808191115).
   *PNAS*, 115(37), 9157–9162.
+- Li, X. and Ding, P. (2020).
+  [Rerandomization and regression adjustment](https://doi.org/10.1111/rssb.12353).
+  *Journal of the Royal Statistical Society Series B*, 82(1), 241–268.
 - Wang, Y. and Li, X. (2025).
   [Asymptotic theory of the best-choice rerandomization using the Mahalanobis distance](https://doi.org/10.1016/j.jeconom.2025.106053).
   *Journal of Econometrics*.

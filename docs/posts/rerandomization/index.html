@@ -160,7 +160,11 @@ window.Quarto = {
   <li><a href="#a-budget-instead-of-a-threshold" id="toc-a-budget-instead-of-a-threshold" class="nav-link" data-scroll-target="#a-budget-instead-of-a-threshold">A budget instead of a threshold</a></li>
   <li><a href="#the-acceptance-region" id="toc-the-acceptance-region" class="nav-link" data-scroll-target="#the-acceptance-region">The acceptance region</a></li>
   <li><a href="#how-much-does-it-buy-you" id="toc-how-much-does-it-buy-you" class="nav-link" data-scroll-target="#how-much-does-it-buy-you">How much does it buy you?</a></li>
-  <li><a href="#inference-after-rerandomization" id="toc-inference-after-rerandomization" class="nav-link" data-scroll-target="#inference-after-rerandomization">Inference after rerandomization</a></li>
+  <li><a href="#inference-after-rerandomization" id="toc-inference-after-rerandomization" class="nav-link" data-scroll-target="#inference-after-rerandomization">Inference after rerandomization</a>
+  <ul class="collapse">
+  <li><a href="#how-much-is-that-worth" id="toc-how-much-is-that-worth" class="nav-link" data-scroll-target="#how-much-is-that-worth">How much is that worth?</a></li>
+  <li><a href="#do-you-have-to-derive-it-for-your-own-estimator" id="toc-do-you-have-to-derive-it-for-your-own-estimator" class="nav-link" data-scroll-target="#do-you-have-to-derive-it-for-your-own-estimator">Do you have to derive it for your own estimator?</a></li>
+  </ul></li>
   <li><a href="#covariate-adjustment-as-an-alternative" id="toc-covariate-adjustment-as-an-alternative" class="nav-link" data-scroll-target="#covariate-adjustment-as-an-alternative">Covariate adjustment as an alternative</a></li>
   <li><a href="#practical-notes-and-failure-modes" id="toc-practical-notes-and-failure-modes" class="nav-link" data-scroll-target="#practical-notes-and-failure-modes">Practical notes and failure modes</a></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
@@ -234,15 +238,15 @@ a = F^{-1}_{\chi^2_k}(p_a), \qquad \text{accept if } M \le a .
 <div class="cell" data-execution_count="2">
 <div id="tbl-thresholds" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-thresholds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;1
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-thresholds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Threshold <span class="math inline">\(a\)</span> for a given acceptance rate <span class="math inline">\(p_a\)</span> (rows) and number of covariates <span class="math inline">\(k\)</span> (columns). Accept a split when <span class="math inline">\(M \le a\)</span>. The first column is the average number of draws you will get through before one is accepted.
 </figcaption>
 <div aria-describedby="tbl-thresholds-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="2">
 <div>
 
 
-<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<table class="dataframe cell caption-top table table-sm table-striped small" data-border="1">
 <thead>
 <tr class="header">
 <th data-quarto-table-cell-role="th"></th>
@@ -319,24 +323,27 @@ Table&nbsp;1
 </figure>
 </div>
 </div>
-<p>: Threshold <span class="math inline">\(a\)</span> to use for a given acceptance rate <span class="math inline">\(p_a\)</span> (rows) and number of covariates <span class="math inline">\(k\)</span> (columns). Accept a split when <span class="math inline">\(M \le a\)</span>. The second column is the average number of draws you will get through before one is accepted. {#tbl-thresholds}</p>
 </section>
 <section id="a-budget-instead-of-a-threshold" class="level2">
 <h2 class="anchored" data-anchor-id="a-budget-instead-of-a-threshold">A budget instead of a threshold</h2>
-<p>Picking <span class="math inline">\(p_a\)</span> means committing to an unbounded loop: you will <em>probably</em> accept within a few thousand draws, but nothing guarantees it. The alternative is to fix a budget — draw 10,000 splits, keep the single best one — which runs in known time and requires no threshold at all.</p>
-<p>These are not the same procedure, and the difference goes the way most people guess wrong. Drawing <span class="math inline">\(B\)</span> and keeping the best is <strong>worse</strong> than thresholding at <span class="math inline">\(p_a = 1/B\)</span>, because the winner of a tournament of <span class="math inline">\(B\)</span> is not guaranteed to clear the 1-in-<span class="math inline">\(B\)</span> bar: it misses it about <span class="math inline">\((1 - 1/B)^B \approx 37\%\)</span> of the time.</p>
+<p>Picking <span class="math inline">\(p_a\)</span> means committing to an unbounded loop: you will <em>probably</em> accept within a few thousand draws, but nothing guarantees it. The alternative is to fix a budget — draw 10,000 splits, keep the single best one — which runs in known time and needs no threshold at all.</p>
+<p>Morgan and Rubin recommend exactly this, in §5.2 of their 2015 tiers paper:</p>
+<blockquote class="blockquote">
+<p>In practice we expect to see little difference between rerandomizing until an allocation with <span class="math inline">\(M \le a\)</span> is obtained, and choosing the allocation with the smallest <span class="math inline">\(M\)</span> from <span class="math inline">\(1/p_a\)</span> randomizations, where <span class="math inline">\(p_a = P(M \le a)\)</span>.</p>
+</blockquote>
+<p>That is offered as an expectation rather than a result — the paper gives no proof or simulation for it — so it is worth checking. The two schemes are genuinely different: the winner of a tournament of <span class="math inline">\(B\)</span> draws is not guaranteed to clear the 1-in-<span class="math inline">\(B\)</span> bar, and misses it about <span class="math inline">\((1 - 1/B)^B \approx 37\%\)</span> of the time. Best-of-<span class="math inline">\(B\)</span> is therefore always the weaker of the two.</p>
 <div class="cell" data-execution_count="3">
 <div id="tbl-budget" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
 <figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl quarto-uncaptioned" id="tbl-budget-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;2
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-budget-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Residual imbalance variance <span class="math inline">\(v\)</span> under the two schemes, as a fraction of what complete randomisation leaves. Lower is better. Best-of-10,000 is never better than thresholding at 1 in 10,000, but the gap closes quickly as covariates are added.
 </figcaption>
 <div aria-describedby="tbl-budget-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="3">
 <div>
 
 
-<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<table class="dataframe cell caption-top table table-sm table-striped small" data-border="1">
 <thead>
 <tr class="header">
 <th data-quarto-table-cell-role="th"></th>
@@ -391,8 +398,9 @@ Table&nbsp;2
 </figure>
 </div>
 </div>
-<p>: Residual imbalance variance <span class="math inline">\(v\)</span> under the two schemes, as a fraction of what complete randomisation leaves. Lower is better. Best-of-10,000 is never better than thresholding at 1 in 10,000, but the gap closes quickly as covariates are added. {#tbl-budget}</p>
-<p>With two covariates the budget approach leaves twice the imbalance variance. By ten covariates the penalty is 11%, and by twenty it is 6% — small enough that the predictable runtime is usually worth it. <strong>If you have more than a handful of covariates, picking a budget you can afford and keeping the best draw is a perfectly respectable design</strong>, and it removes the one genuinely awkward parameter. Just record that this is what you did, because the inference has to match the scheme you actually ran.</p>
+<p>The ratio column looks alarming at <span class="math inline">\(k = 2\)</span> — twice the imbalance variance — but read the absolute numbers next to it: <span class="math inline">\(0.00005\)</span> against <span class="math inline">\(0.00010\)</span>. Both schemes have annihilated the imbalance, and doubling almost nothing leaves almost nothing. The place where the difference could matter is at large <span class="math inline">\(k\)</span>, where a meaningful fraction of the imbalance survives, and that is precisely where the two schemes converge: 6% apart at twenty covariates, 3% at fifty.</p>
+<p>So Morgan and Rubin’s expectation holds up, for a reason their sentence does not give: the gap is largest exactly where both schemes are already good enough for it not to matter.</p>
+<p><strong>Pick a budget you can afford and keep the best draw.</strong> It removes the one genuinely awkward parameter and it runs in known time. Just record that this is what you did, because the inference has to match the scheme you actually ran.</p>
 </section>
 <section id="the-acceptance-region" class="level2">
 <h2 class="anchored" data-anchor-id="the-acceptance-region">The acceptance region</h2>
@@ -611,8 +619,8 @@ Table&nbsp;2
 })();
 </script>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-acceptance-zoom-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-acceptance-zoom-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair of covariate mean differences. The solid ellipse is the 5% acceptance region; the dashed ellipses are the 50%, 20% and 1% regions. Drag the slider to magnify towards the origin.
 </figcaption>
 </figure>
 </div>
@@ -643,7 +651,7 @@ v_a \;=\; \frac{\operatorname{Var}_{\text{RR}}}{\operatorname{Var}_{\text{CR}}}
 <img src="index_files/figure-html/fig-variance-reduction-output-1.png" width="1133" height="641" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-variance-reduction-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;2: Fraction of the imbalance variance that survives rerandomization at a 1-in-10,000 acceptance rate, as the number of covariates grows. Balancing a handful of covariates removes almost all of it; balancing fifty removes less than half, for the same 10,000 draws.
+Figure&nbsp;2: Fraction of the imbalance variance that survives rerandomization at a 1-in-10,000 acceptance rate, as the number of covariates grows. Balancing a handful removes almost all of it; balancing fifty removes less than half, for the same 10,000 draws.
 </figcaption>
 </figure>
 </div>
@@ -668,12 +676,77 @@ Figure&nbsp;2: Fraction of the imbalance variance that survives rerandomization 
 <section id="inference-after-rerandomization" class="level2">
 <h2 class="anchored" data-anchor-id="inference-after-rerandomization">Inference after rerandomization</h2>
 <p><em>Outline — to be written.</em></p>
-<p>Rerandomization changes the design, so it changes what “by chance” means. Two positions to reconcile:</p>
+<p>Rerandomization changes the design, so it changes what “by chance” means. If you rerandomize and then run an ordinary <span class="math inline">\(t\)</span>-test on the difference in means, the test is <em>conservative</em>: it prices in imbalance the design already removed, so your intervals are too wide and you give back the precision you just paid for.</p>
+<p>Li, Ding and Rubin (2018) derive what the distribution actually is. The difference in means is no longer asymptotically normal — it is a normal plus a truncated-normal term, the truncation coming from the acceptance rule. Its variance is a factor <span class="math inline">\(1 - (1 - v_a)R^2\)</span> smaller than the <span class="math inline">\(t\)</span>-test assumes, where <span class="math inline">\(R^2\)</span> is the squared multiple correlation between the outcome and the balanced covariates.</p>
+<section id="how-much-is-that-worth" class="level3">
+<h3 class="anchored" data-anchor-id="how-much-is-that-worth">How much is that worth?</h3>
+<p>Standard errors shrink by <span class="math inline">\(\sqrt{1 - (1 - v_a)R^2}\)</span>, so the whole gain is governed by <span class="math inline">\(R^2\)</span> — how well the covariates predict the outcome — and barely at all by how hard you rerandomized.</p>
+<div class="cell" data-execution_count="6">
+<div id="tbl-ldr-gain" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="6">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-ldr-gain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: How much narrower a confidence interval becomes if you use the rerandomization distribution instead of a conventional <span class="math inline">\(t\)</span>-test, for a 1-in-10,000 acceptance rate. The payoff comes almost entirely from <span class="math inline">\(R^2\)</span>; the number of covariates barely matters.
+</figcaption>
+<div aria-describedby="tbl-ldr-gain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display" data-execution_count="6">
+<div>
+
+
+<table class="dataframe cell caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">R² = 0.2</th>
+<th data-quarto-table-cell-role="th">R² = 0.4</th>
+<th data-quarto-table-cell-role="th">R² = 0.6</th>
+<th data-quarto-table-cell-role="th">R² = 0.8</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">covariates k</th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th"></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">5</th>
+<td>10% narrower</td>
+<td>22% narrower</td>
+<td>36% narrower</td>
+<td>54% narrower</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">20</th>
+<td>8% narrower</td>
+<td>18% narrower</td>
+<td>28% narrower</td>
+<td>40% narrower</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>With covariates that explain 20% of the outcome, the correction is worth about a tenth of your interval width — real, but unlikely to change a conclusion. At <span class="math inline">\(R^2 = 0.8\)</span> it halves the interval, which certainly would. So the question is not “did I rerandomize hard enough” but “do my covariates predict the outcome at all”.</p>
+</section>
+<section id="do-you-have-to-derive-it-for-your-own-estimator" class="level3">
+<h3 class="anchored" data-anchor-id="do-you-have-to-derive-it-for-your-own-estimator">Do you have to derive it for your own estimator?</h3>
+<p>Mostly, no — and this is the part worth knowing before you reach for the closed form. Three routes, in increasing order of effort:</p>
 <ol type="1">
-<li><strong>Adjust for the balancing covariates in the analysis.</strong> This is what most practitioners do: regress the outcome on treatment plus the covariates used in the design. It is simple, familiar, and largely self-correcting.</li>
-<li><strong>Use the rerandomization distribution directly.</strong> Li, Ding and Rubin (2018) show that the unadjusted difference in means is no longer asymptotically normal after rerandomization — it is a normal plus a truncated-normal term, because the design has removed exactly the part of the imbalance that the covariates explain. A conventional <span class="math inline">\(t\)</span>-test is therefore <em>conservative</em>: intervals are too wide, and you lose the precision the design just bought.</li>
+<li><strong>Adjust for the balancing covariates in your regression.</strong> Li and Ding
+<ol start="2020" type="1">
+<li>show that once the analysis adjusts for the variables used in the design, asymptotic normality comes back and conventional standard errors are justified again. The truncated term was the part of the imbalance the covariates explain, so regressing on them absorbs it. This is what most practitioners already do by instinct, it costs nothing, and it is the default I would recommend.</li>
+</ol></li>
+<li><strong>Randomisation inference.</strong> Re-draw assignments under the <em>same</em> acceptance rule, recompute your estimator each time, and read the reference distribution off the results. This needs no new theory and works for any estimator — difference-in-differences, clustered errors, instrumental variables — which makes it the general answer. The cost is compute: your whole estimation routine runs thousands of times. It is also the only clean option if you used a best-of-<span class="math inline">\(B\)</span> budget, since the acceptance rule is then not a simple threshold.</li>
+<li><strong>A closed-form correction for your estimator.</strong> The Li–Ding–Rubin result is for the difference in means. For a difference-in-differences regression you would need the corresponding theory; recent work extends this to general M-estimators, but deriving it yourself for a bespoke specification is a research project, not an analysis step.</li>
 </ol>
-<p>Planned content: why the two views mostly agree when the analysis adjusts for the same covariates used in the design; how to run a randomisation test that redraws under the same acceptance rule (including the best-of-<span class="math inline">\(B\)</span> variant, where the rule is not a simple threshold); and when the truncated-normal correction is worth the trouble.</p>
+<p>Planned content: a worked randomisation test against the same acceptance rule, and a simulation checking how much the adjusted-regression route gives up against the exact correction.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -689,6 +762,7 @@ Figure&nbsp;2: Fraction of the imbalance variance that survives rerandomization 
 <p>The design argument points the same way. The randomisation distribution is defined by the acceptance rule, and that rule was evaluated against the baseline numbers. Those are the values that determine which splits could have occurred, so those are the values the analysis has to condition on. Freeze your covariate table when you draw the split, and keep it.</p>
 </div>
 </div>
+</section>
 </section>
 <section id="covariate-adjustment-as-an-alternative" class="level2">
 <h2 class="anchored" data-anchor-id="covariate-adjustment-as-an-alternative">Covariate adjustment as an alternative</h2>
@@ -713,6 +787,7 @@ Figure&nbsp;2: Fraction of the imbalance variance that survives rerandomization 
 <li>Morgan, K. L. and Rubin, D. B. (2012). <a href="https://doi.org/10.1214/12-AOS1008">Rerandomization to improve covariate balance in experiments</a>. <em>The Annals of Statistics</em>, 40(2), 1263–1282.</li>
 <li>Morgan, K. L. and Rubin, D. B. (2015). <a href="https://doi.org/10.1080/01621459.2015.1079528">Rerandomization to balance tiers of covariates</a>. <em>JASA</em>, 110(512), 1412–1421.</li>
 <li>Li, X., Ding, P. and Rubin, D. B. (2018). <a href="https://doi.org/10.1073/pnas.1808191115">Asymptotic theory of rerandomization in treatment–control experiments</a>. <em>PNAS</em>, 115(37), 9157–9162.</li>
+<li>Li, X. and Ding, P. (2020). <a href="https://doi.org/10.1111/rssb.12353">Rerandomization and regression adjustment</a>. <em>Journal of the Royal Statistical Society Series B</em>, 82(1), 241–268.</li>
 <li>Wang, Y. and Li, X. (2025). <a href="https://doi.org/10.1016/j.jeconom.2025.106053">Asymptotic theory of the best-choice rerandomization using the Mahalanobis distance</a>. <em>Journal of Econometrics</em>.</li>
 </ul>
 
