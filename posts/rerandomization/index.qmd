@@ -191,7 +191,7 @@ display(HTML("""
     <div class="gc-cell"><span class="gc-num gc-out-n"></span>
       <span class="gc-lab">equivalent extra data</span></div>
     <div class="gc-cell"><span class="gc-num gc-out-v"></span>
-      <span class="gc-lab">imbalance left ($v_a$)</span></div>
+      <span class="gc-lab">imbalance left (<i>v</i><sub>a</sub>)</span></div>
   </div>
   <div class="gc-note"></div>
 </div>
@@ -265,7 +265,8 @@ Picking an acceptance rate means committing to an unbounded loop: you will
 Fixing a budget — draw 10,000, keep the best — runs in known time and needs no
 threshold at all.
 
-Morgan and Rubin recommend exactly this, in §5.2 of their 2015 tiers paper:
+Morgan and Rubin recommend exactly this, in §5.2 of their
+[2015 tiers paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC5042467/):
 
 > In practice we expect to see little difference between rerandomizing until an
 > allocation with $M \le a$ is obtained, and choosing the allocation with the
@@ -429,10 +430,14 @@ read the treatment coefficient. Two refinements worth knowing:
   a difference-in-differences, adjust the DiD specification itself; you do not
   need a separate procedure.
 
-What does *not* work is adjusting for a different set of covariates than you
-balanced on. It is the overlap between the design set and the analysis set that
-absorbs the truncated term, so leaving a balancing covariate out of the model
-leaves part of the correction on the table.
+The rule is **include at least the covariates you balanced on**. Adding others
+on top is perfectly fine and often improves precision further, in the ordinary
+way that regression adjustment does. The thing to avoid is the reverse: it is
+the overlap between the design set and the analysis set that absorbs the
+truncated term, so every balancing covariate you leave out of the model leaves a
+little of the correction unclaimed. You still keep the design's benefit — the
+estimate is no worse for it — you just go on reporting an interval slightly
+wider than you earned.
 
 Two cases need more care. If your estimator is unusual enough that you do not
 trust the asymptotics, **randomisation inference** always works: redraw
@@ -492,7 +497,7 @@ the inference has to match the scheme you actually ran.
   [Rerandomization to improve covariate balance in experiments](https://doi.org/10.1214/12-AOS1008).
   *The Annals of Statistics*, 40(2), 1263–1282.
 - Morgan, K. L. and Rubin, D. B. (2015).
-  [Rerandomization to balance tiers of covariates](https://doi.org/10.1080/01621459.2015.1079528).
+  [Rerandomization to balance tiers of covariates](https://pmc.ncbi.nlm.nih.gov/articles/PMC5042467/).
   *JASA*, 110(512), 1412–1421.
 - Li, X., Ding, P. and Rubin, D. B. (2018).
   [Asymptotic theory of rerandomization in treatment–control experiments](https://doi.org/10.1073/pnas.1808191115).

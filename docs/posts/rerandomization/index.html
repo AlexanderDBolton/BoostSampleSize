@@ -344,7 +344,7 @@ Table&nbsp;1: How much smaller the standard error of the difference in means get
     <div class="gc-cell"><span class="gc-num gc-out-n"></span>
       <span class="gc-lab">equivalent extra data</span></div>
     <div class="gc-cell"><span class="gc-num gc-out-v"></span>
-      <span class="gc-lab">imbalance left ($v_a$)</span></div>
+      <span class="gc-lab">imbalance left (<i>v</i><sub>a</sub>)</span></div>
   </div>
   <div class="gc-note"></div>
 </div>
@@ -489,7 +489,7 @@ Table&nbsp;1: How much smaller the standard error of the difference in means get
 <section id="a-budget-is-simpler-than-a-threshold" class="level2">
 <h2 class="anchored" data-anchor-id="a-budget-is-simpler-than-a-threshold">A budget is simpler than a threshold</h2>
 <p>Picking an acceptance rate means committing to an unbounded loop: you will <em>probably</em> accept within a few thousand draws, but nothing guarantees it. Fixing a budget — draw 10,000, keep the best — runs in known time and needs no threshold at all.</p>
-<p>Morgan and Rubin recommend exactly this, in §5.2 of their 2015 tiers paper:</p>
+<p>Morgan and Rubin recommend exactly this, in §5.2 of their <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5042467/">2015 tiers paper</a>:</p>
 <blockquote class="blockquote">
 <p>In practice we expect to see little difference between rerandomizing until an allocation with <span class="math inline">\(M \le a\)</span> is obtained, and choosing the allocation with the smallest <span class="math inline">\(M\)</span> from <span class="math inline">\(1/p_a\)</span> randomizations, where <span class="math inline">\(p_a = P(M \le a)\)</span>.</p>
 </blockquote>
@@ -805,7 +805,7 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 <li><strong>Centre the covariates and interact them with treatment.</strong> Lin (2013) showed this version can only help: it never does worse asymptotically than the unadjusted estimator, even if the linear model is wrong, and it recovers more when the treatment effect varies with the covariates. Plain additive adjustment is fine in most cases; the interacted form is the safer default.</li>
 <li><strong>It does not have to be linear.</strong> The requirement is that the fitted model <em>includes</em> the balancing covariates, not that it is a linear regression — logistic, Poisson and other M-estimators are covered by the same argument. For a difference-in-differences, adjust the DiD specification itself; you do not need a separate procedure.</li>
 </ul>
-<p>What does <em>not</em> work is adjusting for a different set of covariates than you balanced on. It is the overlap between the design set and the analysis set that absorbs the truncated term, so leaving a balancing covariate out of the model leaves part of the correction on the table.</p>
+<p>The rule is <strong>include at least the covariates you balanced on</strong>. Adding others on top is perfectly fine and often improves precision further, in the ordinary way that regression adjustment does. The thing to avoid is the reverse: it is the overlap between the design set and the analysis set that absorbs the truncated term, so every balancing covariate you leave out of the model leaves a little of the correction unclaimed. You still keep the design’s benefit — the estimate is no worse for it — you just go on reporting an interval slightly wider than you earned.</p>
 <p>Two cases need more care. If your estimator is unusual enough that you do not trust the asymptotics, <strong>randomisation inference</strong> always works: redraw assignments under the same acceptance rule, refit your model each time, and read the reference distribution off the results. It needs no new theory and no closed form — only compute. It is also the honest option if you used a best-of-<span class="math inline">\(B\)</span> budget, since the acceptance rule is then not a simple threshold. Deriving the Li–Ding–Rubin correction for a bespoke estimator, by contrast, is a research project rather than an analysis step.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -833,7 +833,7 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 <h2 class="anchored" data-anchor-id="references">References</h2>
 <ul>
 <li>Morgan, K. L. and Rubin, D. B. (2012). <a href="https://doi.org/10.1214/12-AOS1008">Rerandomization to improve covariate balance in experiments</a>. <em>The Annals of Statistics</em>, 40(2), 1263–1282.</li>
-<li>Morgan, K. L. and Rubin, D. B. (2015). <a href="https://doi.org/10.1080/01621459.2015.1079528">Rerandomization to balance tiers of covariates</a>. <em>JASA</em>, 110(512), 1412–1421.</li>
+<li>Morgan, K. L. and Rubin, D. B. (2015). <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5042467/">Rerandomization to balance tiers of covariates</a>. <em>JASA</em>, 110(512), 1412–1421.</li>
 <li>Li, X., Ding, P. and Rubin, D. B. (2018). <a href="https://doi.org/10.1073/pnas.1808191115">Asymptotic theory of rerandomization in treatment–control experiments</a>. <em>PNAS</em>, 115(37), 9157–9162.</li>
 <li>Lin, W. (2013). <a href="https://doi.org/10.1214/12-AOAS583">Agnostic notes on regression adjustments to experimental data</a>. <em>The Annals of Applied Statistics</em>, 7(1), 295–318.</li>
 <li>Li, X. and Ding, P. (2020). <a href="https://doi.org/10.1111/rssb.12353">Rerandomization and regression adjustment</a>. <em>Journal of the Royal Statistical Society Series B</em>, 82(1), 241–268.</li>
