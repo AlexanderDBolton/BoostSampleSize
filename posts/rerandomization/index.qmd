@@ -62,20 +62,28 @@ covariate table into one number without double-counting covariates that say the
 same thing. With $N$ units, $k$ covariates and two equal arms:
 
 ::: {.keybox}
-$$
-M \;=\; \frac{N}{4}\,
-        (\bar X_T - \bar X_C)^{\!\top}\, S^{-1} (\bar X_T - \bar X_C)
-$$
-
-$S$ is the covariate covariance matrix of all $N$ units, and
-$\bar X_T, \bar X_C$ are the two arms' covariate means. Accept the split if $M$
-is small enough, otherwise draw again.
+1. Compute the covariate covariance matrix $S$ **once**, from all $N$ units.
+2. Draw a candidate split. Take the two arms' covariate mean vectors,
+   $\bar X_T$ and $\bar X_C$.
+3. Score the imbalance as the squared Mahalanobis distance between those two
+   mean vectors, scaled by $N/4$:
+   $$
+   M \;=\; \frac{N}{4}\,
+           (\bar X_T - \bar X_C)^{\!\top}\, S^{-1} (\bar X_T - \bar X_C).
+   $$
+4. If $M$ is small enough, keep the split. Otherwise discard it and go back to
+   step 2.
 :::
 
-Two things about that formula. $S$ describes the pool of units, not the split,
-so **compute it once, outside the loop** — along with whatever factorisation you
-use to apply $S^{-1}$. And the $N/4$ is what puts $M$ on a $\chi^2_k$ scale,
-which is what makes thresholds interpretable.
+Step 1 is the one worth flagging: $S$ describes the pool of units, not the
+split, so it never changes as you redraw. Compute it once outside the loop,
+along with whatever factorisation you use to apply $S^{-1}$; every later
+iteration is then just a pair of means and a quadratic form.
+
+The $N/4$ is not decoration either. Under plain randomisation the
+mean-difference vector has covariance $\tfrac{4}{N} S$, so that factor is
+exactly what measures the imbalance against its own null distribution — which
+is what puts $M$ on a $\chi^2_k$ scale and makes thresholds interpretable.
 
 ## Does it buy you enough to bother?
 
@@ -86,31 +94,130 @@ The precision you gain shows up as a smaller standard error on the treatment
 effect, shrunk by a factor of $\sqrt{1 - (1 - v_a)R^2}$. Only two things enter:
 $R^2$, the share of outcome variance your balanced covariates explain, and
 $v_a$, the fraction of imbalance the rerandomization leaves behind — which is
-essentially zero unless you are balancing a lot of covariates.
+essentially zero unless you are balancing a lot of covariates. Both come from
+Morgan and Rubin (2012), §3.2, *Precision of the estimated treatment effect*,
+where
+
+$$
+v_a \;=\; \frac{P(\chi^2_{k+2} \le a)}{P(\chi^2_{k} \le a)} ,
+$$
+
+and the variance of the treatment effect falls by a factor $1 - (1-v_a)R^2$.
+Their derivation assumes an additive treatment effect and an approximately
+linear relationship between outcome and covariates.
 
 ```{python}
 #| label: tbl-gain
 #| echo: false
-#| tbl-cap: 'How much smaller your standard error gets, for a 1-in-10,000 acceptance rate. Columns are the share of outcome variance explained by the covariates you balanced. Read down a column, not across a row: the covariate count matters far less than whether the covariates predict anything.'
+#| tbl-cap: 'How much smaller the standard error of the difference in means gets, for a 1-in-10,000 acceptance rate. Columns are the share of outcome variance explained by the covariates you balanced. Read down a column, not across a row: the covariate count matters far less than whether the covariates predict anything.'
 
 rows = []
 for k_ in (5, 20, 50):
     a_ = stats.chi2.ppf(1e-4, k_)
     v_ = stats.chi2.cdf(a_, k_ + 2) / stats.chi2.cdf(a_, k_)
     row = {"covariates balanced": k_}
-    for R2 in (0.2, 0.4, 0.6, 0.8):
-        row[f"R² = {R2}"] = f"{100 * (1 - np.sqrt(1 - (1 - v_) * R2)):.0f}% smaller"
+    for R2 in (0.01, 0.33, 0.66, 0.99):
+        pct = 100 * (1 - np.sqrt(1 - (1 - v_) * R2))
+        row[f"R² = {R2}"] = "under 1% smaller" if pct < 1 else f"{pct:.0f}% smaller"
     rows.append(row)
 pd.DataFrame(rows).set_index("covariates balanced")
 ```
 
-Translate that into the currency you actually budget in. A standard error 22%
-smaller is the precision you would otherwise have bought with **about 65% more
-data** — for free, before the study starts. At $R^2 = 0.8$ the same table says
-54% smaller, which is worth nearly five times the sample size.
+The two ends of that table are the whole story. At $R^2 = 0.01$ rerandomization
+buys you essentially nothing — a tidier baseline table and no precision. At
+$R^2 = 0.99$ it is transformative. In between, a standard error 18% smaller is
+the precision you would otherwise have bought with **about 50% more data**,
+free, before the study starts.
 
-And if $R^2$ is near zero, rerandomization buys you nothing at all. A tidier
-baseline table, and nothing else.
+### Try your own numbers
+
+```{python}
+#| label: gain-calculator
+#| echo: false
+
+ks = np.arange(1, 101)
+va_table = {}
+for lab, p_a_ in [("100", 1e-2), ("1000", 1e-3), ("10000", 1e-4), ("100000", 1e-5)]:
+    a_ = stats.chi2.ppf(p_a_, ks)
+    va_table[lab] = [float(x) for x in
+                     stats.chi2.cdf(a_, ks + 2) / stats.chi2.cdf(a_, ks)]
+
+js = pathlib.Path("gain-calculator.js").read_text(encoding="utf-8")
+js = js.replace("__ID__", "gc-calc").replace("__DATA__", json.dumps({"va": va_table}))
+
+display(HTML("""
+<style>
+.gain-calc { border:1px solid #d8dee4; border-radius:6px; padding:1rem 1.1rem;
+  margin:1.2rem 0 1.6rem; background:#fbfcfd; text-align:left; }
+.gain-calc .gc-row { display:flex; align-items:center; gap:.8rem;
+  margin-bottom:.65rem; font-size:.9rem; }
+.gain-calc .gc-row label { flex:0 0 11rem; color:#3f4850; }
+.gain-calc .gc-row input[type=range] { flex:1; accent-color:#2c6e9b; }
+.gain-calc .gc-row select { flex:1; padding:.25rem; font-size:.9rem; }
+.gain-calc .gc-row output { flex:0 0 3.2rem; text-align:right;
+  font-variant-numeric:tabular-nums; font-weight:600; color:#2c4a63; }
+.gain-calc .gc-results { display:flex; gap:1rem; margin-top:1rem;
+  padding-top:.9rem; border-top:1px solid #e4e8ec; }
+.gain-calc .gc-cell { flex:1; text-align:center; }
+.gain-calc .gc-cell .gc-num { font-size:1.5rem; font-weight:600; color:#2c4a63;
+  font-variant-numeric:tabular-nums; display:block; }
+.gain-calc .gc-cell .gc-lab { font-size:.75rem; color:#6b747c; }
+.gain-calc .gc-note { margin-top:.8rem; font-size:.82rem; color:#5b6570;
+  text-align:center; min-height:1.2em; }
+</style>
+<div class="gain-calc" id="gc-calc">
+  <div class="gc-row">
+    <label for="gc-k">Covariates balanced</label>
+    <input class="gc-k" id="gc-k" type="range" min="1" max="100" value="5">
+    <output class="gc-k-val">5</output>
+  </div>
+  <div class="gc-row">
+    <label for="gc-r2">Outcome R&sup2;</label>
+    <input class="gc-r2" id="gc-r2" type="range" min="0" max="99" value="33">
+    <output class="gc-r2-val">0.33</output>
+  </div>
+  <div class="gc-row">
+    <label for="gc-pa">Draws (keep the best)</label>
+    <select class="gc-pa" id="gc-pa">
+      <option value="100">100</option>
+      <option value="1000">1,000</option>
+      <option value="10000" selected>10,000</option>
+      <option value="100000">100,000</option>
+    </select>
+  </div>
+  <div class="gc-results">
+    <div class="gc-cell"><span class="gc-num gc-out-se"></span>
+      <span class="gc-lab">smaller standard error</span></div>
+    <div class="gc-cell"><span class="gc-num gc-out-n"></span>
+      <span class="gc-lab">equivalent extra data</span></div>
+    <div class="gc-cell"><span class="gc-num gc-out-v"></span>
+      <span class="gc-lab">imbalance left ($v_a$)</span></div>
+  </div>
+  <div class="gc-note"></div>
+</div>
+<script>""" + js + "</script>"))
+```
+
+::: {.callout-note}
+## Which standard error is this?
+
+The one on the **difference in means** between the two arms — exactly what an
+unpaired two-sample $t$-test reports — with $R^2$ measured between *that
+outcome* and the covariates you balanced.
+
+It is not automatically the standard error on a difference-in-differences
+interaction term. The canonical 2×2 DiD is a difference in means applied to the
+*change* in outcome, so the same factor applies, but **$R^2$ then has to be the
+share of variance your covariates explain in the change, not in the level.**
+That is usually a much smaller number: baseline characteristics often predict
+where a unit starts far better than they predict how much it moves. If you are
+powering a DiD, estimate $R^2$ against the change from historical data before
+believing any figure in the table above.
+
+For estimators further from a difference in means, the mechanism still holds —
+rerandomization removes the part of the sampling error your covariates explain —
+but the exact constant needs the general theory rather than this formula.
+:::
 
 ::: {.callout-tip}
 ## What to do
@@ -126,13 +233,29 @@ once and the balance on the ones you care about gets diluted.
 :::
 
 ::: {.callout-important}
-## The catch
+## Part of this is automatic, part of it is not
 
-That gain is not automatic. Rerandomization narrows the true sampling
-distribution of your estimate, but a conventional $t$-test does not know that
-and will report the wider interval anyway. **Run the standard analysis on
-rerandomized data and you give the entire gain back.** Collecting it is what the
-second half of this article is about.
+Rerandomization narrows the true sampling distribution of your estimate whatever
+you do next. Your point estimate really is closer to the truth, and a
+conventional $t$-test really does gain power from it — the test statistic stops
+being thrown around by imbalance you have already excluded.
+
+What a conventional $t$-test *cannot* do is know that. It estimates the standard
+error as though you had randomised once, so it reports an interval that is too
+wide and a $p$-value that is too large. The test stays valid — it errs towards
+caution — but you are leaving precision unclaimed.
+
+Taking an experiment powered at 80% under plain randomisation, with covariates
+at $R^2 = 0.66$:
+
+| | power |
+|---|---|
+| plain randomisation | 80% |
+| rerandomization, unadjusted $t$-test | 93% |
+| rerandomization, adjusted analysis | 99.8% |
+
+So most of the benefit survives doing nothing special, and the rest is one line
+of analysis away. That line is in [the second half](#how-to-account-for-it-afterwards).
 :::
 
 ## A budget is simpler than a threshold
@@ -281,7 +404,8 @@ The fix is almost disappointingly simple.
 ::: {.callout-tip}
 ## Adjust for the covariates you balanced on
 
-Regress the outcome on treatment plus the covariates you used in the design.
+Put the design covariates on the right-hand side of whatever model estimates
+your treatment effect.
 
 Li and Ding (2020) show that once the analysis adjusts for the design variables,
 asymptotic normality comes back and conventional standard errors are justified
@@ -290,8 +414,25 @@ explain, so regressing on them absorbs it. Your usual tooling then reports the
 narrower interval you actually earned.
 :::
 
-That is what most practitioners already do by instinct, it costs nothing, and it
-works for a difference-in-differences or anything else fitted by least squares.
+**What "adjust" means in practice.** The default is ordinary least squares:
+regress the outcome on a treatment indicator plus the balancing covariates, and
+read the treatment coefficient. Two refinements worth knowing:
+
+- **Centre the covariates and interact them with treatment.** Lin (2013) showed
+  this version can only help: it never does worse asymptotically than the
+  unadjusted estimator, even if the linear model is wrong, and it recovers more
+  when the treatment effect varies with the covariates. Plain additive
+  adjustment is fine in most cases; the interacted form is the safer default.
+- **It does not have to be linear.** The requirement is that the fitted model
+  *includes* the balancing covariates, not that it is a linear regression —
+  logistic, Poisson and other M-estimators are covered by the same argument. For
+  a difference-in-differences, adjust the DiD specification itself; you do not
+  need a separate procedure.
+
+What does *not* work is adjusting for a different set of covariates than you
+balanced on. It is the overlap between the design set and the analysis set that
+absorbs the truncated term, so leaving a balancing covariate out of the model
+leaves part of the correction on the table.
 
 Two cases need more care. If your estimator is unusual enough that you do not
 trust the asymptotics, **randomisation inference** always works: redraw
@@ -329,10 +470,16 @@ split, and keep it.
 equal splits. That is astronomically large at $N = 200$, but at $N = 20$ it is
 184,756, and a 1-in-a-million acceptance rate is then not slow but impossible.
 
-**Every covariate is treated as equally important.** $M$ has no way to know that
-a baseline outcome measurement matters more than the recruitment site. If some
-genuinely matter more, use tiered rerandomization (Morgan and Rubin, 2015),
-which applies separate thresholds to groups of covariates in priority order.
+**$M$ weights covariates statistically, not by how much you care.** It is not
+true that every covariate counts equally: $\Sigma^{-1}$ discounts a covariate
+that is partly predictable from the others, so a cluster of five correlated
+measures carries roughly the weight of the information it adds rather than five
+times the weight. What $M$ cannot do is reflect your *priorities* — it has no
+way to know that a baseline outcome measurement matters more to you than the
+recruitment site, and no amount of correlation structure will tell it. If some
+covariates genuinely matter more, use tiered rerandomization (Morgan and Rubin,
+2015), which applies separate thresholds to groups of covariates in priority
+order.
 
 **Record everything.** The seed, the covariate table, the encoding, the budget
 or threshold. $S$ is computed from the data at hand, so changing the covariate
@@ -350,6 +497,9 @@ the inference has to match the scheme you actually ran.
 - Li, X., Ding, P. and Rubin, D. B. (2018).
   [Asymptotic theory of rerandomization in treatment–control experiments](https://doi.org/10.1073/pnas.1808191115).
   *PNAS*, 115(37), 9157–9162.
+- Lin, W. (2013).
+  [Agnostic notes on regression adjustments to experimental data](https://doi.org/10.1214/12-AOAS583).
+  *The Annals of Applied Statistics*, 7(1), 295–318.
 - Li, X. and Ding, P. (2020).
   [Rerandomization and regression adjustment](https://doi.org/10.1111/rssb.12353).
   *Journal of the Royal Statistical Society Series B*, 82(1), 241–268.

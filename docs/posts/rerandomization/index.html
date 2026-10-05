@@ -156,7 +156,10 @@ window.Quarto = {
    
   <ul>
   <li><a href="#what-it-does" id="toc-what-it-does" class="nav-link active" data-scroll-target="#what-it-does">What it does</a></li>
-  <li><a href="#does-it-buy-you-enough-to-bother" id="toc-does-it-buy-you-enough-to-bother" class="nav-link" data-scroll-target="#does-it-buy-you-enough-to-bother">Does it buy you enough to bother?</a></li>
+  <li><a href="#does-it-buy-you-enough-to-bother" id="toc-does-it-buy-you-enough-to-bother" class="nav-link" data-scroll-target="#does-it-buy-you-enough-to-bother">Does it buy you enough to bother?</a>
+  <ul class="collapse">
+  <li><a href="#try-your-own-numbers" id="toc-try-your-own-numbers" class="nav-link" data-scroll-target="#try-your-own-numbers">Try your own numbers</a></li>
+  </ul></li>
   <li><a href="#a-budget-is-simpler-than-a-threshold" id="toc-a-budget-is-simpler-than-a-threshold" class="nav-link" data-scroll-target="#a-budget-is-simpler-than-a-threshold">A budget is simpler than a threshold</a></li>
   <li><a href="#what-you-are-actually-selecting" id="toc-what-you-are-actually-selecting" class="nav-link" data-scroll-target="#what-you-are-actually-selecting">What you are actually selecting</a></li>
   <li><a href="#how-to-account-for-it-afterwards" id="toc-how-to-account-for-it-afterwards" class="nav-link" data-scroll-target="#how-to-account-for-it-afterwards">How to account for it afterwards</a></li>
@@ -210,23 +213,32 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="what-it-does">What it does</h2>
 <p>Imbalance is scored with the Mahalanobis distance from <a href="../mahalanobis-distance/">the previous article</a>, which collapses a whole covariate table into one number without double-counting covariates that say the same thing. With <span class="math inline">\(N\)</span> units, <span class="math inline">\(k\)</span> covariates and two equal arms:</p>
 <div class="keybox">
-<p><span class="math display">\[
+<ol type="1">
+<li>Compute the covariate covariance matrix <span class="math inline">\(S\)</span> <strong>once</strong>, from all <span class="math inline">\(N\)</span> units.</li>
+<li>Draw a candidate split. Take the two arms’ covariate mean vectors, <span class="math inline">\(\bar X_T\)</span> and <span class="math inline">\(\bar X_C\)</span>.</li>
+<li>Score the imbalance as the squared Mahalanobis distance between those two mean vectors, scaled by <span class="math inline">\(N/4\)</span>: <span class="math display">\[
 M \;=\; \frac{N}{4}\,
-        (\bar X_T - \bar X_C)^{\!\top}\, S^{-1} (\bar X_T - \bar X_C)
-\]</span></p>
-<p><span class="math inline">\(S\)</span> is the covariate covariance matrix of all <span class="math inline">\(N\)</span> units, and <span class="math inline">\(\bar X_T, \bar X_C\)</span> are the two arms’ covariate means. Accept the split if <span class="math inline">\(M\)</span> is small enough, otherwise draw again.</p>
+        (\bar X_T - \bar X_C)^{\!\top}\, S^{-1} (\bar X_T - \bar X_C).
+\]</span></li>
+<li>If <span class="math inline">\(M\)</span> is small enough, keep the split. Otherwise discard it and go back to step 2.</li>
+</ol>
 </div>
-<p>Two things about that formula. <span class="math inline">\(S\)</span> describes the pool of units, not the split, so <strong>compute it once, outside the loop</strong> — along with whatever factorisation you use to apply <span class="math inline">\(S^{-1}\)</span>. And the <span class="math inline">\(N/4\)</span> is what puts <span class="math inline">\(M\)</span> on a <span class="math inline">\(\chi^2_k\)</span> scale, which is what makes thresholds interpretable.</p>
+<p>Step 1 is the one worth flagging: <span class="math inline">\(S\)</span> describes the pool of units, not the split, so it never changes as you redraw. Compute it once outside the loop, along with whatever factorisation you use to apply <span class="math inline">\(S^{-1}\)</span>; every later iteration is then just a pair of means and a quadratic form.</p>
+<p>The <span class="math inline">\(N/4\)</span> is not decoration either. Under plain randomisation the mean-difference vector has covariance <span class="math inline">\(\tfrac{4}{N} S\)</span>, so that factor is exactly what measures the imbalance against its own null distribution — which is what puts <span class="math inline">\(M\)</span> on a <span class="math inline">\(\chi^2_k\)</span> scale and makes thresholds interpretable.</p>
 </section>
 <section id="does-it-buy-you-enough-to-bother" class="level2">
 <h2 class="anchored" data-anchor-id="does-it-buy-you-enough-to-bother">Does it buy you enough to bother?</h2>
 <p>Short answer: <strong>it depends almost entirely on whether your covariates predict the outcome, and barely at all on how hard you rerandomize.</strong></p>
-<p>The precision you gain shows up as a smaller standard error on the treatment effect, shrunk by a factor of <span class="math inline">\(\sqrt{1 - (1 - v_a)R^2}\)</span>. Only two things enter: <span class="math inline">\(R^2\)</span>, the share of outcome variance your balanced covariates explain, and <span class="math inline">\(v_a\)</span>, the fraction of imbalance the rerandomization leaves behind — which is essentially zero unless you are balancing a lot of covariates.</p>
+<p>The precision you gain shows up as a smaller standard error on the treatment effect, shrunk by a factor of <span class="math inline">\(\sqrt{1 - (1 - v_a)R^2}\)</span>. Only two things enter: <span class="math inline">\(R^2\)</span>, the share of outcome variance your balanced covariates explain, and <span class="math inline">\(v_a\)</span>, the fraction of imbalance the rerandomization leaves behind — which is essentially zero unless you are balancing a lot of covariates. Both come from Morgan and Rubin (2012), §3.2, <em>Precision of the estimated treatment effect</em>, where</p>
+<p><span class="math display">\[
+v_a \;=\; \frac{P(\chi^2_{k+2} \le a)}{P(\chi^2_{k} \le a)} ,
+\]</span></p>
+<p>and the variance of the treatment effect falls by a factor <span class="math inline">\(1 - (1-v_a)R^2\)</span>. Their derivation assumes an additive treatment effect and an approximately linear relationship between outcome and covariates.</p>
 <div class="cell" data-execution_count="2">
 <div id="tbl-gain" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
 <figure class="quarto-float quarto-float-tbl figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-gain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 acceptance rate. Columns are the share of outcome variance explained by the covariates you balanced. Read down a column, not across a row: the covariate count matters far less than whether the covariates predict anything.
+Table&nbsp;1: How much smaller the standard error of the difference in means gets, for a 1-in-10,000 acceptance rate. Columns are the share of outcome variance explained by the covariates you balanced. Read down a column, not across a row: the covariate count matters far less than whether the covariates predict anything.
 </figcaption>
 <div aria-describedby="tbl-gain-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 <div class="cell-output cell-output-display" data-execution_count="2">
@@ -237,10 +249,10 @@ Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 accep
 <thead>
 <tr class="header">
 <th data-quarto-table-cell-role="th"></th>
-<th data-quarto-table-cell-role="th">R² = 0.2</th>
-<th data-quarto-table-cell-role="th">R² = 0.4</th>
-<th data-quarto-table-cell-role="th">R² = 0.6</th>
-<th data-quarto-table-cell-role="th">R² = 0.8</th>
+<th data-quarto-table-cell-role="th">R² = 0.01</th>
+<th data-quarto-table-cell-role="th">R² = 0.33</th>
+<th data-quarto-table-cell-role="th">R² = 0.66</th>
+<th data-quarto-table-cell-role="th">R² = 0.99</th>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">covariates balanced</th>
@@ -253,24 +265,24 @@ Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 accep
 <tbody>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">5</th>
-<td>10% smaller</td>
-<td>22% smaller</td>
-<td>36% smaller</td>
-<td>54% smaller</td>
+<td>under 1% smaller</td>
+<td>18% smaller</td>
+<td>41% smaller</td>
+<td>85% smaller</td>
 </tr>
 <tr class="even">
 <th data-quarto-table-cell-role="th">20</th>
-<td>8% smaller</td>
-<td>18% smaller</td>
-<td>28% smaller</td>
-<td>40% smaller</td>
+<td>under 1% smaller</td>
+<td>14% smaller</td>
+<td>31% smaller</td>
+<td>55% smaller</td>
 </tr>
 <tr class="odd">
 <th data-quarto-table-cell-role="th">50</th>
-<td>6% smaller</td>
-<td>13% smaller</td>
-<td>20% smaller</td>
-<td>28% smaller</td>
+<td>under 1% smaller</td>
+<td>11% smaller</td>
+<td>22% smaller</td>
+<td>37% smaller</td>
 </tr>
 </tbody>
 </table>
@@ -281,8 +293,145 @@ Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 accep
 </figure>
 </div>
 </div>
-<p>Translate that into the currency you actually budget in. A standard error 22% smaller is the precision you would otherwise have bought with <strong>about 65% more data</strong> — for free, before the study starts. At <span class="math inline">\(R^2 = 0.8\)</span> the same table says 54% smaller, which is worth nearly five times the sample size.</p>
-<p>And if <span class="math inline">\(R^2\)</span> is near zero, rerandomization buys you nothing at all. A tidier baseline table, and nothing else.</p>
+<p>The two ends of that table are the whole story. At <span class="math inline">\(R^2 = 0.01\)</span> rerandomization buys you essentially nothing — a tidier baseline table and no precision. At <span class="math inline">\(R^2 = 0.99\)</span> it is transformative. In between, a standard error 18% smaller is the precision you would otherwise have bought with <strong>about 50% more data</strong>, free, before the study starts.</p>
+<section id="try-your-own-numbers" class="level3">
+<h3 class="anchored" data-anchor-id="try-your-own-numbers">Try your own numbers</h3>
+<div id="cell-gain-calculator" class="cell" data-execution_count="3">
+<div id="gain-calculator" class="cell-output cell-output-display no-overflow-x">
+
+<style>
+.gain-calc { border:1px solid #d8dee4; border-radius:6px; padding:1rem 1.1rem;
+  margin:1.2rem 0 1.6rem; background:#fbfcfd; text-align:left; }
+.gain-calc .gc-row { display:flex; align-items:center; gap:.8rem;
+  margin-bottom:.65rem; font-size:.9rem; }
+.gain-calc .gc-row label { flex:0 0 11rem; color:#3f4850; }
+.gain-calc .gc-row input[type=range] { flex:1; accent-color:#2c6e9b; }
+.gain-calc .gc-row select { flex:1; padding:.25rem; font-size:.9rem; }
+.gain-calc .gc-row output { flex:0 0 3.2rem; text-align:right;
+  font-variant-numeric:tabular-nums; font-weight:600; color:#2c4a63; }
+.gain-calc .gc-results { display:flex; gap:1rem; margin-top:1rem;
+  padding-top:.9rem; border-top:1px solid #e4e8ec; }
+.gain-calc .gc-cell { flex:1; text-align:center; }
+.gain-calc .gc-cell .gc-num { font-size:1.5rem; font-weight:600; color:#2c4a63;
+  font-variant-numeric:tabular-nums; display:block; }
+.gain-calc .gc-cell .gc-lab { font-size:.75rem; color:#6b747c; }
+.gain-calc .gc-note { margin-top:.8rem; font-size:.82rem; color:#5b6570;
+  text-align:center; min-height:1.2em; }
+</style>
+<div class="gain-calc" id="gc-calc">
+  <div class="gc-row">
+    <label for="gc-k">Covariates balanced</label>
+    <input class="gc-k" id="gc-k" type="range" min="1" max="100" value="5">
+    <output class="gc-k-val">5</output>
+  </div>
+  <div class="gc-row">
+    <label for="gc-r2">Outcome R²</label>
+    <input class="gc-r2" id="gc-r2" type="range" min="0" max="99" value="33">
+    <output class="gc-r2-val">0.33</output>
+  </div>
+  <div class="gc-row">
+    <label for="gc-pa">Draws (keep the best)</label>
+    <select class="gc-pa" id="gc-pa">
+      <option value="100">100</option>
+      <option value="1000">1,000</option>
+      <option value="10000" selected="">10,000</option>
+      <option value="100000">100,000</option>
+    </select>
+  </div>
+  <div class="gc-results">
+    <div class="gc-cell"><span class="gc-num gc-out-se"></span>
+      <span class="gc-lab">smaller standard error</span></div>
+    <div class="gc-cell"><span class="gc-num gc-out-n"></span>
+      <span class="gc-lab">equivalent extra data</span></div>
+    <div class="gc-cell"><span class="gc-num gc-out-v"></span>
+      <span class="gc-lab">imbalance left ($v_a$)</span></div>
+  </div>
+  <div class="gc-note"></div>
+</div>
+<script>/* Precision calculator for rerandomization.
+ *
+ * v_a = P(chi2_{k+2} <= a) / P(chi2_k <= a) has no closed form in plain JS, so
+ * it is precomputed in Python for every k and every offered acceptance rate and
+ * shipped as a lookup table. Everything else is arithmetic:
+ *
+ *   variance ratio   f = 1 - (1 - v_a) R^2
+ *   standard error   shrinks by sqrt(f)
+ *   equivalent data  1/f, because a standard error scales as 1/sqrt(N)
+ */
+(function () {
+  var root = document.getElementById("gc-calc");
+  if (!root) return;
+  var D = {"va": {"100": [5.236152257387785e-05, 0.005016750503357321, 0.022815280185410666, 0.04889923930049114, 0.07776216840934028, 0.10654812086527327, 0.134040428006596, 0.15980405323251967, 0.18375472199333312, 0.20595912701682684, 0.22654318595552525, 0.24565001155323657, 0.26342102183656074, 0.27998796824700733, 0.2954701391918333, 0.3099739847316776, 0.3235938219531328, 0.33641296560418105, 0.34850496689570354, 0.3599348125767482, 0.37076002132936897, 0.38103161678754205, 0.3907949769006673, 0.40009056856767367, 0.40895457996313295, 0.4174194636329688, 0.4255144027552557, 0.4332657117217566, 0.44069718079520265, 0.4478303732301501, 0.45468488199781476, 0.46127855215784974, 0.46762767397570576, 0.4737471510813728, 0.47965064728869805, 0.4853507151268352, 0.49085890865990994, 0.49618588277363135, 0.5013414807753611, 0.5063348118757897, 0.5111743198873837, 0.515867844279137, 0.5204226745624473, 0.5248455988444065, 0.529142947267429, 0.5333206309550801, 0.5373841769997374, 0.5413387599559465, 0.5451892302422325, 0.5489401398022412, 0.552595765330726, 0.5561601293318585, 0.5596370192440853, 0.5630300048373195, 0.5663424540632181, 0.5695775475181791, 0.5727382916600693, 0.5758275309032036, 0.5788479587022198, 0.5818021277233049, 0.5846924591897953, 0.5875212514803827, 0.5902906880493619, 0.5930028447311573, 0.5956596964849016, 0.5982631236290304, 0.6008149176108657, 0.6033167863515736, 0.6057703592029565, 0.6081771915489773, 0.6105387690816927, 0.6128565117784713, 0.6151317776048912, 0.6173658659653725, 0.6195600209216411, 0.6217154341972454, 0.6238332479847428, 0.6259145575707523, 0.6279604137925799, 0.6299718253391702, 0.6319497609078231, 0.6338951512273134, 0.635808890957035, 0.6376918404711337, 0.6395448275356653, 0.6413686488864473, 0.6431640717142757, 0.6449318350641075, 0.6466726511538372, 0.6483872066181886, 0.6500761636827295, 0.6517401612724835, 0.6533798160594982, 0.6549957234533591, 0.6565884585381113, 0.6581585769591798, 0.6597066157632948, 0.6612330941944046, 0.6627385144481991, 0.6642233623879082], "1000": [5.235989400917863e-07, 0.0005001667500500338, 0.004852766414576663, 0.015076573738938984, 0.029828329620919254, 0.047172344734493596, 0.06567456966739128, 0.08444046164714777, 0.10295103725821506, 0.12092100601149851, 0.13820504971042674, 0.15474036078697684, 0.1705121772132903, 0.18553319115454014, 0.1998312255317747, 0.21344184693508514, 0.2264039465098359, 0.238757119818479, 0.25054014477448605, 0.2617901328412634, 0.2725420933188655, 0.2828287498979488, 0.29268050934745327, 0.30212551968863727, 0.31118977859628094, 0.31989726748473984, 0.32827009605916874, 0.33632864804500046, 0.344091722591972, 0.3515766682588248, 0.3587995080119231, 0.36577505462813065, 0.37251701648096114, 0.37903809403905314, 0.38535006760226587, 0.39146387689877177, 0.39738969320239254, 0.40313698462666425, 0.4087145752270348, 0.4141306985043667, 0.4193930458584827, 0.4245088104942277, 0.42948472723640924, 0.4343271086659182, 0.4390418779482794, 0.4436345986877514, 0.44811050210551245, 0.4524745118090722, 0.4567312663917502, 0.4608851400759844, 0.46494026159129415, 0.4689005314576439, 0.47276963782713416, 0.4765510710206099, 0.4802481368818938, 0.4838639690592988, 0.48740154031311694, 0.490863672937517, 0.4942530483764012, 0.49757221610516655, 0.5008236018423164, 0.5040095151496119, 0.5071321564731295, 0.5101936236725725, 0.513195918081909, 0.5161409501403226, 0.519030544628543, 0.5218664455426488, 0.5246503206344013, 0.5273837656447964, 0.5300683082544617, 0.5327054117732422, 0.535296478588722, 0.5378428533922681, 0.5403458261989345, 0.5428066351770079, 0.5452264693005424, 0.5476064708382715, 0.5499477376906344, 0.55225132558539, 0.5545182501420184, 0.5567494888139985, 0.5589459827175802, 0.5611086383543428, 0.5632383292350986, 0.5653358974117683, 0.5674021549231698, 0.5694378851601252, 0.5714438441557329, 0.5734207618052358, 0.5753693430198539, 0.577290268819013, 0.5791841973648651, 0.5810517649422863, 0.5828935868882001, 0.5847102584728857, 0.5865023557363057, 0.5882704362824243, 0.590015040033477, 0.5917366899469355], "10000": [5.2359877724323416e-09, 5.0001666750005065e-05, 0.0010426556357981756, 0.0047307988332258395, 0.011708900759116386, 0.021450517847174635, 0.033125077917701314, 0.045994005394616656, 0.059502571924858236, 0.07326314471184184, 0.08701509071843622, 0.10058798262304083, 0.11387361474799443, 0.12680612388582332, 0.13934825593106093, 0.15148197982399855, 0.1632020912160487, 0.17451185090969865, 0.18542000546404871, 0.19593874876500877, 0.20608232687244832, 0.2158660847748586, 0.22530581817210427, 0.23441733668923995, 0.24321617411674917, 0.25171740108501806, 0.2599355091192494, 0.26788434433689284, 0.275577075503813, 0.28302618566607896, 0.29024347973174036, 0.29724010260415246, 0.30402656404733014, 0.31061276758749456, 0.31700804155751616, 0.3232211709656646, 0.3292604292819051, 0.33513360953047955, 0.34084805428922277, 0.3464106843472202, 0.35182802587987283, 0.3571062360762524, 0.3622511272065098, 0.3672681891531417, 0.3721626104542277, 0.37693929792200276, 0.3816028949095081, 0.3861577983026504, 0.3906081743166294, 0.3949579731752617, 0.39921094274955876, 0.40337064122879024, 0.40744044889390973, 0.411423579059157, 0.4153230882434577, 0.41914188562924043, 0.42288274186242514, 0.4265482972430624, 0.4301410693527239, 0.4336634601614096, 0.4371177626528582, 0.4405061670046409, 0.4438307663565064, 0.4470935621974303, 0.45029646939981516, 0.45344132092693107, 0.45652987223743274, 0.459563805409055, 0.4625447330017816, 0.465474201679483, 0.46835369560671347, 0.4711846396370808, 0.4739684023075691, 0.47670629865237263, 0.4793995928488147, 0.4820495007067992, 0.4846571920122309, 0.487223792734677, 0.4897503871079328, 0.4922380195922667, 0.4946876967258025, 0.49710038887239494, 0.4994770318728944, 0.5018185286056575, 0.5041257504621209, 0.5063995387431315, 0.5086407059805567, 0.5108500371889907, 0.5130282910518865, 0.5151762010460329, 0.5172944765081882, 0.5193838036470301, 0.5214448465042231, 0.5234782478671183, 0.5254846301361029, 0.5274645961490917, 0.5294187299657743, 0.5313475976141283, 0.5332517478006067, 0.5351317125867622], "100000": [5.23598775614754e-11, 5.000016666750003e-06, 0.0002245021134508641, 0.0014923813899585404, 0.004635836744625402, 0.009864686990689287, 0.016931624558798607, 0.02542590312481358, 0.034939592335479136, 0.04512915990417862, 0.05572623837268459, 0.06652936778638255, 0.0773909330535421, 0.0882046710598177, 0.09889533494721146, 0.10941065536422369, 0.11971527095440153, 0.12978621177633262, 0.1396095606561, 0.149177991210931, 0.15848895258295875, 0.1675433296848349, 0.17634445304313573, 0.18489736610420632, 0.19320828265677065, 0.20128418508126872, 0.20913252725270573, 0.21676101545670706, 0.2241774476219881, 0.2313895962468018, 0.23840512412000447, 0.24523152468075451, 0.25187608089159885, 0.25834583800933236, 0.2646475867654382, 0.27078785431338515, 0.2767729009365679, 0.2826087209916775, 0.28830104692723424, 0.2938553554944088, 0.2992768754791196, 0.30457059644618795, 0.3097412781105153, 0.31479346004542724, 0.3197314715115077, 0.32455944124550795, 0.32928130709218695, 0.3339008253950474, 0.3384215800875359, 0.34284699144565367, 0.34718032447786795, 0.3514246969392542, 0.35558308696546037, 0.3596583403283866, 0.3636531773197768, 0.3675701992726206, 0.37141189473246755, 0.37518064529196143, 0.37887873110343334, 0.3825083360846225, 0.38607155283246763, 0.38957038726036247, 0.39300676297378745, 0.3963825253985457, 0.39969944567574145, 0.40295922433702325, 0.40616349477259817, 0.4093138265045497, 0.4124117282766463, 0.4154586509720899, 0.4184559903689765, 0.4214050897436624, 0.4243072423309358, 0.42716369364966233, 0.42997564370217245, 0.43274424905476283, 0.43547062480647114, 0.4381558464529535, 0.44080095165154765, 0.4434069418936351, 0.445974784089387, 0.44850541207042777, 0.4509997280151582, 0.4534586038010744, 0.4558828822883934, 0.4582733785392088, 0.46063088097539856, 0.4629561524792082, 0.4652499314394975, 0.4675129327468758, 0.4697458487405974, 0.4719493501094759, 0.47412408675015794, 0.47627068858448796, 0.478389766338226, 0.48048191228356196, 0.482547700946881, 0.48458768978450123, 0.4866024198267606, 0.4885924162935191]}};
+
+  var kIn   = root.querySelector(".gc-k");
+  var r2In  = root.querySelector(".gc-r2");
+  var paIn  = root.querySelector(".gc-pa");
+  var kOut  = root.querySelector(".gc-k-val");
+  var r2Out = root.querySelector(".gc-r2-val");
+  var outV  = root.querySelector(".gc-out-v");
+  var outSE = root.querySelector(".gc-out-se");
+  var outN  = root.querySelector(".gc-out-n");
+  var note  = root.querySelector(".gc-note");
+
+  function update() {
+    var k = parseInt(kIn.value, 10);
+    var r2 = parseFloat(r2In.value) / 100;
+    var va = D.va[paIn.value][k - 1];
+    var f = 1 - (1 - va) * r2;
+
+    kOut.textContent = k;
+    r2Out.textContent = r2.toFixed(2);
+
+    // Past roughly a tripling, "+950% more data" stops being readable and a
+    // multiplier is clearer.
+    var ratio = 1 / f;
+    var dataStr = ratio > 3
+      ? "×" + ratio.toFixed(ratio < 10 ? 1 : 0)
+      : "+" + (100 * (ratio - 1)).toFixed(0) + "%";
+
+    outV.textContent = va < 0.001 ? va.toExponential(1) : va.toFixed(3);
+    outSE.textContent = (100 * (1 - Math.sqrt(f))).toFixed(1) + "%";
+    outN.textContent = dataStr;
+
+    if (r2 < 0.05) {
+      note.textContent = "Covariates that explain almost none of the outcome " +
+        "buy almost no precision, however hard you rerandomize.";
+    } else if (va > 0.5) {
+      note.textContent = "With this many covariates and this budget, most of " +
+        "the imbalance survives. Balance fewer covariates, or draw more.";
+    } else if (ratio > 3) {
+      note.textContent = "Equivalent to running the experiment with " +
+        ratio.toFixed(1) + " times as many units.";
+    } else {
+      note.textContent = "Equivalent to running the experiment with " +
+        (100 * (ratio - 1)).toFixed(0) + "% more units.";
+    }
+  }
+
+  [kIn, r2In, paIn].forEach(function (el) {
+    el.addEventListener("input", update);
+    el.addEventListener("change", update);
+  });
+  update();
+})();
+</script>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Which standard error is this?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The one on the <strong>difference in means</strong> between the two arms — exactly what an unpaired two-sample <span class="math inline">\(t\)</span>-test reports — with <span class="math inline">\(R^2\)</span> measured between <em>that outcome</em> and the covariates you balanced.</p>
+<p>It is not automatically the standard error on a difference-in-differences interaction term. The canonical 2×2 DiD is a difference in means applied to the <em>change</em> in outcome, so the same factor applies, but <strong><span class="math inline">\(R^2\)</span> then has to be the share of variance your covariates explain in the change, not in the level.</strong> That is usually a much smaller number: baseline characteristics often predict where a unit starts far better than they predict how much it moves. If you are powering a DiD, estimate <span class="math inline">\(R^2\)</span> against the change from historical data before believing any figure in the table above.</p>
+<p>For estimators further from a difference in means, the mechanism still holds — rerandomization removes the part of the sampling error your covariates explain — but the exact constant needs the general theory rather than this formula.</p>
+</div>
+</div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -303,13 +452,39 @@ Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 accep
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Important</span>The catch
+<span class="screen-reader-only">Important</span>Part of this is automatic, part of it is not
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>That gain is not automatic. Rerandomization narrows the true sampling distribution of your estimate, but a conventional <span class="math inline">\(t\)</span>-test does not know that and will report the wider interval anyway. <strong>Run the standard analysis on rerandomized data and you give the entire gain back.</strong> Collecting it is what the second half of this article is about.</p>
+<p>Rerandomization narrows the true sampling distribution of your estimate whatever you do next. Your point estimate really is closer to the truth, and a conventional <span class="math inline">\(t\)</span>-test really does gain power from it — the test statistic stops being thrown around by imbalance you have already excluded.</p>
+<p>What a conventional <span class="math inline">\(t\)</span>-test <em>cannot</em> do is know that. It estimates the standard error as though you had randomised once, so it reports an interval that is too wide and a <span class="math inline">\(p\)</span>-value that is too large. The test stays valid — it errs towards caution — but you are leaving precision unclaimed.</p>
+<p>Taking an experiment powered at 80% under plain randomisation, with covariates at <span class="math inline">\(R^2 = 0.66\)</span>:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th></th>
+<th>power</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>plain randomisation</td>
+<td>80%</td>
+</tr>
+<tr class="even">
+<td>rerandomization, unadjusted <span class="math inline">\(t\)</span>-test</td>
+<td>93%</td>
+</tr>
+<tr class="odd">
+<td>rerandomization, adjusted analysis</td>
+<td>99.8%</td>
+</tr>
+</tbody>
+</table>
+<p>So most of the benefit survives doing nothing special, and the rest is one line of analysis away. That line is in <a href="#how-to-account-for-it-afterwards">the second half</a>.</p>
 </div>
 </div>
+</section>
 </section>
 <section id="a-budget-is-simpler-than-a-threshold" class="level2">
 <h2 class="anchored" data-anchor-id="a-budget-is-simpler-than-a-threshold">A budget is simpler than a threshold</h2>
@@ -319,14 +494,14 @@ Table&nbsp;1: How much smaller your standard error gets, for a 1-in-10,000 accep
 <p>In practice we expect to see little difference between rerandomizing until an allocation with <span class="math inline">\(M \le a\)</span> is obtained, and choosing the allocation with the smallest <span class="math inline">\(M\)</span> from <span class="math inline">\(1/p_a\)</span> randomizations, where <span class="math inline">\(p_a = P(M \le a)\)</span>.</p>
 </blockquote>
 <p>That is offered as an expectation rather than a result — no proof or simulation is given — so it is worth checking, because the two schemes are genuinely different. The winner of a tournament of <span class="math inline">\(B\)</span> draws is not guaranteed to clear the 1-in-<span class="math inline">\(B\)</span> bar, and misses it about <span class="math inline">\((1 - 1/B)^B \approx 37\%\)</span> of the time. Best-of-<span class="math inline">\(B\)</span> is always the weaker of the two.</p>
-<div class="cell" data-execution_count="3">
-<div id="tbl-budget" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
+<div class="cell" data-execution_count="4">
+<div id="tbl-budget" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
 <figure class="quarto-float quarto-float-tbl figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-budget-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;2: Imbalance left behind by the two schemes, as a fraction of what plain randomisation leaves. Lower is better. Best-of-10,000 is never better than thresholding at 1 in 10,000, but the gap closes as covariates are added.
 </figcaption>
 <div aria-describedby="tbl-budget-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="3">
+<div class="cell-output cell-output-display" data-execution_count="4">
 <div>
 
 
@@ -386,7 +561,7 @@ Table&nbsp;2: Imbalance left behind by the two schemes, as a fraction of what pl
 <h2 class="anchored" data-anchor-id="what-you-are-actually-selecting">What you are actually selecting</h2>
 <p>With two covariates you can see it. Each dot is one candidate split, placed at its pair of covariate mean differences. The cloud tilts because height and weight are correlated — a split over-representing tall people over-represents heavy ones too — and the acceptance region tilts with it.</p>
 <p>At a 5% acceptance rate that region is already a smudge at the origin, which is the honest visual point. Drag to zoom in on it.</p>
-<div id="cell-fig-acceptance-zoom" class="cell" data-execution_count="4">
+<div id="cell-fig-acceptance-zoom" class="cell" data-execution_count="5">
 <div id="fig-acceptance-zoom" class="cell-output cell-output-display quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-acceptance-zoom-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -621,11 +796,16 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Regress the outcome on treatment plus the covariates you used in the design.</p>
+<p>Put the design covariates on the right-hand side of whatever model estimates your treatment effect.</p>
 <p>Li and Ding (2020) show that once the analysis adjusts for the design variables, asymptotic normality comes back and conventional standard errors are justified again — the troublesome term <em>was</em> the part of the imbalance those covariates explain, so regressing on them absorbs it. Your usual tooling then reports the narrower interval you actually earned.</p>
 </div>
 </div>
-<p>That is what most practitioners already do by instinct, it costs nothing, and it works for a difference-in-differences or anything else fitted by least squares.</p>
+<p><strong>What “adjust” means in practice.</strong> The default is ordinary least squares: regress the outcome on a treatment indicator plus the balancing covariates, and read the treatment coefficient. Two refinements worth knowing:</p>
+<ul>
+<li><strong>Centre the covariates and interact them with treatment.</strong> Lin (2013) showed this version can only help: it never does worse asymptotically than the unadjusted estimator, even if the linear model is wrong, and it recovers more when the treatment effect varies with the covariates. Plain additive adjustment is fine in most cases; the interacted form is the safer default.</li>
+<li><strong>It does not have to be linear.</strong> The requirement is that the fitted model <em>includes</em> the balancing covariates, not that it is a linear regression — logistic, Poisson and other M-estimators are covered by the same argument. For a difference-in-differences, adjust the DiD specification itself; you do not need a separate procedure.</li>
+</ul>
+<p>What does <em>not</em> work is adjusting for a different set of covariates than you balanced on. It is the overlap between the design set and the analysis set that absorbs the truncated term, so leaving a balancing covariate out of the model leaves part of the correction on the table.</p>
 <p>Two cases need more care. If your estimator is unusual enough that you do not trust the asymptotics, <strong>randomisation inference</strong> always works: redraw assignments under the same acceptance rule, refit your model each time, and read the reference distribution off the results. It needs no new theory and no closed form — only compute. It is also the honest option if you used a best-of-<span class="math inline">\(B\)</span> budget, since the acceptance rule is then not a simple threshold. Deriving the Li–Ding–Rubin correction for a bespoke estimator, by contrast, is a research project rather than an analysis step.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -646,7 +826,7 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 <section id="three-things-that-will-catch-you-out" class="level2">
 <h2 class="anchored" data-anchor-id="three-things-that-will-catch-you-out">Three things that will catch you out</h2>
 <p><strong>Small samples run out of splits.</strong> There are only <span class="math inline">\(\binom{N}{N/2}\)</span> distinct equal splits. That is astronomically large at <span class="math inline">\(N = 200\)</span>, but at <span class="math inline">\(N = 20\)</span> it is 184,756, and a 1-in-a-million acceptance rate is then not slow but impossible.</p>
-<p><strong>Every covariate is treated as equally important.</strong> <span class="math inline">\(M\)</span> has no way to know that a baseline outcome measurement matters more than the recruitment site. If some genuinely matter more, use tiered rerandomization (Morgan and Rubin, 2015), which applies separate thresholds to groups of covariates in priority order.</p>
+<p><strong><span class="math inline">\(M\)</span> weights covariates statistically, not by how much you care.</strong> It is not true that every covariate counts equally: <span class="math inline">\(\Sigma^{-1}\)</span> discounts a covariate that is partly predictable from the others, so a cluster of five correlated measures carries roughly the weight of the information it adds rather than five times the weight. What <span class="math inline">\(M\)</span> cannot do is reflect your <em>priorities</em> — it has no way to know that a baseline outcome measurement matters more to you than the recruitment site, and no amount of correlation structure will tell it. If some covariates genuinely matter more, use tiered rerandomization (Morgan and Rubin, 2015), which applies separate thresholds to groups of covariates in priority order.</p>
 <p><strong>Record everything.</strong> The seed, the covariate table, the encoding, the budget or threshold. <span class="math inline">\(S\)</span> is computed from the data at hand, so changing the covariate set changes the metric and therefore which split you would have accepted — and the inference has to match the scheme you actually ran.</p>
 </section>
 <section id="references" class="level2">
@@ -655,6 +835,7 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 <li>Morgan, K. L. and Rubin, D. B. (2012). <a href="https://doi.org/10.1214/12-AOS1008">Rerandomization to improve covariate balance in experiments</a>. <em>The Annals of Statistics</em>, 40(2), 1263–1282.</li>
 <li>Morgan, K. L. and Rubin, D. B. (2015). <a href="https://doi.org/10.1080/01621459.2015.1079528">Rerandomization to balance tiers of covariates</a>. <em>JASA</em>, 110(512), 1412–1421.</li>
 <li>Li, X., Ding, P. and Rubin, D. B. (2018). <a href="https://doi.org/10.1073/pnas.1808191115">Asymptotic theory of rerandomization in treatment–control experiments</a>. <em>PNAS</em>, 115(37), 9157–9162.</li>
+<li>Lin, W. (2013). <a href="https://doi.org/10.1214/12-AOAS583">Agnostic notes on regression adjustments to experimental data</a>. <em>The Annals of Applied Statistics</em>, 7(1), 295–318.</li>
 <li>Li, X. and Ding, P. (2020). <a href="https://doi.org/10.1111/rssb.12353">Rerandomization and regression adjustment</a>. <em>Journal of the Royal Statistical Society Series B</em>, 82(1), 241–268.</li>
 </ul>
 
