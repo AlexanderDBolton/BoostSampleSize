@@ -801,6 +801,7 @@ Figure&nbsp;1: Each dot is one of 8,000 candidate splits, positioned at its pair
 <li><strong>It does not have to be linear.</strong> The requirement is that the fitted model <em>includes</em> the balancing covariates. Logistic, Poisson and other M-estimators are covered by the same argument. For a difference-in-differences, adjust the DiD specification itself rather than running a separate procedure.</li>
 </ul>
 <p>You are not restricted to the balancing covariates. Including others is allowed and breaks nothing. It is only worth doing for covariates you had a reason to collect, though: adding predictors because they happen to be available costs degrees of freedom and invites specification search.</p>
+<p>If you used a draw budget rather than a threshold and want to be certain, randomisation inference always applies. Regenerate assignments with the same procedure you actually ran, refit the model each time, and read the null distribution off the results. It depends on no formula and no asymptotics, so it covers any acceptance rule and any estimator.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
