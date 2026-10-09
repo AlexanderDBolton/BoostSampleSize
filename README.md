@@ -23,10 +23,16 @@ Requires [Quarto](https://quarto.org) and Python 3.12+.
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install numpy matplotlib pandas scipy jupyter ipykernel
+.venv/Scripts/python.exe -m pip install numpy matplotlib pandas scipy networkx jupyter ipykernel
 ```
 
 `.venv/` is gitignored. On macOS or Linux use `.venv/bin/python` throughout.
+
+`networkx` is used only by the pairwise-matching article, for the
+minimum-weight perfect matching. That page sets `freeze: auto` because the
+matching takes about 45 seconds at N = 400, so a whole-site render reuses the
+stored result instead of recomputing it. Editing the page invalidates the
+freeze and it runs again. Delete `_freeze/` to force a rerun.
 
 ## Building
 

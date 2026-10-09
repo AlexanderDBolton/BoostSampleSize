@@ -3,6 +3,7 @@
     "listing": "/index.html",
     "items": [
       "/posts/mahalanobis-distance/index.html",
+      "/posts/pairwise-matching/index.html",
       "/posts/rerandomization/index.html"
     ]
   }

@@ -1,53 +1,580 @@
 ---
 title: "Pairwise matching"
 description: >
-  Forming matched pairs on Mahalanobis distance and splitting within each pair,
-  including the optimal non-bipartite matching that makes it work.
+  Pairing units before you randomise: when it beats rerandomization, why the
+  pairing has to be solved properly, and how to analyse the result.
 date: 2026-08-24
 order: 3
-categories: [matching, design]
-draft: true
+categories: [matching, design, inference]
 jupyter: python3
+code-tools: false
+
+# Optimal matching at N = 400 costs about 45 seconds of blossom algorithm.
+# Freezing keeps a whole-site render from paying that every time.
+execute:
+  freeze: auto
 ---
 
-::: {.callout-important}
-## Draft
+```{python}
+#| label: setup
+#| include: false
 
-This article is a stub. Remove `draft: true` from the front matter to publish it.
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+import networkx as nx
+from scipy import stats
+
+rng = np.random.default_rng(20260824)
+
+C = {
+    "blue":   "#2c6e9b",
+    "orange": "#d1743a",
+    "green":  "#4f8f63",
+    "red":    "#b5483d",
+    "grey":   "#9aa3ab",
+    "dark":   "#2c4a63",
+}
+
+mpl.rcParams.update({
+    "figure.dpi": 130,
+    "font.size": 9,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+})
+
+
+def correlated_X(N, p, rng):
+    """N units, p covariates, with a non-trivial correlation structure."""
+    A = rng.normal(size=(p, p))
+    Sig = A @ A.T + np.eye(p)
+    d = np.sqrt(np.diag(Sig))
+    Sig = Sig / np.outer(d, d)
+    return rng.multivariate_normal(np.zeros(p), Sig, size=N)
+
+
+def pair_distances(X):
+    """Squared Mahalanobis distance between every pair of units.
+
+    Whitening first turns the quadratic form into a plain squared Euclidean
+    distance, which lets the whole matrix be built in one vectorised step.
+    """
+    Si = np.linalg.inv(np.cov(X, rowvar=False, bias=True))
+    Z = X @ np.linalg.cholesky(Si).T.T
+    return ((Z[:, None, :] - Z[None, :, :]) ** 2).sum(-1), Si
+
+
+def optimal_pairs(d2):
+    """Minimum-weight perfect matching on the complete graph (blossom)."""
+    N = d2.shape[0]
+    G = nx.Graph()
+    for i in range(N):
+        for j in range(i + 1, N):
+            G.add_edge(i, j, weight=d2[i, j])
+    return np.array([tuple(e) for e in nx.min_weight_matching(G)])
+
+
+def greedy_pairs(d2):
+    """Repeatedly take the closest remaining available pair."""
+    N = d2.shape[0]
+    d = d2.astype(float).copy()
+    np.fill_diagonal(d, np.inf)
+    out = []
+    for _ in range(N // 2):
+        i, j = np.unravel_index(np.argmin(d), d.shape)
+        out.append((int(i), int(j)))
+        d[[i, j], :] = np.inf
+        d[:, [i, j]] = np.inf
+    return np.array(out)
+```
+
+You have a few hundred units and you want two halves that look alike.
+[Rerandomization](../rerandomization/) reaches that by discarding splits that
+come out badly balanced. Pairwise matching reaches it by construction. Pair
+every unit with its closest counterpart in covariate space, then flip a coin
+inside each pair. Each arm then holds exactly one unit from every pair, so the
+two halves are matched unit by unit rather than only on average.
+
+This article answers three questions. Does matching gain you more than
+rerandomization? Why does the pairing step have to be solved properly? And how
+do you analyse the experiment afterwards?
+
+## What it does
+
+Closeness between two units is measured with the
+[Mahalanobis distance](../mahalanobis-distance/), which avoids double-counting
+correlated covariates. With $N$ units and $k$ covariates:
+
+::: {.keybox}
+1. Compute the covariate covariance matrix $S$ **once**, from all $N$ units.
+2. For every pair of units $i$ and $j$, compute the squared distance between
+   them:
+   $$ D^2(i,j) \;=\; (x_i - x_j)^{\!\top} S^{-1} (x_i - x_j). $$
+3. Choose the $N/2$ pairs that **minimise the total within-pair distance**,
+   subject to covering every unit exactly once.
+4. Inside each pair, flip a coin to decide which unit goes to treatment.
 :::
 
-## Planned outline
+Step 2 is the same quadratic form as in the Mahalanobis article, applied to the
+gap between two units instead of the gap between a unit and the mean.
+Everything from there carries over: affine invariance, correlated columns
+counted once, and the one-hot-with-a-baseline or pseudo-inverse treatment of
+categorical covariates.
 
-1. **The idea.** Take stratification to its limit: strata of size two. Pair each
-   unit with its nearest neighbour in covariate space, then randomise one unit
-   of each pair to treatment. Balance holds at the finest possible resolution.
+Step 4 is what keeps this a randomised experiment. Each pair contributes one
+independent coin flip, so a sample of $N$ units has $2^{N/2}$ possible
+assignments. At $N = 400$ that is about $1.6 \times 10^{60}$. Assigning
+deterministically within pairs, say the higher-spending unit always to control,
+would leave a single possible split and no basis for a $p$-value.
 
-2. **The distance.** Pair on the
-   [Mahalanobis distance](../mahalanobis-distance/) between units,
-   $D^2(x_i, x_j) = (x_i - x_j)^{\top}S^{-1}(x_i - x_j)$ — the same quadratic
-   form, now applied to a difference between two units rather than a deviation
-   from the mean. Everything from that article carries over: affine invariance,
-   correlated columns not double-counted, categorical handling.
+Step 3 is the part that goes wrong in practice.
 
-3. **Non-bipartite matching.** Splitting one sample into two halves means
-   matching units to each other, not treated to control. This is optimal
-   non-bipartite matching, solved by Derigs' algorithm rather than by the
-   Hungarian algorithm. Greedy nearest-neighbour matching is easy and
-   noticeably worse; show the gap.
+## The pairing is an optimisation problem, not a sorting problem
 
-4. **Odd $N$, and units with no good match.** Sinks and calipers.
+The obvious way to form pairs is greedy. Take the two closest units anywhere in
+the sample, set them aside as a pair, then repeat on what is left. It is short
+to write and it does not produce the minimum.
 
-5. **Variance.** The paired estimator, why the analysis has to respect the
-   pairing, and the trade-off against degrees of freedom.
+```{python}
+#| label: fig-greedy
+#| echo: false
+#| fig-cap: 'Forty units, two covariates, each line joining a matched pair. Greedy matching takes the closest available pair at each step, so it spends the dense middle of the sample first and leaves the units at the edges to pair with whatever remains.'
 
-6. **Matching vs. rerandomization.** Matching balances the joint distribution;
-   rerandomization balances the means. Which one you want depends on whether
-   you expect non-linearity in the outcome model. Include a head-to-head
-   simulation.
+Xd = correlated_X(40, 2, np.random.default_rng(11))
+d2d, _ = pair_distances(Xd)
+po_d, pg_d = optimal_pairs(d2d), greedy_pairs(d2d)
+
+fig, axes = plt.subplots(1, 2, figsize=(6.4, 3.3), sharex=True, sharey=True)
+for ax, prs, name in [(axes[0], po_d, "Optimal"), (axes[1], pg_d, "Greedy")]:
+    worst = max(range(len(prs)), key=lambda m: d2d[prs[m][0], prs[m][1]])
+    for m, (i, j) in enumerate(prs):
+        hot = (m == worst)
+        ax.plot(Xd[[i, j], 0], Xd[[i, j], 1],
+                color=C["red"] if hot else C["dark"],
+                lw=2.0 if hot else 1.1, zorder=3 if hot else 2,
+                alpha=1.0 if hot else 0.75)
+    ax.scatter(Xd[:, 0], Xd[:, 1], s=16, color=C["blue"], zorder=4)
+    tot = sum(d2d[i, j] for i, j in prs)
+    ax.set_title(f"{name}\ntotal $D^2$ = {tot:.1f}, "
+                 f"worst pair = {d2d[prs[worst][0], prs[worst][1]]:.1f}")
+    ax.set_xlabel("$x_1$")
+axes[0].set_ylabel("$x_2$")
+fig.tight_layout()
+plt.show()
+
+demo = {
+    "mult": (sum(d2d[i, j] for i, j in pg_d)
+             / sum(d2d[i, j] for i, j in po_d)),
+    "worst": (max(d2d[i, j] for i, j in pg_d)
+              / max(d2d[i, j] for i, j in po_d)),
+}
+```
+
+The worst pair is highlighted in each panel. Greedy matching strands the units
+it leaves until last, and a stranded pair is a pair whose covariate gap the coin
+flip cannot undo. That gap goes straight into the variance of the treatment
+effect estimate, so the tail of the distance distribution matters more than its
+total.
+
+How much greedy costs depends on the sample. Forty units is a hard case for it,
+and it runs up `{python} f"{demo['mult']:.1f}"` times the total distance and
+`{python} f"{demo['worst']:.0f}"` times the worst pair. At a few hundred units
+the totals come much closer together, while the worst pair stays several times
+further apart.
+
+```{python}
+#| label: tbl-greedy
+#| echo: false
+#| tbl-cap: 'Optimal against greedy pairing on the same samples. Greedy loses some of the total, and much more of the worst case.'
+
+rows = []
+for N, p in [(100, 4), (200, 4), (200, 8)]:
+    Xg = correlated_X(N, p, np.random.default_rng(100 + N + p))
+    d2g, _ = pair_distances(Xg)
+    po, pg = optimal_pairs(d2g), greedy_pairs(d2g)
+    to = sum(d2g[i, j] for i, j in po)
+    tg = sum(d2g[i, j] for i, j in pg)
+    mo = max(d2g[i, j] for i, j in po)
+    mg = max(d2g[i, j] for i, j in pg)
+    rows.append({
+        "Sample": f"N = {N}, k = {p}",
+        "Total D<sup>2</sup>, optimal": f"{to:.1f}",
+        "Total D<sup>2</sup>, greedy": f"{tg:.1f} (+{100 * (tg / to - 1):.0f}%)",
+        "Worst pair, optimal": f"{mo:.2f}",
+        "Worst pair, greedy": f"{mg:.2f} ({mg / mo:.1f}×)",
+    })
+pd.DataFrame(rows).style.hide(axis="index")
+```
+
+The correct problem is a minimum-weight perfect matching on a general graph.
+Every unit is a vertex, every pair of units is an edge weighted by $D^2(i,j)$,
+and you want the cheapest set of edges that touches each vertex once. Edmonds'
+blossom algorithm solves it exactly in $O(N^3)$.
+
+Two points of confusion are worth clearing up. First, this is not the
+assignment problem, and the Hungarian algorithm does not apply. That algorithm
+matches one set to a different set, treated units to control units. Here there
+is a single pool and any unit may pair with any other, so the graph is not
+bipartite. Greevy et al. (2004) introduced the non-bipartite version for exactly
+this design. Second, the problem is solved rather than approximated, so there
+is no tuning to do and no reason to settle for greedy. In Python it is one call
+in `networkx`; in R it is the `nbpMatching` package.
+
+## Does it gain more than rerandomization?
+
+Both designs are aiming at the same thing, so the comparison is worth making
+directly. The table below fixes one sample of 400 units with four covariates,
+then repeats the assignment 4,000 times under each design and measures how much
+the estimate moves around.
+
+```{python}
+#| label: headtohead-setup
+#| include: false
+
+N, p, REPS = 400, 4, 4000
+rng_h = np.random.default_rng(7)
+
+Xh = correlated_X(N, p, rng_h)
+d2h, Sih = pair_distances(Xh)
+pairs = optimal_pairs(d2h)
+assert len(pairs) == N // 2 and len(set(pairs.ravel())) == N
+i0, i1 = pairs[:, 0], pairs[:, 1]
+nP = len(pairs)
+
+# ---- three designs, each drawn once and reused for both outcome models -----
+T_cr = np.zeros((REPS, N), bool)
+for b in range(REPS):
+    T_cr[b, rng_h.permutation(N)[: N // 2]] = True
+
+a_thr = stats.chi2.ppf(0.01, p)
+T_rr = np.zeros((REPS, N), bool)
+tries = 0
+for b in range(REPS):
+    while True:
+        t = np.zeros(N, bool)
+        t[rng_h.permutation(N)[: N // 2]] = True
+        tries += 1
+        dbar = Xh[t].mean(0) - Xh[~t].mean(0)
+        if (N / 4) * dbar @ Sih @ dbar <= a_thr:
+            T_rr[b] = t
+            break
+
+coin = rng_h.random((REPS, nP)) < 0.5
+T_pm = np.zeros((REPS, N), bool)
+T_pm[np.repeat(np.arange(REPS), nP),
+     np.where(coin, i0[None, :], i1[None, :]).ravel()] = True
+
+# ---- two outcome models, same covariates, same total signal strength ------
+# The models are built to share R^2 overall while differing sharply in how
+# much of that signal a linear function of the covariates can reach.
+beta = np.array([1.0, 0.6, -0.8, 0.4])
+Xi_h = np.column_stack([np.ones(N), Xh])
+
+
+def make_y(kind, rng):
+    if kind == "linear":
+        sig = Xh @ beta
+    else:
+        sig = (2.0 * np.sin(2.2 * Xh[:, 0])
+               + 1.5 * (Xh[:, 1] > 0.3) * Xh[:, 2]
+               + 0.9 * Xh[:, 0] * Xh[:, 1]
+               + 0.8 * Xh[:, 3] ** 2)
+    sig = sig / sig.std() * 1.4
+    y = sig + rng.normal(0, 1.0, N)
+    # The linear share projects the signal, not the outcome, onto X. Projecting
+    # the outcome would let OLS fit some of the noise and could push the linear
+    # share above the total.
+    lin = Xi_h @ np.linalg.lstsq(Xi_h, sig, rcond=None)[0]
+    return y, sig.var() / y.var(), lin.var() / y.var()
+
+
+def est_sd(T, y):
+    mt = np.where(T, y[None, :], np.nan)
+    mc = np.where(T, np.nan, y[None, :])
+    return (np.nanmean(mt, 1) - np.nanmean(mc, 1)).std(ddof=1)
+
+
+a_th = stats.chi2.ppf(0.01, p)
+v_a = stats.chi2.cdf(a_th, p + 2) / stats.chi2.cdf(a_th, p)
+
+h2h, R2 = [], {}
+for kind in ["linear", "nonlinear"]:
+    y_k, r2_tot, r2_lin = make_y(kind, np.random.default_rng(3))
+    base = est_sd(T_cr, y_k)
+    rr = (est_sd(T_rr, y_k) / base) ** 2
+    pm = (est_sd(T_pm, y_k) / base) ** 2
+    R2[kind] = dict(tot=r2_tot, lin=r2_lin, rr=rr, pm=pm)
+    h2h.append({
+        "Outcome model": ("Linear in the covariates" if kind == "linear"
+                          else "Non-linear in the covariates"),
+        "R<sup>2</sup>, any function of X": f"{r2_tot:.2f}",
+        "R<sup>2</sup>, linear in X": f"{r2_lin:.2f}",
+        "Rerandomization, p<sub>a</sub> = 1%": f"{rr:.2f}",
+        "Pairwise matching": f"{pm:.2f}",
+    })
+```
+
+```{python}
+#| label: tbl-headtohead
+#| echo: false
+#| tbl-cap: 'Variance of the difference in means, as a fraction of the variance under plain randomisation. Lower is better. One fixed sample of 400 units and four covariates, 4,000 assignments under each design. The two outcome models carry the same total signal and differ in how much of it is linear.'
+
+pd.DataFrame(h2h).style.hide(axis="index")
+```
+
+The two $R^2$ columns explain the result. Both outcome models leave the
+same share of variance unexplained once you allow any function of the
+covariates, so both offer the same gain in principle. They differ in how
+much of that signal a *linear* function of the covariates can reach:
+`{python} f"{R2['linear']['lin']:.2f}"` against
+`{python} f"{R2['nonlinear']['lin']:.2f}"`.
+
+That column is the one rerandomization is limited by. A threshold on $M$
+constrains the difference in covariate *means*, which pins down the linear
+part of the response and leaves the rest untouched. Matching is limited by
+the other column. The two units in a pair sit close together in covariate
+space, so any function of the covariates takes nearly the same value on
+each side of the coin flip, whether that function is linear or not.
+Matching therefore performs about the same in both rows, while
+rerandomization collapses from `{python} f"{R2['linear']['rr']:.2f}"` to
+`{python} f"{R2['nonlinear']['rr']:.2f}"`.
+
+::: {.callout-note collapse="true"}
+## Checking both numbers against theory
+
+The variance ratio under rerandomization is $1 - (1 - v_a)R^2$, with $v_a$
+the shrinkage factor from the
+[rerandomization article](../rerandomization/) and $R^2$ the linear one. At
+$k =$ `{python} f"{p}"` and $p_a = 1\%$, $v_a =$
+`{python} f"{v_a:.3f}"`, so the formula predicts
+`{python} f"{1 - (1 - v_a) * R2['linear']['lin']:.2f}"` for the linear
+model against `{python} f"{R2['linear']['rr']:.2f}"` measured, and
+`{python} f"{1 - (1 - v_a) * R2['nonlinear']['lin']:.2f}"` for the
+non-linear model against `{python} f"{R2['nonlinear']['rr']:.2f}"`
+measured. Splitting the outcome into its linear fit and the residual shows
+the mechanism directly: under rerandomization the variance of the fitted
+part shrinks by a factor of about $v_a$, and the variance of the residual
+part does not move.
+
+For matching, a perfectly matched sample would reduce the variance to the
+share of outcome variance the covariates do not explain, which is
+$1 - R^2 =$ `{python} f"{1 - R2['nonlinear']['tot']:.2f}"` here against
+`{python} f"{R2['nonlinear']['pm']:.2f}"` achieved. The shortfall is the
+price of pairs that are close but not identical.
+
+The two designs differ in what you can do about a disappointing number.
+Tightening the threshold drives $v_a$ towards zero, so rerandomization has
+a dial. Matching has none: the within-pair distances are a property of the
+sample, and once the matching is optimal there is nothing further to spend.
+What limits it is covariate density, which is why matching improves as $N$
+grows and degrades as $k$ grows.
+:::
+
+Bruhn and McKenzie (2009) reached a compatible conclusion from a different
+direction. Surveying development field experiments, they report that at samples
+of 300 or more the common designs balance future outcomes about equally well,
+and that pairwise matching and stratification come out ahead in smaller samples
+and for highly persistent outcomes. Their rerandomization comparison is to
+rerandomization as commonly practised, with few covariates and a loose
+threshold.
+
+::: {.callout-tip}
+## Which to reach for
+
+Matching is the safer default when you cannot describe the outcome as roughly
+linear in the covariates, and when the sample is small enough that a few
+awkward units could land on one side. Rerandomization is the better fit when the
+covariates enter the response roughly linearly, when you want a dial you can
+tighten, and when the pairing cannot survive to the analysis stage. The next
+section covers that last condition, which is easy to overlook.
+:::
+
+## Odd numbers, and units with nothing close to them
+
+A perfect matching needs an even $N$ and tolerates no exceptions, so two
+practical cases need handling.
+
+For odd $N$, or to drop units that match badly, add **sinks**. A sink is a
+phantom unit placed at distance zero from every real unit and at infinite
+distance from other sinks. Whichever real unit gets matched to a sink is
+excluded from the experiment. One sink absorbs an odd unit. Adding $m$ sinks
+excludes the $m$ units that were most expensive to pair, which is the cleanest
+way to exclude the units whose matches would have been worst.
+
+A **caliper** sets a maximum acceptable within-pair distance. Implementing it
+by raising the weight of long edges can leave a problem with no feasible
+solution, so the usual route is a caliper enforced through sinks: make a sink
+cheaper than any pairing beyond the cap, and units with no acceptable partner
+drop out by themselves. Every unit you exclude narrows what the experiment
+covers, so record how many and which ones.
+
+## Analysing a matched experiment
+
+The point estimate needs no special treatment. Averaging the within-pair
+differences and taking the plain difference in group means are the same
+arithmetic, because every pair puts one unit in each arm. There is no way to
+forget the matching when forming the estimate.
+
+The standard error is a different matter.
+
+```{python}
+#| label: se-setup
+#| include: false
+
+y_nl, r2_nl, _ = make_y("nonlinear", np.random.default_rng(3))
+
+Y = y_nl[None, :] + 0.0 * T_pm
+mt = np.where(T_pm, Y, np.nan)
+mc = np.where(T_pm, np.nan, Y)
+est_pm = np.nanmean(mt, 1) - np.nanmean(mc, 1)
+vt = np.nanvar(mt, 1, ddof=1)
+vc = np.nanvar(mc, 1, ddof=1)
+se_unpaired = np.sqrt(vt / (N // 2) + vc / (N // 2))
+
+first_is_t = T_pm[:, i0]
+wdiff = np.where(first_is_t, Y[:, i0] - Y[:, i1], Y[:, i1] - Y[:, i0])
+se_paired = wdiff.std(1, ddof=1) / np.sqrt(nP)
+
+tc_un = stats.t.ppf(0.975, N - 2)
+tc_pr = stats.t.ppf(0.975, nP - 1)
+cov_un = (np.abs(est_pm) <= tc_un * se_unpaired).mean()
+cov_pr = (np.abs(est_pm) <= tc_pr * se_paired).mean()
+
+sd_true = est_pm.std(ddof=1)
+
+se_tbl = pd.DataFrame([
+    {"Quantity": "True spread of the estimate across assignments",
+     "Value": f"{sd_true:.4f}", "95% CI coverage": ""},
+    {"Quantity": "Reported SE, two-sample <i>t</i>-test",
+     "Value": f"{se_unpaired.mean():.4f}",
+     "95% CI coverage": f"{100 * cov_un:.1f}%"},
+    {"Quantity": "Reported SE, within-pair differences",
+     "Value": f"{se_paired.mean():.4f}",
+     "95% CI coverage": f"{100 * cov_pr:.1f}%"},
+])
+```
+
+```{python}
+#| label: tbl-se
+#| echo: false
+#| tbl-cap: 'The same 4,000 matched assignments as above, non-linear outcome. The two-sample standard error is calibrated to a design that was not run.'
+
+se_tbl.style.hide(axis="index")
+```
+
+A two-sample $t$-test computes the standard error from the within-arm variances.
+Under this design each arm contains one unit from every pair, so each arm spans
+the full covariate range and its variance is close to the variance of the whole
+sample. That calculation returns roughly the value it would have returned under
+plain randomisation, while the estimate itself now moves around far less. The
+interval is too wide by a factor of
+`{python} f"{se_unpaired.mean() / sd_true:.2f}"`, and its coverage is
+`{python} f"{100 * cov_un:.1f}"`% instead of 95%.
+
+Differencing within pairs fixes it. The within-pair difference is the unit of
+analysis, its spread already reflects how closely the pairs were matched, and
+the resulting interval has
+`{python} f"{100 * cov_pr:.1f}"`% coverage. A regression of the outcome on
+treatment plus a fixed effect for each pair is the same calculation and gives
+the same standard error. The cost is degrees of freedom, $N/2 - 1$ rather than
+$N - 2$, which is minor at a few hundred units.
+
+The upper bound on what this is worth is set by the covariates. For a perfectly
+matched sample the variance of the estimate falls to the share of outcome
+variance the covariates do not explain, so the naive variance is too large by at
+most $1/(1 - R^2)$ and the naive standard error by at most
+$1/\sqrt{1 - R^2}$. Here $R^2$ is
+`{python} f"{r2_nl:.2f}"`, giving a ceiling of
+`{python} f"{1 / (1 - r2_nl):.2f}"` on the variance and
+`{python} f"{1 / np.sqrt(1 - r2_nl):.2f}"` on the standard error, against the
+`{python} f"{(se_unpaired.mean() / sd_true) ** 2:.2f}"` and
+`{python} f"{se_unpaired.mean() / sd_true:.2f}"` realised. Measured as variance
+removed rather than as a ratio, the matching captured
+`{python} f"{100 * (1 - sd_true ** 2 / se_unpaired.mean() ** 2) / r2_nl:.0f}"`%
+of what a perfect matching would have removed.
+
+### A conservative interval is not always a safe one
+
+Calling the two-sample interval conservative is accurate but incomplete. It
+does not follow that the only consequence is lost precision.
+
+```{python}
+#| label: tbl-power
+#| echo: false
+#| tbl-cap: 'Rejection rate of a two-sided 5% test against the size of the true effect, on the same sample. The matched design analysed without the pairing can be less powerful than not matching at all.'
+
+taus = [0.0, 0.14, 0.25, 0.35, 0.45, 0.55]
+rows_p = []
+for tau in taus:
+    Yc = y_nl[None, :] + tau * T_cr
+    a_ = np.where(T_cr, Yc, np.nan)
+    b_ = np.where(T_cr, np.nan, Yc)
+    e_c = np.nanmean(a_, 1) - np.nanmean(b_, 1)
+    s_c = np.sqrt(np.nanvar(a_, 1, ddof=1) / (N // 2)
+                  + np.nanvar(b_, 1, ddof=1) / (N // 2))
+    pow_cr = (np.abs(e_c / s_c) > tc_un).mean()
+
+    Yp = y_nl[None, :] + tau * T_pm
+    a_ = np.where(T_pm, Yp, np.nan)
+    b_ = np.where(T_pm, np.nan, Yp)
+    e_p = np.nanmean(a_, 1) - np.nanmean(b_, 1)
+    s_un = np.sqrt(np.nanvar(a_, 1, ddof=1) / (N // 2)
+                   + np.nanvar(b_, 1, ddof=1) / (N // 2))
+    wd = np.where(T_pm[:, i0], Yp[:, i0] - Yp[:, i1], Yp[:, i1] - Yp[:, i0])
+    s_pr = wd.std(1, ddof=1) / np.sqrt(nP)
+    rows_p.append({
+        "True effect": f"{tau:.2f}",
+        "Plain randomisation": f"{100 * pow_cr:.0f}%",
+        "Matched, two-sample SE": f"{100 * (np.abs(e_p / s_un) > tc_un).mean():.0f}%",
+        "Matched, within-pair SE": f"{100 * (np.abs(e_p / s_pr) > tc_pr).mean():.0f}%",
+    })
+pd.DataFrame(rows_p).style.hide(axis="index")
+```
+
+Read the middle column against the left one. At small effect sizes the matched
+design analysed with a two-sample standard error rejects less often than plain
+randomisation does, and the ordering only reverses once the effect is large
+enough. A test statistic that is both smaller in spread and centred below the
+critical value crosses that value less often, so the tighter estimate works
+against you until the effect is big enough to clear the bar on its own. Bruhn
+and McKenzie report the same effect: failing to account for the randomisation
+method gives tests of the wrong size, and can give less power than a plain
+random draw would have.
+
+The right column is what the design was for.
+
+::: {.callout-warning}
+## The pairing has to survive to the analysis
+Matching moves its gain into the analysis stage, where it needs the pair labels
+to claim it. If the data reaches you aggregated, say a count and a sum per arm
+per day, the pair structure is gone and the only standard error you can compute
+is the conservative one. Store the pair identifier alongside the assignment at
+the point you randomise, and carry it through every table that follows.
+
+Rerandomization does not share this exposure, because a strict threshold banks
+most of its gain at the design stage. If you know the analysis will run on
+aggregates, that is a point in favour of a threshold over pairs.
+:::
+
+::: {.callout-tip}
+## What to do
+Pair on the covariates you have reason to believe predict the outcome, solve
+the matching exactly, keep the pair identifier, and analyse within pairs.
+Matching on covariates that do not predict the outcome spends degrees of
+freedom and returns nothing.
+:::
 
 ## References
 
-- Greevy, R., Lu, B., Silber, J. H. and Rosenbaum, P. (2004). Optimal multivariate
-  matching before randomization. *Biostatistics*, 5(2), 263–275.
+- Bruhn, M. and McKenzie, D. (2009). In pursuit of balance: randomization in
+  practice in development field experiments. *American Economic Journal:
+  Applied Economics*, 1(4), 200–232.
+- Edmonds, J. (1965). Paths, trees, and flowers. *Canadian Journal of
+  Mathematics*, 17, 449–467.
+- Greevy, R., Lu, B., Silber, J. H. and Rosenbaum, P. (2004). Optimal
+  multivariate matching before randomization. *Biostatistics*, 5(2), 263–275.
 - Lu, B., Greevy, R., Xu, X. and Beck, C. (2011). Optimal nonbipartite matching
   and its statistical applications. *The American Statistician*, 65(1), 21–30.
+- Morgan, K. L. and Rubin, D. B. (2012). Rerandomization to improve covariate
+  balance in experiments. *The Annals of Statistics*, 40(2), 1263–1282.

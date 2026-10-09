@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://alexanderdbolton.github.io/BoostSampleSize/posts/pairwise-matching/index.html</loc>
+    <lastmod>2026-10-09T07:05:59.143Z</lastmod>
+  </url>
+  <url>
     <loc>https://alexanderdbolton.github.io/BoostSampleSize/index.html</loc>
-    <lastmod>2026-08-25T21:12:19.320Z</lastmod>
+    <lastmod>2026-10-09T07:03:34.177Z</lastmod>
   </url>
   <url>
     <loc>https://alexanderdbolton.github.io/BoostSampleSize/posts/mahalanobis-distance/index.html</loc>
