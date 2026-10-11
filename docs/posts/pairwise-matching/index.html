@@ -77,7 +77,10 @@ ul.task-list li input[type="checkbox"] {
 }</script>
 <script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
 
+
+
 <script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
@@ -225,64 +228,334 @@ window.Quarto = {
 <section id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem" class="level2">
 <h2 class="anchored" data-anchor-id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem">The pairing is an optimisation problem, not a sorting problem</h2>
 <p>The obvious way to form pairs is greedy. Take the two closest units anywhere in the sample, set them aside as a pair, then repeat on what is left. It is short to write and it does not produce the minimum.</p>
-<div id="cell-fig-greedy" class="cell" data-execution_count="2">
-<div class="cell-output cell-output-display">
-<div id="fig-greedy" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-greedy-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="index_files/figure-html/fig-greedy-output-1.png" width="824" height="419" class="figure-img">
+<p>Drag the slider to watch it choose. The lower panel plots each pair’s distance in the order greedy picks them, on a log scale because the range is wide. That climb is the story. The early pairs are nearly free, and the final one costs 21.0 against 6.6 for the other nineteen put together.</p>
+<div id="cell-greedy-widget" class="cell" data-execution_count="3">
+<div id="greedy-widget" class="cell-output cell-output-display">
+
+<style>
+.gs-wrap { margin: 1.2rem 0 1.6rem; }
+.gs-wrap canvas { display:block; width:100%; touch-action:manipulation; }
+.gs-wrap .gs-readout { font-size:.82rem; color:#5b6570; text-align:center;
+  margin:.35rem 0 .6rem; }
+.gs-wrap .gs-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
+.gs-wrap .gs-sep { margin:0 .55rem; opacity:.45; }
+.gs-wrap input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
+.gs-wrap .gs-foot { display:flex; justify-content:space-between;
+  align-items:center; margin-top:.45rem; font-size:.82rem; color:#8a929a; }
+.gs-wrap .gs-opt { font:inherit; font-size:.8rem; color:#2c4a63;
+  background:#f1f4f7; border:1px solid #cfd018; border-color:#cdd5dc;
+  border-radius:4px; padding:.25rem .6rem; cursor:pointer; }
+.gs-wrap .gs-opt:hover { background:#e7ecf1; }
+</style>
+<div class="gs-wrap" id="gs-demo">
+  <canvas></canvas>
+  <div class="gs-readout"></div>
+  <input type="range" min="0" max="20" step="1" value="0" aria-label="Number of pairs greedy has formed">
+  <div class="gs-foot">
+    <span>drag to add pairs</span>
+    <button class="gs-opt" type="button" aria-pressed="false">Show optimal matching</button>
+  </div>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-greedy-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Forty units, two covariates, each line joining a matched pair. Greedy matching takes the closest available pair at each step, so it spends the dense middle of the sample first and leaves the units at the edges to pair with whatever remains.
-</figcaption>
-</figure>
+<script>/* Greedy matching, one step at a time.
+ *
+ * The slider walks through the pairs in the order greedy picks them. The top
+ * panel is the sample; the lower strip is the distance of each pair in that
+ * same order. That strip is on a log scale because greedy's choices span
+ * several orders of magnitude, from pairs that are nearly identical to the
+ * stranded pair it is left with at the end.
+ *
+ * The scatter is drawn at equal aspect so the dashed covariance ellipse means
+ * what it looks like: distances here are Mahalanobis, so a gap across the
+ * ellipse's short axis costs more than the same gap along its long axis.
+ */
+(function () {
+  var root = document.getElementById("gs-demo");
+  if (!root) return;
+  var D = {"pts": [[-0.4405, 0.3753], [-1.0152, -1.3214], [0.4425, 0.126], [-0.5267, -0.5603], [-0.1583, -1.2667], [-1.4655, -1.5233], [-0.6081, -0.69], [0.2227, 0.5006], [-0.7258, -0.8473], [-0.06, 0.3515], [1.2846, 0.3759], [-0.1756, -0.578], [2.0761, 1.5877], [0.804, 0.0881], [1.4127, 1.4347], [-0.786, -0.9259], [0.5938, 0.8248], [-0.5942, -0.7742], [-0.8324, -0.2067], [0.4415, -0.0466], [-0.4059, -0.2574], [-0.6628, -1.4336], [0.8826, 0.3797], [1.6162, 1.6921], [-0.2819, -0.7251], [-1.5684, -1.0752], [-0.719, -0.478], [-0.5121, -1.3112], [-0.7665, -0.4048], [1.5822, 1.7904], [0.0044, 0.4733], [0.4243, 0.4134], [-0.0642, -0.5899], [-0.5395, -0.6025], [-0.3132, -0.6263], [-1.2177, -0.8546], [-0.0198, 0.3594], [-1.7391, -0.6644], [1.2362, 1.766], [-0.4155, -0.4718]], "greedy": [[3, 33, 0.0048], [9, 36, 0.0053], [8, 15, 0.0079], [21, 27, 0.0282], [11, 24, 0.0286], [6, 17, 0.0434], [26, 28, 0.0634], [23, 29, 0.0774], [2, 19, 0.1381], [7, 16, 0.1696], [25, 35, 0.1809], [20, 39, 0.199], [32, 34, 0.2227], [13, 22, 0.2429], [1, 5, 0.4071], [0, 18, 0.4728], [30, 31, 1.0402], [14, 38, 1.1275], [10, 12, 2.1034], [4, 37, 20.9713]], "optimal": [[36, 7, 0.093], [27, 4, 0.4663], [29, 38, 0.4933], [8, 15, 0.0079], [26, 20, 0.1311], [11, 32, 0.0692], [16, 31, 0.367], [25, 37, 1.4872], [21, 24, 0.8616], [1, 5, 0.4071], [28, 35, 0.2691], [13, 10, 0.3556], [3, 39, 0.0154], [2, 19, 0.1381], [23, 14, 0.0832], [22, 12, 1.9131], [34, 17, 0.1373], [33, 6, 0.0097], [0, 18, 0.4728], [9, 30, 0.0259]], "optWorst": 1.91313073779507, "optTotal": 7.803909809617226, "L": [[0.9017908134132134, 0.0], [0.7723282653210846, 0.4623772692089689]], "mean": [-0.08974918226025871, -0.14240942656016847], "xlab": "covariate 1 (the dashed ellipse is one standard deviation)", "colors": {"blue": "#2c6e9b", "dark": "#2c4a63", "red": "#b5483d", "green": "#4f8f63", "grey": "#9aa3ab", "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"}};
+
+  var canvas = root.querySelector("canvas");
+  var ctx = canvas.getContext("2d");
+  var slider = root.querySelector("input[type=range]");
+  var readout = root.querySelector(".gs-readout");
+  var btnOpt = root.querySelector(".gs-opt");
+
+  var FONT = '12px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var PAD = { l: 46, r: 14, t: 12, b: 22 };
+  var SPLIT = 0.64;
+  var GAP = 34;
+  var showOpt = false;
+
+  slider.max = String(D.greedy.length);
+
+  var xs = D.pts.map(function (p) { return p[0]; });
+  var ys = D.pts.map(function (p) { return p[1]; });
+  var ex = [Math.min.apply(null, xs), Math.max.apply(null, xs)];
+  var ey = [Math.min.apply(null, ys), Math.max.apply(null, ys)];
+
+  // log extent of the strip, rounded out to whole decades
+  var dmin = Infinity, dmax = -Infinity;
+  D.greedy.forEach(function (g) {
+    dmin = Math.min(dmin, g[2]); dmax = Math.max(dmax, g[2]);
+  });
+  dmin = Math.min(dmin, D.optWorst); dmax = Math.max(dmax, D.optWorst);
+  var lo = Math.floor(Math.log10(dmin)), hi = Math.ceil(Math.log10(dmax));
+
+  function fmtTick(e) {
+    if (e >= 0) return String(Math.pow(10, e));
+    return "0." + new Array(-e).join("0") + "1";
+  }
+
+  function draw() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = FONT;
+
+    var step = parseInt(slider.value, 10);
+    var hTop = Math.round((h - GAP) * SPLIT);
+    var hBot = h - GAP - hTop;
+
+    // ---------- top panel: the sample, at equal aspect -------------------
+    var pw = w - PAD.l - PAD.r, ph = hTop - PAD.t - PAD.b;
+    var spanX = (ex[1] - ex[0]) * 1.10, spanY = (ey[1] - ey[0]) * 1.12;
+    var sc = Math.min(pw / spanX, ph / spanY);          // one scale for both
+    var cx0 = (ex[0] + ex[1]) / 2, cy0 = (ey[0] + ey[1]) / 2;
+    var ox = PAD.l + pw / 2, oy = PAD.t + ph / 2;
+    var X = function (v) { return ox + (v - cx0) * sc; };
+    var Y = function (v) { return oy - (v - cy0) * sc; };
+
+    // frame only the region the data occupies, so equal aspect does not leave
+    // a band of empty plot on either side
+    var fw = spanX * sc, fh = spanY * sc;
+    var fx = ox - fw / 2, fy = oy - fh / 2;
+
+    ctx.strokeStyle = D.colors.axis;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(fx, fy, fw, fh);
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
+
+    // one-standard-deviation contour of the covariate distribution
+    ctx.beginPath();
+    for (var a = 0; a <= 140; a++) {
+      var th = (a / 140) * 2 * Math.PI, c = Math.cos(th), s = Math.sin(th);
+      var px = D.mean[0] + 1.6 * (D.L[0][0] * c + D.L[0][1] * s);
+      var py = D.mean[1] + 1.6 * (D.L[1][0] * c + D.L[1][1] * s);
+      if (a === 0) ctx.moveTo(X(px), Y(py)); else ctx.lineTo(X(px), Y(py));
+    }
+    ctx.closePath();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "#c3ccd4";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    var pairs = showOpt ? D.optimal : D.greedy.slice(0, step);
+    var used = {};
+    pairs.forEach(function (g) { used[g[0]] = 1; used[g[1]] = 1; });
+
+    pairs.forEach(function (g, k) {
+      var last = !showOpt && k === pairs.length - 1;
+      ctx.strokeStyle = last ? D.colors.red : D.colors.dark;
+      ctx.lineWidth = last ? 2.6 : 1.3;
+      ctx.globalAlpha = last ? 1 : 0.7;
+      ctx.beginPath();
+      ctx.moveTo(X(D.pts[g[0]][0]), Y(D.pts[g[0]][1]));
+      ctx.lineTo(X(D.pts[g[1]][0]), Y(D.pts[g[1]][1]));
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    for (var i = 0; i < D.pts.length; i++) {
+      ctx.beginPath();
+      ctx.arc(X(D.pts[i][0]), Y(D.pts[i][1]), 3.5, 0, 2 * Math.PI);
+      ctx.fillStyle = used[i] ? D.colors.blue : "#dfe5ea";
+      ctx.fill();
+      ctx.strokeStyle = used[i] ? D.colors.blue : "#b4bec6";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = "#8a929a";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(D.xlab, ox, PAD.t + ph + 5);
+
+    // ---------- lower strip: pair distance, in the order chosen ----------
+    var by = hTop + GAP, bh = hBot - 20;
+    var L = function (v) {
+      return by + bh - (Math.log10(v) - lo) / (hi - lo) * bh;
+    };
+    var xAt = function (k) {
+      return PAD.l + ((k + 0.5) / D.greedy.length) * pw;
+    };
+
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (var e = lo; e <= hi; e++) {
+      var yy = L(Math.pow(10, e));
+      ctx.strokeStyle = "#eef1f4";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD.l, yy); ctx.lineTo(PAD.l + pw, yy);
+      ctx.stroke();
+      ctx.fillStyle = "#a6aeb6";
+      ctx.fillText(fmtTick(e), PAD.l - 6, yy);
+    }
+    ctx.strokeStyle = D.colors.axis;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, by); ctx.lineTo(PAD.l, by + bh);
+    ctx.moveTo(PAD.l, by + bh); ctx.lineTo(PAD.l + pw, by + bh);
+    ctx.stroke();
+
+    // the optimal matching's worst pair: the bar greedy has to stay under
+    var yRef = L(D.optWorst);
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = D.colors.green;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, yRef); ctx.lineTo(PAD.l + pw, yRef);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = D.colors.green;
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("worst pair the optimal matching ends up with",
+                 PAD.l + 5, yRef - 3);
+
+    // the sequence itself
+    ctx.strokeStyle = "#cfd6dc";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (var k = 0; k < D.greedy.length; k++) {
+      var xx = xAt(k), yv = L(D.greedy[k][2]);
+      if (k === 0) ctx.moveTo(xx, yv); else ctx.lineTo(xx, yv);
+    }
+    ctx.stroke();
+
+    for (k = 0; k < D.greedy.length; k++) {
+      var on = k < step;
+      ctx.beginPath();
+      ctx.arc(xAt(k), L(D.greedy[k][2]), (k === step - 1) ? 4.6 : 3.1,
+              0, 2 * Math.PI);
+      ctx.fillStyle = (k === step - 1) ? D.colors.red
+                    : on ? D.colors.blue : "#e2e7eb";
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "#8a929a";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("pair distance D², in the order greedy picks them",
+                 PAD.l + pw / 2, by + bh + 5);
+
+    // ---------- readout --------------------------------------------------
+    if (showOpt) {
+      readout.innerHTML =
+        'optimal matching<span class="gs-sep">|</span>total <b>' +
+        D.optTotal.toFixed(1) + '</b><span class="gs-sep">|</span>' +
+        'worst pair <b>' + D.optWorst.toFixed(2) + '</b>';
+    } else if (step === 0) {
+      readout.innerHTML = 'no pairs yet. Drag to watch greedy choose.';
+    } else {
+      var run = D.greedy.slice(0, step);
+      var tot = run.reduce(function (t, g) { return t + g[2]; }, 0);
+      var wst = run.reduce(function (t, g) { return Math.max(t, g[2]); }, 0);
+      readout.innerHTML =
+        'pair <b>' + step + '</b> of ' + D.greedy.length +
+        '<span class="gs-sep">|</span>this pair <b>' +
+        D.greedy[step - 1][2].toFixed(2) + '</b>' +
+        '<span class="gs-sep">|</span>worst so far <b>' + wst.toFixed(2) +
+        '</b><span class="gs-sep">|</span>total <b>' + tot.toFixed(1) + '</b>';
+    }
+    btnOpt.textContent = showOpt ? "Back to greedy" : "Show optimal matching";
+    btnOpt.setAttribute("aria-pressed", showOpt ? "true" : "false");
+  }
+
+  var lastW = -1;
+  function resize() {
+    var w = canvas.clientWidth;
+    if (!w || w === lastW) return;
+    lastW = w;
+    var h = Math.round(Math.min(Math.max(w * 0.86, 360), 560));
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.height = h + "px";
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  slider.addEventListener("input", function () { showOpt = false; draw(); });
+  btnOpt.addEventListener("click", function () { showOpt = !showOpt; draw(); });
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(root);
+  window.addEventListener("resize", resize);
+  window.addEventListener("load", resize);
+  resize();
+  requestAnimationFrame(resize);
+})();
+</script>
+</div>
+</div>
+<p>Greedy strands the units it leaves until last, and a stranded pair is a pair whose covariate gap the coin flip cannot undo. That gap goes into the variance of the treatment effect estimate, so the tail of the distance distribution matters more than its total.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Why the worst pair is not the longest-looking line
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Lengths on the screen are Euclidean and the numbers are Mahalanobis, so the two disagree whenever the covariates are correlated. Here the correlation is 0.86, which stretches the cloud into a ridge 3.6 times longer than it is wide. The dashed ellipse is its one standard deviation contour.</p>
+<p>A gap along the ridge is cheap, because units separated that way are ordinary. A gap of the same screen length across the ridge is expensive, because that combination of covariate values is rare. Greedy’s final pair is the clearest case. Measured with a ruler it is only 1.69 units apart, which is unremarkable, but 98% of its separation lies across the short axis of the ellipse, giving it a Mahalanobis distance of 4.58. Squared, that is 2.9 against 21.0, a factor of 7.3.</p>
+<p>Discounting the directions in which the covariates already move together is the whole point of using <span class="math inline">\(S^{-1}\)</span> instead of a plain Euclidean distance, and it is covered in the <a href="../mahalanobis-distance/">Mahalanobis article</a>.</p>
 </div>
 </div>
 </div>
-<p>The worst pair is highlighted in each panel. Greedy matching strands the units it leaves until last, and a stranded pair is a pair whose covariate gap the coin flip cannot undo. That gap goes straight into the variance of the treatment effect estimate, so the tail of the distance distribution matters more than its total.</p>
-<p>How much greedy costs depends on the sample. Forty units is a hard case for it, and it runs up 3.8 times the total distance and 12 times the worst pair. At a few hundred units the totals come much closer together, while the worst pair stays several times further apart.</p>
-<div class="cell" data-execution_count="3">
-<div id="tbl-greedy" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="3">
+<p>How much greedy costs depends on the sample. Forty units is a hard case for it, and it runs up 3.5 times the total distance and 11 times the worst pair. At a few hundred units the totals come much closer together, while the worst pair stays several times further apart.</p>
+<div class="cell" data-execution_count="4">
+<div id="tbl-greedy" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
 <figure class="quarto-float quarto-float-tbl figure">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-greedy-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses some of the total, and much more of the worst case.
 </figcaption>
 <div aria-describedby="tbl-greedy-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="3">
+<div class="cell-output cell-output-display" data-execution_count="4">
 <style type="text/css">
 </style>
 
-<table id="T_aef6b" class="cell caption-top table table-sm table-striped small">
+<table id="T_3c291" class="cell caption-top table table-sm table-striped small">
 <thead>
 <tr class="header">
-<th id="T_aef6b_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
-<th id="T_aef6b_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
-<th id="T_aef6b_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
-<th id="T_aef6b_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
-<th id="T_aef6b_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
+<th id="T_3c291_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
+<th id="T_3c291_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
+<th id="T_3c291_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
+<th id="T_3c291_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
+<th id="T_3c291_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td id="T_aef6b_row0_col0" class="data row0 col0">N = 100, k = 4</td>
-<td id="T_aef6b_row0_col1" class="data row0 col1">63.0</td>
-<td id="T_aef6b_row0_col2" class="data row0 col2">82.1 (+30%)</td>
-<td id="T_aef6b_row0_col3" class="data row0 col3">5.47</td>
-<td id="T_aef6b_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
+<td id="T_3c291_row0_col0" class="data row0 col0">N = 100, k = 4</td>
+<td id="T_3c291_row0_col1" class="data row0 col1">63.0</td>
+<td id="T_3c291_row0_col2" class="data row0 col2">82.1 (+30%)</td>
+<td id="T_3c291_row0_col3" class="data row0 col3">5.47</td>
+<td id="T_3c291_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
 </tr>
 <tr class="even">
-<td id="T_aef6b_row1_col0" class="data row1 col0">N = 200, k = 4</td>
-<td id="T_aef6b_row1_col1" class="data row1 col1">78.5</td>
-<td id="T_aef6b_row1_col2" class="data row1 col2">113.2 (+44%)</td>
-<td id="T_aef6b_row1_col3" class="data row1 col3">4.70</td>
-<td id="T_aef6b_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
+<td id="T_3c291_row1_col0" class="data row1 col0">N = 200, k = 4</td>
+<td id="T_3c291_row1_col1" class="data row1 col1">78.5</td>
+<td id="T_3c291_row1_col2" class="data row1 col2">113.2 (+44%)</td>
+<td id="T_3c291_row1_col3" class="data row1 col3">4.70</td>
+<td id="T_3c291_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
 </tr>
 <tr class="odd">
-<td id="T_aef6b_row2_col0" class="data row2 col0">N = 200, k = 8</td>
-<td id="T_aef6b_row2_col1" class="data row2 col1">409.1</td>
-<td id="T_aef6b_row2_col2" class="data row2 col2">505.0 (+23%)</td>
-<td id="T_aef6b_row2_col3" class="data row2 col3">10.20</td>
-<td id="T_aef6b_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
+<td id="T_3c291_row2_col0" class="data row2 col0">N = 200, k = 8</td>
+<td id="T_3c291_row2_col1" class="data row2 col1">409.1</td>
+<td id="T_3c291_row2_col2" class="data row2 col2">505.0 (+23%)</td>
+<td id="T_3c291_row2_col3" class="data row2 col3">10.20</td>
+<td id="T_3c291_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
 </tr>
 </tbody>
 </table>
@@ -293,57 +566,29 @@ Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses s
 </div>
 <p>The correct problem is a minimum-weight perfect matching on a general graph. Every unit is a vertex, every pair of units is an edge weighted by <span class="math inline">\(D^2(i,j)\)</span>, and you want the cheapest set of edges that touches each vertex once. Edmonds’ blossom algorithm solves it exactly in <span class="math inline">\(O(N^3)\)</span>.</p>
 <p>Two points of confusion are worth clearing up. First, this is not the assignment problem, and the Hungarian algorithm does not apply. That algorithm matches one set to a different set, treated units to control units. Here there is a single pool and any unit may pair with any other, so the graph is not bipartite. Greevy et al.&nbsp;(2004) introduced the non-bipartite version for exactly this design. Second, the problem is solved rather than approximated, so there is no tuning to do and no reason to settle for greedy. In Python it is one call in <code>networkx</code>; in R it is the <code>nbpMatching</code> package.</p>
+<p>The button above shows the optimal matching for comparison. There is no equivalent step-by-step view of how the blossom algorithm gets there, and it would not help much if there were. Greedy is a sequence of decisions you can follow, each one locally sensible and collectively poor. Blossom works by maintaining a set of dual prices and contracting odd cycles, which is a procedure with no running picture of a partial matching to watch. The result is the part worth seeing.</p>
 </section>
 <section id="does-it-gain-more-than-rerandomization" class="level2">
 <h2 class="anchored" data-anchor-id="does-it-gain-more-than-rerandomization">Does it gain more than rerandomization?</h2>
-<p>Both designs are aiming at the same thing, so the comparison is worth making directly. The table below fixes one sample of 400 units with four covariates, then repeats the assignment 4,000 times under each design and measures how much the estimate moves around.</p>
-<div class="cell" data-execution_count="5">
-<div id="tbl-headtohead" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="5">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-headtohead-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;2: Variance of the difference in means, as a fraction of the variance under plain randomisation. Lower is better. One fixed sample of 400 units and four covariates, 4,000 assignments under each design. The two outcome models carry the same total signal and differ in how much of it is linear.
+<p>Both designs are aiming at the same thing, so the comparison is worth making directly. Below, one fixed sample of 400 units with four covariates is assigned 4,000 times under each design. The gain is expressed as the sample you would need under plain randomisation to estimate the treatment effect just as precisely.</p>
+<div id="cell-fig-headtohead" class="cell" data-execution_count="6">
+<div class="cell-output cell-output-display">
+<div id="fig-headtohead" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-headtohead-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-headtohead-output-1.png" width="826" height="342" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-headtohead-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: How much data each design is worth. A bar of two means the experiment estimates the treatment effect as precisely as plain randomisation would on twice the sample. Both outcome models carry the same total signal and differ only in how much of it is linear in the covariates.
 </figcaption>
-<div aria-describedby="tbl-headtohead-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="5">
-<style type="text/css">
-</style>
-
-<table id="T_5d13d" class="cell caption-top table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th id="T_5d13d_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Outcome model</th>
-<th id="T_5d13d_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">R<sup>2</sup>, any function of X</th>
-<th id="T_5d13d_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">R<sup>2</sup>, linear in X</th>
-<th id="T_5d13d_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Rerandomization, p<sub>a</sub> = 1%</th>
-<th id="T_5d13d_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Pairwise matching</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td id="T_5d13d_row0_col0" class="data row0 col0">Linear in the covariates</td>
-<td id="T_5d13d_row0_col1" class="data row0 col1">0.64</td>
-<td id="T_5d13d_row0_col2" class="data row0 col2">0.64</td>
-<td id="T_5d13d_row0_col3" class="data row0 col3">0.38</td>
-<td id="T_5d13d_row0_col4" class="data row0 col4">0.41</td>
-</tr>
-<tr class="even">
-<td id="T_5d13d_row1_col0" class="data row1 col0">Non-linear in the covariates</td>
-<td id="T_5d13d_row1_col1" class="data row1 col1">0.64</td>
-<td id="T_5d13d_row1_col2" class="data row1 col2">0.06</td>
-<td id="T_5d13d_row1_col3" class="data row1 col3">0.95</td>
-<td id="T_5d13d_row1_col4" class="data row1 col4">0.51</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
 </figure>
 </div>
 </div>
-<p>The two <span class="math inline">\(R^2\)</span> columns explain the result. Both outcome models leave the same share of variance unexplained once you allow any function of the covariates, so both offer the same gain in principle. They differ in how much of that signal a <em>linear</em> function of the covariates can reach: 0.64 against 0.06.</p>
-<p>That column is the one rerandomization is limited by. A threshold on <span class="math inline">\(M\)</span> constrains the difference in covariate <em>means</em>, which pins down the linear part of the response and leaves the rest untouched. Matching is limited by the other column. The two units in a pair sit close together in covariate space, so any function of the covariates takes nearly the same value on each side of the coin flip, whether that function is linear or not. Matching therefore performs about the same in both rows, while rerandomization collapses from 0.38 to 0.95.</p>
+</div>
+<p>The two designs behave the same way on a linear outcome and come apart completely on a non-linear one. The reason is that they are limited by different quantities. A threshold on <span class="math inline">\(M\)</span> constrains the difference in covariate <em>means</em>, which pins down the linear part of the response and leaves the rest untouched, so rerandomization is limited by how much of the outcome is linear in the covariates. That falls from 0.64 to 0.06 between the two rows, and the bar collapses with it.</p>
+<p>Matching is limited by the other quantity. The two units in a pair sit close together in covariate space, so any function of the covariates takes nearly the same value on each side of the coin flip, whether that function is linear or not. Both outcome models leave the same share of variance unexplained once any function is allowed, which is why matching holds up across both rows.</p>
 <div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
@@ -352,15 +597,14 @@ Table&nbsp;2: Variance of the difference in means, as a fraction of the variance
 </div>
 <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
-<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<p>The variance ratio under rerandomization is <span class="math inline">\(1 - (1 - v_a)R^2\)</span>, with <span class="math inline">\(v_a\)</span> the shrinkage factor from the <a href="../rerandomization/">rerandomization article</a> and <span class="math inline">\(R^2\)</span> the linear one. At <span class="math inline">\(k =\)</span> 4 and <span class="math inline">\(p_a = 1\%\)</span>, <span class="math inline">\(v_a =\)</span> 0.049, so the formula predicts 0.39 for the linear model against 0.38 measured, and 0.94 for the non-linear model against 0.95 measured. Splitting the outcome into its linear fit and the residual shows the mechanism directly: under rerandomization the variance of the fitted part shrinks by a factor of about <span class="math inline">\(v_a\)</span>, and the variance of the residual part does not move.</p>
+<p>The variance ratio under rerandomization is <span class="math inline">\(1 - (1 - v_a)R^2\)</span>, with <span class="math inline">\(v_a\)</span> the shrinkage factor from the <a href="../rerandomization/">rerandomization article</a> and <span class="math inline">\(R^2\)</span> the linear one. At <span class="math inline">\(k =\)</span> 4 and <span class="math inline">\(p_a = 1\%\)</span>, <span class="math inline">\(v_a =\)</span> 0.049, so the formula predicts a variance ratio of 0.39 for the linear model against 0.38 measured, and 0.94 for the non-linear model against 0.95 measured. Splitting the outcome into its linear fit and the residual shows the mechanism directly: under rerandomization the variance of the fitted part shrinks by a factor of about <span class="math inline">\(v_a\)</span>, and the variance of the residual part does not move.</p>
 <p>For matching, a perfectly matched sample would reduce the variance to the share of outcome variance the covariates do not explain, which is <span class="math inline">\(1 - R^2 =\)</span> 0.36 here against 0.51 achieved. The shortfall is the price of pairs that are close but not identical.</p>
 <p>The two designs differ in what you can do about a disappointing number. Tightening the threshold drives <span class="math inline">\(v_a\)</span> towards zero, so rerandomization has a dial. Matching has none: the within-pair distances are a property of the sample, and once the matching is optimal there is nothing further to spend. What limits it is covariate density, which is why matching improves as <span class="math inline">\(N\)</span> grows and degrades as <span class="math inline">\(k\)</span> grows.</p>
 </div>
 </div>
 </div>
-<p>Bruhn and McKenzie (2009) reached a compatible conclusion from a different direction. Surveying development field experiments, they report that at samples of 300 or more the common designs balance future outcomes about equally well, and that pairwise matching and stratification come out ahead in smaller samples and for highly persistent outcomes. Their rerandomization comparison is to rerandomization as commonly practised, with few covariates and a loose threshold.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -371,134 +615,224 @@ Table&nbsp;2: Variance of the difference in means, as a fraction of the variance
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Matching is the safer default when you cannot describe the outcome as roughly linear in the covariates, and when the sample is small enough that a few awkward units could land on one side. Rerandomization is the better fit when the covariates enter the response roughly linearly, when you want a dial you can tighten, and when the pairing cannot survive to the analysis stage. The next section covers that last condition, which is easy to overlook.</p>
+<p>Matching is the safer default when you cannot describe the outcome as roughly linear in the covariates, and when the sample is small enough that a few awkward units could land on one side. Rerandomization is the better fit when the covariates enter the response roughly linearly, when you want a dial you can tighten, and when the pairing cannot survive to the analysis stage. The last section covers that condition, which is easy to overlook.</p>
 </div>
 </div>
 </section>
 <section id="odd-numbers-and-units-with-nothing-close-to-them" class="level2">
 <h2 class="anchored" data-anchor-id="odd-numbers-and-units-with-nothing-close-to-them">Odd numbers, and units with nothing close to them</h2>
-<p>A perfect matching needs an even <span class="math inline">\(N\)</span> and tolerates no exceptions, so two practical cases need handling.</p>
-<p>For odd <span class="math inline">\(N\)</span>, or to drop units that match badly, add <strong>sinks</strong>. A sink is a phantom unit placed at distance zero from every real unit and at infinite distance from other sinks. Whichever real unit gets matched to a sink is excluded from the experiment. One sink absorbs an odd unit. Adding <span class="math inline">\(m\)</span> sinks excludes the <span class="math inline">\(m\)</span> units that were most expensive to pair, which is the cleanest way to exclude the units whose matches would have been worst.</p>
-<p>A <strong>caliper</strong> sets a maximum acceptable within-pair distance. Implementing it by raising the weight of long edges can leave a problem with no feasible solution, so the usual route is a caliper enforced through sinks: make a sink cheaper than any pairing beyond the cap, and units with no acceptable partner drop out by themselves. Every unit you exclude narrows what the experiment covers, so record how many and which ones.</p>
+<p>Two awkward cases have one mechanism between them. A perfect matching needs an even <span class="math inline">\(N\)</span>, so an odd sample leaves a unit over. Separately, a sample may contain units that sit far from everything else, and forcing them into pairs produces exactly the stranded pairs the previous section warned about.</p>
+<p>Both are solved by adding <strong>sinks</strong>. A sink is a phantom unit placed at distance zero from every real unit, with no edge to another sink. Because a sink has to be matched and cannot take another sink, it takes a real unit out of the experiment. Pairing with a sink is free, so the solver spends its sinks on whichever units were most expensive to pair.</p>
+<p>One sink absorbs the odd unit in an odd sample. Beyond that, sinks come in pairs: each one removes a real unit, so you need an even number of them to leave an even number of units behind. Adding two sinks excludes the two units whose matches would have been worst, four excludes the worst four, and so on.</p>
+<p>Drag below to add sinks to a sample containing four units placed well away from the rest.</p>
+<div id="cell-sinks-widget" class="cell" data-execution_count="7">
+<div id="sinks-widget" class="cell-output cell-output-display">
+
+<style>
+.sk-wrap { margin: 1.2rem 0 1.6rem; }
+.sk-wrap canvas { display:block; width:100%; touch-action:manipulation; }
+.sk-wrap .sk-readout { font-size:.82rem; color:#5b6570; text-align:center;
+  margin:.35rem 0 .6rem; }
+.sk-wrap .sk-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
+.sk-wrap .sk-sep { margin:0 .55rem; opacity:.45; }
+.sk-wrap input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
+.sk-wrap .sk-labels { display:flex; justify-content:space-between;
+  font-size:.82rem; color:#8a929a; margin-top:.3rem; padding:0 9px; }
+.sk-wrap .sk-labels span { cursor:pointer; flex:1; text-align:center; }
+.sk-wrap .sk-labels span:first-child { text-align:left; }
+.sk-wrap .sk-labels span:last-child { text-align:right; }
+.sk-wrap .sk-labels span.sk-on { color:#2c4a63; font-weight:600; }
+</style>
+<div class="sk-wrap" id="sk-demo">
+  <canvas></canvas>
+  <div class="sk-readout"></div>
+  <input type="range" min="0" max="4" step="1" value="0" aria-label="Number of sinks added">
+  <div class="sk-labels">
+    <span>0</span><span>2</span><span>4</span><span>6</span><span>8</span>
+  </div>
+</div>
+<script>/* Sinks: excluding the units that have nothing near them.
+ *
+ * Each slider position is a separate optimal matching, solved in Python with
+ * that many sink nodes added. Dropped units are drawn hollow with a cross.
+ * The bar on the right is the worst remaining pair, which is the quantity the
+ * sinks are there to control.
+ */
+(function () {
+  var root = document.getElementById("sk-demo");
+  if (!root) return;
+  var D = {"pts": [[-0.0928, -0.5606], [-0.482, 0.4125], [-1.7307, -0.5581], [-1.2895, 1.17], [-0.6187, 0.4495], [0.5845, -0.0107], [-0.7727, 0.5218], [0.5447, 0.3048], [-0.2549, -1.6214], [-0.7255, -0.1053], [1.0032, -2.0118], [-0.3721, -1.1062], [1.1943, -1.1489], [-0.8488, 0.5599], [0.8222, -0.3452], [-0.7489, 0.3772], [0.2185, 1.0736], [-0.3415, -0.6664], [-0.1196, 0.4263], [-1.6584, 0.0668], [0.0001, -1.0386], [1.4395, -1.2829], [-0.872, -0.0433], [-0.5786, 1.5969], [-0.2436, 0.7413], [-1.5754, -0.0749], [-0.1085, 0.8554], [1.6026, -1.1727], [0.6807, 0.2876], [0.3334, -0.356], [-0.812, -0.2737], [-0.5349, 0.4049], [-0.7099, 0.0633], [-0.4778, 1.2276], [0.5312, 0.2517], [0.1207, 2.0985], [1.7824, -0.6882], [-0.4232, 0.3069], [1.5691, -0.0114], [1.3417, -0.6392], [3.4, 2.9], [-3.1, 2.6], [2.8, -3.2], [0.2, 3.6]], "states": [{"sinks": 0, "dropped": [], "pairs": [[43, 40, 7.299], [16, 35, 0.7104], [4, 15, 0.0206], [37, 18, 0.096], [11, 8, 0.1736], [0, 20, 0.1502], [9, 32, 0.0214], [31, 1, 0.0024], [24, 26, 0.0296], [21, 12, 0.0454], [10, 42, 2.601], [7, 28, 0.0135], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [6, 13, 0.0043], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [19, 22, 0.4485], [36, 38, 0.2999], [3, 41, 2.8997]], "worst": 7.298955022521014, "total": 15.750571077108095}, {"sinks": 2, "dropped": [40, 41], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [11, 8, 0.1736], [0, 20, 0.1502], [31, 4, 0.0053], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [42, 10, 2.601], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [26, 16, 0.1456], [43, 35, 1.6519], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [13, 3, 0.3019], [19, 22, 0.4485], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 2.6009785446027096, "total": 6.881183976415324}, {"sinks": 4, "dropped": [40, 41, 42, 43], "pairs": [[1, 31, 0.0024], [12, 10, 0.6241], [16, 35, 0.7104], [3, 13, 0.3019], [37, 18, 0.096], [11, 8, 0.1736], [32, 15, 0.0659], [0, 29, 0.2055], [24, 26, 0.0296], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [6, 4, 0.0173], [2, 25, 0.2151], [34, 5, 0.0452], [19, 22, 0.4485], [36, 38, 0.2999], [9, 30, 0.0319]], "worst": 0.7103739688748987, "total": 3.7475234307956335}, {"sinks": 6, "dropped": [2, 35, 40, 41, 42, 43], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [12, 10, 0.6241], [3, 13, 0.3019], [11, 8, 0.1736], [5, 34, 0.0452], [9, 32, 0.0214], [0, 29, 0.2055], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [26, 16, 0.1456], [22, 30, 0.0347], [4, 31, 0.0053], [19, 25, 0.0147], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 0.6240854636159989, "total": 2.4398100109002105}, {"sinks": 8, "dropped": [2, 8, 10, 35, 40, 41, 42, 43], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [3, 13, 0.3019], [0, 17, 0.0664], [11, 20, 0.1203], [5, 34, 0.0452], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [23, 33, 0.0891], [27, 39, 0.1964], [26, 16, 0.1456], [38, 36, 0.2999], [22, 30, 0.0347], [4, 31, 0.0053], [14, 29, 0.1861], [19, 25, 0.0147], [24, 18, 0.066]], "worst": 0.3019382990950378, "total": 1.6737052917557496}], "xlab": "covariate 1", "colors": {"blue": "#2c6e9b", "dark": "#2c4a63", "red": "#b5483d", "green": "#4f8f63", "grey": "#9aa3ab", "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"}};
+
+  var canvas = root.querySelector("canvas");
+  var ctx = canvas.getContext("2d");
+  var slider = root.querySelector("input[type=range]");
+  var readout = root.querySelector(".sk-readout");
+  var labels = root.querySelectorAll(".sk-labels span");
+
+  var FONT = '12.5px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var PAD = { l: 14, r: 92, t: 12, b: 28 };
+
+  slider.max = String(D.states.length - 1);
+
+  var xs = D.pts.map(function (p) { return p[0]; });
+  var ys = D.pts.map(function (p) { return p[1]; });
+  var ex = [Math.min.apply(null, xs), Math.max.apply(null, xs)];
+  var ey = [Math.min.apply(null, ys), Math.max.apply(null, ys)];
+  var mx = (ex[1] - ex[0]) * 0.07, my = (ey[1] - ey[0]) * 0.09;
+  ex = [ex[0] - mx, ex[1] + mx];
+  ey = [ey[0] - my, ey[1] + my];
+
+  var worstMax = D.states[0].worst;
+
+  function draw() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = FONT;
+
+    var si = parseInt(slider.value, 10);
+    var st = D.states[si];
+
+    // equal aspect, so a line that looks twice as long really is
+    var pw = w - PAD.l - PAD.r, ph = h - PAD.t - PAD.b;
+    var sc = Math.min(pw / (ex[1] - ex[0]), ph / (ey[1] - ey[0]));
+    var cx0 = (ex[0] + ex[1]) / 2, cy0 = (ey[0] + ey[1]) / 2;
+    var ox = PAD.l + pw / 2, oy = PAD.t + ph / 2;
+    var X = function (v) { return ox + (v - cx0) * sc; };
+    var Y = function (v) { return oy - (v - cy0) * sc; };
+
+    ctx.strokeStyle = D.colors.axis;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PAD.l, PAD.t, pw, ph);
+
+    var dropped = {};
+    st.dropped.forEach(function (i) { dropped[i] = 1; });
+
+    // worst remaining pair drawn in red so the effect of a sink is visible
+    var wi = -1, wv = -1;
+    st.pairs.forEach(function (p, k) { if (p[2] > wv) { wv = p[2]; wi = k; } });
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(PAD.l, PAD.t, pw, ph); ctx.clip();
+    st.pairs.forEach(function (p, k) {
+      var hot = k === wi;
+      ctx.strokeStyle = hot ? D.colors.red : D.colors.dark;
+      ctx.lineWidth = hot ? 2.6 : 1.2;
+      ctx.globalAlpha = hot ? 1 : 0.65;
+      ctx.beginPath();
+      ctx.moveTo(X(D.pts[p[0]][0]), Y(D.pts[p[0]][1]));
+      ctx.lineTo(X(D.pts[p[1]][0]), Y(D.pts[p[1]][1]));
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    for (var i = 0; i < D.pts.length; i++) {
+      var px = X(D.pts[i][0]), py = Y(D.pts[i][1]);
+      if (dropped[i]) {
+        ctx.strokeStyle = D.colors.grey;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(px, py, 4.6, 0, 2 * Math.PI); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(px - 2.6, py - 2.6); ctx.lineTo(px + 2.6, py + 2.6);
+        ctx.moveTo(px + 2.6, py - 2.6); ctx.lineTo(px - 2.6, py + 2.6);
+        ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(px, py, 3.4, 0, 2 * Math.PI);
+        ctx.fillStyle = D.colors.blue; ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // ---- worst-pair bar on the right -----------------------------------
+    var bx = w - PAD.r + 26, bw = 26;
+    var by = PAD.t + 16, bh = ph - 40;
+    ctx.fillStyle = "#eef1f4";
+    ctx.fillRect(bx, by, bw, bh);
+    var frac = Math.max(0, Math.min(1, st.worst / worstMax));
+    ctx.fillStyle = D.colors.red;
+    ctx.fillRect(bx, by + bh * (1 - frac), bw, bh * frac);
+    ctx.fillStyle = D.colors.tick;
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText("worst", bx + bw / 2, by - 4);
+    ctx.textBaseline = "top";
+    ctx.fillText(st.worst.toFixed(2), bx + bw / 2, by + bh + 5);
+
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(D.xlab, PAD.l + pw / 2, PAD.t + ph + 8);
+
+    readout.innerHTML =
+      '<b>' + st.sinks + '</b> sink' + (st.sinks === 1 ? '' : 's') +
+      '<span class="sk-sep">|</span><b>' + st.dropped.length +
+      '</b> units excluded<span class="sk-sep">|</span><b>' +
+      st.pairs.length + '</b> pairs kept' +
+      '<span class="sk-sep">|</span>worst pair <b>' + st.worst.toFixed(2) +
+      '</b><span class="sk-sep">|</span>total <b>' + st.total.toFixed(1) + '</b>';
+
+    for (var k = 0; k < labels.length; k++) {
+      labels[k].classList.toggle("sk-on", k === si);
+    }
+  }
+
+  var lastW = -1;
+  function resize() {
+    var w = canvas.clientWidth;
+    if (!w || w === lastW) return;
+    lastW = w;
+    var h = Math.round(Math.min(Math.max(w * 0.62, 280), 440));
+    var dpr = window.devicePixelRatio || 1;
+    canvas.style.height = h + "px";
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  slider.addEventListener("input", draw);
+  for (var j = 0; j < labels.length; j++) {
+    (function (node, idx) {
+      node.addEventListener("click", function () {
+        slider.value = String(idx); draw();
+      });
+    })(labels[j], j);
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(root);
+  window.addEventListener("resize", resize);
+  window.addEventListener("load", resize);
+  resize();
+  requestAnimationFrame(resize);
+})();
+</script>
+</div>
+</div>
+<p>The first two sinks remove the two worst-placed units and the worst remaining pair falls by 64%. Two more remove the rest of the awkward group. After that the returns shrink, and every further sink costs real sample size.</p>
+<p>A <strong>caliper</strong> sets a maximum acceptable within-pair distance. Implementing one by raising the weight of long edges can leave a problem with no feasible solution, so the usual route is a caliper enforced through sinks: make a sink cheaper than any pairing beyond the cap, and units with no acceptable partner drop out by themselves. Every unit you exclude narrows what the experiment covers, so record how many and which ones.</p>
 </section>
 <section id="analysing-a-matched-experiment" class="level2">
 <h2 class="anchored" data-anchor-id="analysing-a-matched-experiment">Analysing a matched experiment</h2>
 <p>The point estimate needs no special treatment. Averaging the within-pair differences and taking the plain difference in group means are the same arithmetic, because every pair puts one unit in each arm. There is no way to forget the matching when forming the estimate.</p>
 <p>The standard error is a different matter.</p>
-<div class="cell" data-execution_count="7">
-<div id="tbl-se" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="7">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-se-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;3: The same 4,000 matched assignments as above, non-linear outcome. The two-sample standard error is calibrated to a design that was not run.
-</figcaption>
-<div aria-describedby="tbl-se-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="7">
-<style type="text/css">
-</style>
-
-<table id="T_2d423" class="cell caption-top table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th id="T_2d423_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Quantity</th>
-<th id="T_2d423_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Value</th>
-<th id="T_2d423_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">95% CI coverage</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td id="T_2d423_row0_col0" class="data row0 col0">True spread of the estimate across assignments</td>
-<td id="T_2d423_row0_col1" class="data row0 col1">0.1253</td>
-<td id="T_2d423_row0_col2" class="data row0 col2"></td>
-</tr>
-<tr class="even">
-<td id="T_2d423_row1_col0" class="data row1 col0">Reported SE, two-sample <em>t</em>-test</td>
-<td id="T_2d423_row1_col1" class="data row1 col1">0.1748</td>
-<td id="T_2d423_row1_col2" class="data row1 col2">99.3%</td>
-</tr>
-<tr class="odd">
-<td id="T_2d423_row2_col0" class="data row2 col0">Reported SE, within-pair differences</td>
-<td id="T_2d423_row2_col1" class="data row2 col1">0.1249</td>
-<td id="T_2d423_row2_col2" class="data row2 col2">94.9%</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</figure>
-</div>
-</div>
-<p>A two-sample <span class="math inline">\(t\)</span>-test computes the standard error from the within-arm variances. Under this design each arm contains one unit from every pair, so each arm spans the full covariate range and its variance is close to the variance of the whole sample. That calculation returns roughly the value it would have returned under plain randomisation, while the estimate itself now moves around far less. The interval is too wide by a factor of 1.40, and its coverage is 99.3% instead of 95%.</p>
-<p>Differencing within pairs fixes it. The within-pair difference is the unit of analysis, its spread already reflects how closely the pairs were matched, and the resulting interval has 94.9% coverage. A regression of the outcome on treatment plus a fixed effect for each pair is the same calculation and gives the same standard error. The cost is degrees of freedom, <span class="math inline">\(N/2 - 1\)</span> rather than <span class="math inline">\(N - 2\)</span>, which is minor at a few hundred units.</p>
-<p>The upper bound on what this is worth is set by the covariates. For a perfectly matched sample the variance of the estimate falls to the share of outcome variance the covariates do not explain, so the naive variance is too large by at most <span class="math inline">\(1/(1 - R^2)\)</span> and the naive standard error by at most <span class="math inline">\(1/\sqrt{1 - R^2}\)</span>. Here <span class="math inline">\(R^2\)</span> is 0.64, giving a ceiling of 2.81 on the variance and 1.68 on the standard error, against the 1.95 and 1.40 realised. Measured as variance removed rather than as a ratio, the matching captured 76% of what a perfect matching would have removed.</p>
+<p>A two-sample <span class="math inline">\(t\)</span>-test computes the standard error from the within-arm variances. Under this design each arm contains one unit from every pair, so each arm spans the full covariate range and its variance is close to the variance of the whole sample. That calculation returns roughly the value it would have returned under plain randomisation, while the estimate itself now moves around far less. The interval comes out 40% too wide, and covers the true effect 99.3% of the time instead of 95%.</p>
+<p>Differencing within pairs fixes it. The within-pair difference is the unit of analysis, and its spread already reflects how closely the pairs were matched, so the interval lands at 94.9% coverage. A regression of the outcome on treatment plus a fixed effect for each pair is the same calculation and gives the same standard error. The cost is degrees of freedom, <span class="math inline">\(N/2 - 1\)</span> rather than <span class="math inline">\(N - 2\)</span>, which is minor at a few hundred units.</p>
+<p>The upper bound on what this is worth is set by the covariates. For a perfectly matched sample the variance of the estimate falls to the share of outcome variance the covariates do not explain, so the naive variance is too large by at most <span class="math inline">\(1/(1 - R^2)\)</span> and the naive standard error by at most <span class="math inline">\(1/\sqrt{1 - R^2}\)</span>. Here <span class="math inline">\(R^2\)</span> is 0.64, giving a ceiling of 1.68 on the standard error against the 1.40 realised, so the matching captured 76% of what a perfect matching would have removed.</p>
 <section id="a-conservative-interval-is-not-always-a-safe-one" class="level3">
 <h3 class="anchored" data-anchor-id="a-conservative-interval-is-not-always-a-safe-one">A conservative interval is not always a safe one</h3>
 <p>Calling the two-sample interval conservative is accurate but incomplete. It does not follow that the only consequence is lost precision.</p>
-<div class="cell" data-execution_count="8">
-<div id="tbl-power" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
-<figure class="quarto-float quarto-float-tbl figure">
-<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-power-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;4: Rejection rate of a two-sided 5% test against the size of the true effect, on the same sample. The matched design analysed without the pairing can be less powerful than not matching at all.
+<div id="cell-fig-power" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<div id="fig-power" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-power-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="index_files/figure-html/fig-power-output-1.png" width="824" height="459" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-power-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Rejection rate of a two-sided 5% test against the size of the true effect, on the same sample and the same 4,000 assignments. At a true effect of zero the rejection rate is the false positive rate, which should be 5%. Below an effect of about 0.35 the matched design analysed without the pairing is less powerful than not matching at all.
 </figcaption>
-<div aria-describedby="tbl-power-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display" data-execution_count="8">
-<style type="text/css">
-</style>
-
-<table id="T_945de" class="cell caption-top table table-sm table-striped small">
-<thead>
-<tr class="header">
-<th id="T_945de_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">True effect</th>
-<th id="T_945de_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Plain randomisation</th>
-<th id="T_945de_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Matched, two-sample SE</th>
-<th id="T_945de_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Matched, within-pair SE</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td id="T_945de_row0_col0" class="data row0 col0">0.00</td>
-<td id="T_945de_row0_col1" class="data row0 col1">5%</td>
-<td id="T_945de_row0_col2" class="data row0 col2">1%</td>
-<td id="T_945de_row0_col3" class="data row0 col3">5%</td>
-</tr>
-<tr class="even">
-<td id="T_945de_row1_col0" class="data row1 col0">0.14</td>
-<td id="T_945de_row1_col1" class="data row1 col1">13%</td>
-<td id="T_945de_row1_col2" class="data row1 col2">5%</td>
-<td id="T_945de_row1_col3" class="data row1 col3">20%</td>
-</tr>
-<tr class="odd">
-<td id="T_945de_row2_col0" class="data row2 col0">0.25</td>
-<td id="T_945de_row2_col1" class="data row2 col1">29%</td>
-<td id="T_945de_row2_col2" class="data row2 col2">22%</td>
-<td id="T_945de_row2_col3" class="data row2 col3">51%</td>
-</tr>
-<tr class="even">
-<td id="T_945de_row3_col0" class="data row3 col0">0.35</td>
-<td id="T_945de_row3_col1" class="data row3 col1">51%</td>
-<td id="T_945de_row3_col2" class="data row3 col2">53%</td>
-<td id="T_945de_row3_col3" class="data row3 col3">79%</td>
-</tr>
-<tr class="odd">
-<td id="T_945de_row4_col0" class="data row4 col0">0.45</td>
-<td id="T_945de_row4_col1" class="data row4 col1">73%</td>
-<td id="T_945de_row4_col2" class="data row4 col2">80%</td>
-<td id="T_945de_row4_col3" class="data row4 col3">95%</td>
-</tr>
-<tr class="even">
-<td id="T_945de_row5_col0" class="data row5 col0">0.55</td>
-<td id="T_945de_row5_col1" class="data row5 col1">88%</td>
-<td id="T_945de_row5_col2" class="data row5 col2">95%</td>
-<td id="T_945de_row5_col3" class="data row5 col3">99%</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
 </figure>
 </div>
 </div>
-<p>Read the middle column against the left one. At small effect sizes the matched design analysed with a two-sample standard error rejects less often than plain randomisation does, and the ordering only reverses once the effect is large enough. A test statistic that is both smaller in spread and centred below the critical value crosses that value less often, so the tighter estimate works against you until the effect is big enough to clear the bar on its own. Bruhn and McKenzie report the same effect: failing to account for the randomisation method gives tests of the wrong size, and can give less power than a plain random draw would have.</p>
-<p>The right column is what the design was for.</p>
+</div>
+<p>Read the dashed red line against the grey one. At small effect sizes the matched design analysed with a two-sample standard error rejects less often than plain randomisation does, and the ordering only reverses once the effect is large enough. A test statistic that is both smaller in spread and centred below the critical value crosses that value less often, so the tighter estimate works against you until the effect is big enough to clear the bar on its own. Bruhn and McKenzie report the same effect: failing to account for the randomisation method gives tests of the wrong size, and can give less power than a plain random draw would have.</p>
+<p>The blue line is what the design was for.</p>
 <div class="callout callout-style-default callout-warning callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
