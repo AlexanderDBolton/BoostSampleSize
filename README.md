@@ -34,6 +34,11 @@ matching takes about 45 seconds at N = 400, so a whole-site render reuses the
 stored result instead of recomputing it. Editing the page invalidates the
 freeze and it runs again. Delete `_freeze/` to force a rerun.
 
+One thing to watch: `_freeze/` keeps figures from earlier runs and does not
+prune them, so a renamed or deleted figure can keep reappearing in `docs/`
+after every site render. Deleting it from `docs/` alone will not stick. Remove
+that page's folder under `_freeze/` and render again.
+
 ## Building
 
 Quarto has to use the virtual environment, otherwise it picks up whatever Python

@@ -74,6 +74,19 @@ def pair_distances(X):
     return ((Z[:, None, :] - Z[None, :, :]) ** 2).sum(-1), Si, S
 
 
+def whiten(X):
+    """Rescale X so its sample covariance is exactly the identity.
+
+    D^2 is unchanged by any linear rescaling of the covariates, so this alters
+    no distance. It only makes the picture honest: with S = I the Mahalanobis
+    distance is the plain straight-line distance, and a line that looks twice
+    as long really is.
+    """
+    Xc = X - X.mean(0)
+    S = np.cov(Xc, rowvar=False, bias=True)
+    return Xc @ np.linalg.inv(np.linalg.cholesky(S)).T
+
+
 def optimal_pairs(d2):
     """Minimum-weight perfect matching on the complete graph (blossom)."""
     N = d2.shape[0]
@@ -152,35 +165,23 @@ Step 3 is the part that goes wrong in practice.
 #| label: greedy-data
 #| include: false
 
-# Two strongly correlated covariates, so the Mahalanobis geometry is visible
-# rather than merely true: the cloud is a clear ridge and the pair greedy is
-# left with runs across it.
-RHO = 0.82
-Xd = np.random.default_rng(11).multivariate_normal(
-    np.zeros(2), np.array([[1.0, RHO], [RHO, 1.0]]), size=40)
+# Whitened to S = I, so the distance being minimised is the length of the line
+# on the screen. Whitening changes no distance, only the drawing.
+Xd = whiten(np.random.default_rng(11).multivariate_normal(
+    np.zeros(2), np.array([[1.0, 0.82], [0.82, 1.0]]), size=40))
 d2d, Si_d, S_d = pair_distances(Xd)
+assert np.allclose(S_d, np.eye(2), atol=1e-12)
 po_d, pg_d = optimal_pairs(d2d), greedy_pairs(d2d)
-
-# decompose greedy's worst pair along the axes of the covariance ellipse
-w_i = max(range(len(pg_d)), key=lambda m: d2d[pg_d[m][0], pg_d[m][1]])
-gap_w = Xd[pg_d[w_i][0]] - Xd[pg_d[w_i][1]]
-ev_d, V_d = np.linalg.eigh(S_d)           # ascending: ev_d[0] is the short axis
-share = (gap_w @ V_d) ** 2 / ev_d
 
 demo = {
     "mult": (sum(d2d[i, j] for i, j in pg_d)
              / sum(d2d[i, j] for i, j in po_d)),
     "worst": (max(d2d[i, j] for i, j in pg_d)
               / max(d2d[i, j] for i, j in po_d)),
-    "corr": S_d[0, 1] / np.sqrt(S_d[0, 0] * S_d[1, 1]),
-    "euc": float(np.sqrt(gap_w @ gap_w)),
-    "mah": float(np.sqrt(gap_w @ Si_d @ gap_w)),
-    "euc2": float(gap_w @ gap_w),
-    "mah2": float(gap_w @ Si_d @ gap_w),
-    "minor_share": float(share[0] / share.sum()),
     "last": float(d2d[pg_d[-1][0], pg_d[-1][1]]),
     "rest": float(sum(d2d[i, j] for i, j in pg_d[:-1])),
-    "axis_ratio": float(np.sqrt(ev_d[1] / ev_d[0])),
+    "last_len": float(np.sqrt(d2d[pg_d[-1][0], pg_d[-1][1]])),
+    "opt_worst_len": float(np.sqrt(max(d2d[i, j] for i, j in po_d))),
 }
 ```
 
@@ -210,7 +211,7 @@ widget(
         "optTotal": float(sum(d2d[i, j] for i, j in po_d)),
         "L": np.linalg.cholesky(S_d).tolist(),
         "mean": Xd.mean(0).tolist(),
-        "xlab": "covariate 1 (the dashed ellipse is one standard deviation)",
+        "xlab": "covariate 1 (the dashed circle is one standard deviation)",
         "colors": WIDGET_COLORS,
     },
     """
@@ -248,29 +249,26 @@ of the treatment effect estimate, so the tail of the distance distribution
 matters more than its total.
 
 ::: {.callout-note collapse="true"}
-## Why the worst pair is not the longest-looking line
+## What the lengths mean here, and what they would mean on real data
 
-Lengths on the screen are Euclidean and the numbers are Mahalanobis, so the two
-disagree whenever the covariates are correlated. Here the correlation is
-`{python} f"{demo['corr']:.2f}"`, which stretches the cloud into a ridge
-`{python} f"{demo['axis_ratio']:.1f}"` times longer than it is wide. The dashed
-ellipse is its one standard deviation contour.
+This sample has been rescaled so that $S$ is the identity: equal variances, no
+correlation. The Mahalanobis distance is then the plain straight-line distance,
+so the lines above are exactly the quantity being minimised, and the dashed
+circle is one standard deviation in every direction. Greedy's final pair is
+`{python} f"{demo['last_len']:.2f}"` long against
+`{python} f"{demo['opt_worst_len']:.2f}"` for the worst pair the optimal
+matching settles for, and you can see that it is.
 
-A gap along the ridge is cheap, because units separated that way are ordinary.
-A gap of the same screen length across the ridge is expensive, because that
-combination of covariate values is rare. Greedy's final pair is the clearest
-case. Measured with a ruler it is only
-`{python} f"{demo['euc']:.2f}"` units apart, which is unremarkable, but
-`{python} f"{100 * demo['minor_share']:.0f}"`% of its separation lies across
-the short axis of the ellipse, giving it a Mahalanobis distance of
-`{python} f"{demo['mah']:.2f}"`. Squared, that is
-`{python} f"{demo['euc2']:.1f}"` against
-`{python} f"{demo['mah2']:.1f}"`, a factor of
-`{python} f"{demo['mah2'] / demo['euc2']:.1f}"`.
+Rescaling this way changes none of the distances, because $D^2$ is unaffected
+by any linear transformation of the covariates. It changes only the drawing.
 
-Discounting the directions in which the covariates already move together is the
-whole point of using $S^{-1}$ instead of a plain Euclidean distance, and it is
-covered in the [Mahalanobis article](../mahalanobis-distance/).
+Real covariates are rarely so obliging. Once they are correlated the circle
+becomes a tilted ellipse and screen length stops tracking distance. A gap along
+the long axis is cheap, because units separated that way are ordinary, while
+the same gap across the short axis is expensive, because that combination of
+values is rare. Judging a matching by eye becomes unreliable at that point,
+though nothing about the algorithm changes. The
+[Mahalanobis article](../mahalanobis-distance/) covers why.
 :::
 
 How much greedy costs depends on the sample. Forty units is a hard case for it,
@@ -529,6 +527,7 @@ rng_s = np.random.default_rng(11)
 Xs = correlated_X(40, 2, rng_s)
 Xs = np.vstack([Xs, np.array([[3.4, 2.9], [-3.1, 2.6],
                               [2.8, -3.2], [0.2, 3.6]])])
+Xs = whiten(Xs)              # again, same distances, honest picture
 Ns = len(Xs)
 d2s, _, _ = pair_distances(Xs)
 
@@ -723,12 +722,22 @@ ax.annotate(f"at no true effect:\n{pw_pr[0]:.0f}% and {pw_cr[0]:.0f}% are "
             xy=(0, 5), xytext=(0.075, 26), fontsize=8.2, color="#3f4850",
             arrowprops=dict(arrowstyle="-", color="#9aa4ad", lw=1))
 
-# shade the stretch where ignoring the pairing is the worse of the two
-cross = taus[np.argmax(pw_un >= pw_cr)]
-ax.axvspan(0, cross, color=C["red"], alpha=0.055, lw=0, zorder=0)
-ax.axvline(cross, color="#c6ced5", lw=1, zorder=1)
-ax.text(0.012, 100, "ignoring the pairing loses\nto not matching at all",
-        fontsize=8.2, color="#8d6460", va="top", ha="left")
+# where the two lower curves actually meet, interpolated rather than snapped
+# to the next grid point
+gap = pw_un - pw_cr
+k = int(np.argmax(gap >= 0))
+cross = (taus[k] if k == 0
+         else float(np.interp(0.0, [gap[k - 1], gap[k]], [taus[k - 1], taus[k]])))
+
+ax.axvline(cross, color="#9aa4ad", lw=1.2, zorder=2)
+ax.annotate("", xy=(0.008, 99), xytext=(cross, 99),
+            arrowprops=dict(arrowstyle="->", color="#6b747c", lw=1.3,
+                            shrinkA=0, shrinkB=0))
+ax.text(0.015, 94.5,
+        "left of this line, a matched design\n"
+        "analysed with a two-sample SE rejects\n"
+        "less often than not matching at all",
+        fontsize=8.2, color="#6b747c", va="top", ha="left")
 
 ax.set_xlabel("true treatment effect")
 ax.set_ylabel("rejection rate (%)")
