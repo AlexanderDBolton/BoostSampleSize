@@ -578,11 +578,11 @@ widget(
 .sk-wrap .sk-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
 .sk-wrap .sk-sep { margin:0 .55rem; opacity:.45; }
 .sk-wrap input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
-.sk-wrap .sk-labels { display:flex; justify-content:space-between;
-  font-size:.82rem; color:#8a929a; margin-top:.3rem; padding:0 9px; }
-.sk-wrap .sk-labels span { cursor:pointer; flex:1; text-align:center; }
-.sk-wrap .sk-labels span:first-child { text-align:left; }
-.sk-wrap .sk-labels span:last-child { text-align:right; }
+.sk-wrap .sk-labels { position:relative; height:1.15rem; margin-top:.3rem;
+  font-size:.82rem; color:#8a929a; --thumb:16px; }
+.sk-wrap .sk-labels span { position:absolute; cursor:pointer;
+  white-space:nowrap; transform:translateX(-50%);
+  left:calc(var(--thumb) / 2 + var(--p) * (100% - var(--thumb))); }
 .sk-wrap .sk-labels span.sk-on { color:#2c4a63; font-weight:600; }
 </style>
 <div class="sk-wrap" id="sk-demo">
@@ -591,7 +591,9 @@ widget(
   <input type="range" min="0" max="4" step="1" value="0"
          aria-label="Number of sinks added">
   <div class="sk-labels">
-    <span>0</span><span>2</span><span>4</span><span>6</span><span>8</span>
+    <span style="--p:0">0</span><span style="--p:.25">2</span><span
+      style="--p:.5">4</span><span style="--p:.75">6</span><span
+      style="--p:1">8</span>
   </div>
 </div>
 """)
@@ -717,9 +719,12 @@ ax.axhline(5, color="#b9c0c7", lw=1, ls=":", zorder=1)
 for v, _, col, _ in series:
     ax.plot([0], [v[0]], "o", color=col, ms=6, zorder=5,
             markeredgecolor="white", markeredgewidth=1.2)
+# the band between the curves and the top annotation is empty out to about
+# x = 0.2, so the note sits there rather than across the rising lines
 ax.annotate(f"at no true effect:\n{pw_pr[0]:.0f}% and {pw_cr[0]:.0f}% are "
             f"correct,\n{pw_un[0]:.0f}% is over-cautious",
-            xy=(0, 5), xytext=(0.075, 26), fontsize=8.2, color="#3f4850",
+            xy=(0.004, 6.5), xytext=(0.012, 46), fontsize=8.2,
+            color="#3f4850", ha="left", va="top",
             arrowprops=dict(arrowstyle="-", color="#9aa4ad", lw=1))
 
 # where the two lower curves actually meet, interpolated rather than snapped
