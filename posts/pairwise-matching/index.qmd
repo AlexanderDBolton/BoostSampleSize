@@ -183,6 +183,15 @@ demo = {
     "last_len": float(np.sqrt(d2d[pg_d[-1][0], pg_d[-1][1]])),
     "opt_worst_len": float(np.sqrt(max(d2d[i, j] for i, j in po_d))),
 }
+
+# Greedy takes the closest available pair every time, so its pick order is
+# already ascending and the two matchings can be compared rank by rank.
+g_rank = sorted(d2d[i, j] for i, j in pg_d)
+o_rank = sorted(d2d[i, j] for i, j in po_d)
+demo["n"] = len(g_rank)
+demo["g_better"] = int(sum(g < o for g, o in zip(g_rank, o_rank)))
+demo["saved"] = float(sum(o - g for g, o in zip(g_rank, o_rank) if g < o))
+demo["lost"] = float(sum(g - o for g, o in zip(g_rank, o_rank) if g > o))
 ```
 
 The obvious way to form pairs is greedy. Take the two closest units anywhere in
@@ -209,8 +218,8 @@ widget(
                     for i, j in po_d],
         "optWorst": float(max(d2d[i, j] for i, j in po_d)),
         "optTotal": float(sum(d2d[i, j] for i, j in po_d)),
-        "xlab": "covariate 1 (standard deviations)",
-        "ylab": "covariate 2",
+        "xlab": "X",
+        "ylab": "Y",
         "colors": WIDGET_COLORS,
     },
     """
@@ -242,18 +251,26 @@ widget(
 """)
 ```
 
-Greedy strands the units it leaves until last, and a stranded pair is a pair
-whose covariate gap the coin flip cannot undo. That gap goes into the variance
-of the treatment effect estimate, so the tail of the distance distribution
-matters more than its total.
+The two profiles show what greedy is trading. It is the closer of the two at
+`{python} f"{demo['g_better']}"` of the
+`{python} f"{demo['n']}"` ranks, because taking the nearest available pair at
+every step harvests near-duplicates that the optimal matching is willing to
+give up. Those wins come to
+`{python} f"{demo['saved']:.1f}"` in total. The ranks where it loses come to
+`{python} f"{demo['lost']:.1f}"`.
+
+That is the whole argument against greedy. It strands the units it leaves until
+last, and a stranded pair is a pair whose covariate gap the coin flip cannot
+undo. That gap goes into the variance of the treatment effect estimate, so the
+tail of the distance distribution matters more than its total.
 
 ::: {.callout-note collapse="true"}
 ## What the lengths mean here, and what they would mean on real data
 
 This sample has been rescaled so that $S$ is the identity: equal variances, no
 correlation. The Mahalanobis distance is then the plain straight-line distance,
-so the lines above are exactly the quantity being minimised and the axes are
-marked in standard deviations. Greedy's final pair is
+so the lines above are exactly the quantity being minimised. A line twice as
+long is a pair twice as far apart. Greedy's final pair is
 `{python} f"{demo['last_len']:.2f}"` long against
 `{python} f"{demo['opt_worst_len']:.2f}"` for the worst pair the optimal
 matching settles for, and you can see that it is.

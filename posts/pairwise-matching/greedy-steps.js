@@ -23,7 +23,7 @@
   var btnOpt = root.querySelector(".gs-opt");
 
   var FONT = '12px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  var PAD = { l: 52, r: 14, t: 12, b: 38 };
+  var PAD = { l: 62, r: 14, t: 12, b: 38 };
   var SPLIT = 0.64;
   var GAP = 34;
   var showOpt = false;
@@ -47,12 +47,15 @@
   var ex = [Math.min.apply(null, xs), Math.max.apply(null, xs)];
   var ey = [Math.min.apply(null, ys), Math.max.apply(null, ys)];
 
+  // the optimal matching has no intrinsic order, so rank it the same way
+  var optSorted = D.optimal.map(function (g) { return g[2]; })
+                           .sort(function (a, b) { return a - b; });
+
   // log extent of the strip, rounded out to whole decades
   var dmin = Infinity, dmax = -Infinity;
-  D.greedy.forEach(function (g) {
+  D.greedy.concat(D.optimal).forEach(function (g) {
     dmin = Math.min(dmin, g[2]); dmax = Math.max(dmax, g[2]);
   });
-  dmin = Math.min(dmin, D.optWorst); dmax = Math.max(dmax, D.optWorst);
   var lo = Math.floor(Math.log10(dmin)), hi = Math.ceil(Math.log10(dmax));
 
   function fmtTick(e) {
@@ -63,6 +66,11 @@
   function draw() {
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
+    // repair a backing store left behind by a dropped resize notification
+    if (!sizing && Math.round(canvas.width / (window.devicePixelRatio || 1)) !== w) {
+      resize();
+      return;
+    }
     ctx.clearRect(0, 0, w, h);
     ctx.font = FONT;
 
@@ -181,25 +189,29 @@
     ctx.moveTo(PAD.l, by + bh); ctx.lineTo(PAD.l + pw, by + bh);
     ctx.stroke();
 
-    // the optimal matching's worst pair: the bar greedy has to stay under
-    var yRef = L(D.optWorst);
-    ctx.setLineDash([5, 4]);
+    // the optimal matching's own profile, sorted the same way. Greedy's pick
+    // order is already ascending, because removing the closest pair can only
+    // raise the next closest, so the two are directly comparable rank by rank.
     ctx.strokeStyle = D.colors.green;
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(PAD.l, yRef); ctx.lineTo(PAD.l + pw, yRef);
+    for (var k = 0; k < optSorted.length; k++) {
+      var ox2 = xAt(k), oy2 = L(optSorted[k]);
+      if (k === 0) ctx.moveTo(ox2, oy2); else ctx.lineTo(ox2, oy2);
+    }
     ctx.stroke();
-    ctx.setLineDash([]);
     ctx.fillStyle = D.colors.green;
-    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-    ctx.fillText("worst pair the optimal matching ends up with",
-                 PAD.l + 5, yRef - 3);
+    for (k = 0; k < optSorted.length; k++) {
+      ctx.beginPath();
+      ctx.arc(xAt(k), L(optSorted[k]), 2.4, 0, 2 * Math.PI);
+      ctx.fill();
+    }
 
-    // the sequence itself
+    // greedy's own profile
     ctx.strokeStyle = "#cfd6dc";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    for (var k = 0; k < D.greedy.length; k++) {
+    for (k = 0; k < D.greedy.length; k++) {
       var xx = xAt(k), yv = L(D.greedy[k][2]);
       if (k === 0) ctx.moveTo(xx, yv); else ctx.lineTo(xx, yv);
     }
@@ -215,10 +227,38 @@
       ctx.fill();
     }
 
+    // legend, in the empty top-left of the strip
+    var lx = PAD.l + 10, ly = by + 10;
+    [[D.colors.blue, "greedy"], [D.colors.green, "optimal"]].forEach(
+      function (it, n) {
+        var yy = ly + n * 15;
+        ctx.strokeStyle = it[0];
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(lx, yy); ctx.lineTo(lx + 16, yy);
+        ctx.stroke();
+        ctx.fillStyle = "#6b747c";
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText(it[1], lx + 22, yy);
+      });
+
     ctx.fillStyle = "#8a929a";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("pair distance D², in the order greedy picks them",
-                 PAD.l + pw / 2, by + bh + 5);
+    ctx.fillText("pair ordering (closest pair ranked first)",
+                 PAD.l + pw / 2, by + bh + 6);
+    // on a narrow screen the strip is shorter than the full title, so step
+    // down rather than letting it run into the panel above
+    var yTitle = "pair distance D² (log scale)";
+    if (ctx.measureText(yTitle).width > bh) yTitle = "D² (log scale)";
+    if (ctx.measureText(yTitle).width > bh) yTitle = "";
+    if (yTitle) {
+      ctx.save();
+      ctx.translate(12, by + bh / 2 + ctx.measureText(yTitle).width / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(yTitle, 0, 0);
+      ctx.restore();
+    }
 
     // ---------- readout --------------------------------------------------
     if (showOpt) {
@@ -243,18 +283,35 @@
     btnOpt.setAttribute("aria-pressed", showOpt ? "true" : "false");
   }
 
-  var lastW = -1;
+  /* Sizing is synchronous, idempotent and self-healing.
+   *
+   * Writing canvas.style.height resizes the element the ResizeObserver is
+   * watching, and the browser may then drop the notification for a width
+   * change that arrived in the same frame, leaving the canvas rendered at
+   * whatever width the page had during its first layout. Testing the backing
+   * store rather than a remembered width means a missed notification costs
+   * nothing: the next draw notices the mismatch and repairs it.
+   *
+   * This must not be deferred to requestAnimationFrame. A page that is not
+   * painting, in a background tab or a hidden pane, never runs the callback,
+   * and the canvas stays at its default 300 by 150.
+   */
+  var sizing = false;
   function resize() {
     var w = canvas.clientWidth;
-    if (!w || w === lastW) return;
-    lastW = w;
+    if (!w) return;
     var h = Math.round(Math.min(Math.max(w * 0.86, 360), 560));
     var dpr = window.devicePixelRatio || 1;
-    canvas.style.height = h + "px";
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.style.height = h + "px";
+      canvas.width = bw;
+      canvas.height = bh;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    sizing = true;      // stops draw bouncing straight back into resize
     draw();
+    sizing = false;
   }
 
   slider.addEventListener("input", function () { showOpt = false; draw(); });
@@ -262,6 +319,8 @@
   if (window.ResizeObserver) new ResizeObserver(resize).observe(root);
   window.addEventListener("resize", resize);
   window.addEventListener("load", resize);
+  // webfonts and MathJax can reflow the column after the observer has settled
+  setTimeout(resize, 200);
+  setTimeout(resize, 900);
   resize();
-  requestAnimationFrame(resize);
 })();

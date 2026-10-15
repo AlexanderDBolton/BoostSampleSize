@@ -34,6 +34,10 @@
   function draw() {
     var w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
+    if (!sizing && Math.round(canvas.width / (window.devicePixelRatio || 1)) !== w) {
+      resize();
+      return;
+    }
     ctx.clearRect(0, 0, w, h);
     ctx.font = FONT;
 
@@ -120,18 +124,27 @@
     }
   }
 
-  var lastW = -1;
+  /* Synchronous, idempotent and self-healing, for the reasons set out in
+   * greedy-steps.js: writing canvas.style.height inside the ResizeObserver
+   * callback can cost the notification for a width change in the same frame,
+   * and deferring to requestAnimationFrame fails outright on a page that is
+   * not painting. */
+  var sizing = false;
   function resize() {
     var w = canvas.clientWidth;
-    if (!w || w === lastW) return;
-    lastW = w;
+    if (!w) return;
     var h = Math.round(Math.min(Math.max(w * 0.62, 280), 440));
     var dpr = window.devicePixelRatio || 1;
-    canvas.style.height = h + "px";
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.style.height = h + "px";
+      canvas.width = bw;
+      canvas.height = bh;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    sizing = true;
     draw();
+    sizing = false;
   }
 
   slider.addEventListener("input", draw);
@@ -145,6 +158,7 @@
   if (window.ResizeObserver) new ResizeObserver(resize).observe(root);
   window.addEventListener("resize", resize);
   window.addEventListener("load", resize);
+  setTimeout(resize, 200);
+  setTimeout(resize, 900);
   resize();
-  requestAnimationFrame(resize);
 })();
