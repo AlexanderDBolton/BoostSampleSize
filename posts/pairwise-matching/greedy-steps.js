@@ -6,9 +6,10 @@
  * several orders of magnitude, from pairs that are nearly identical to the
  * stranded pair it is left with at the end.
  *
- * The scatter is drawn at equal aspect so the dashed covariance ellipse means
- * what it looks like: distances here are Mahalanobis, so a gap across the
- * ellipse's short axis costs more than the same gap along its long axis.
+ * The sample is whitened before it gets here, so S is the identity and the
+ * distance being minimised is the plain straight-line distance. The scatter is
+ * drawn at equal aspect to keep that true on screen, and the axes are in
+ * standard deviations.
  */
 (function () {
   var root = document.getElementById("__ID__");
@@ -22,10 +23,22 @@
   var btnOpt = root.querySelector(".gs-opt");
 
   var FONT = '12px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  var PAD = { l: 46, r: 14, t: 12, b: 22 };
+  var PAD = { l: 52, r: 14, t: 12, b: 38 };
   var SPLIT = 0.64;
   var GAP = 34;
   var showOpt = false;
+
+  function niceStep(span, target) {
+    var raw = span / target;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var n = raw / mag;
+    return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * mag;
+  }
+  function fmtTickVal(v, step) {
+    var dp = Math.max(0, -Math.floor(Math.log10(step)));
+    var t = v.toFixed(dp);
+    return t === "-0" ? "0" : t;
+  }
 
   slider.max = String(D.greedy.length);
 
@@ -71,27 +84,38 @@
     var fw = spanX * sc, fh = spanY * sc;
     var fx = ox - fw / 2, fy = oy - fh / 2;
 
+    // ---- gridlines and ticks, in standard deviations -------------------
+    var xlo = cx0 - spanX / 2, xhi = cx0 + spanX / 2;
+    var ylo = cy0 - spanY / 2, yhi = cy0 + spanY / 2;
+    var stepX = niceStep(spanX, 5), stepY = niceStep(spanY, 5);
+    var k, v;
+
+    ctx.lineWidth = 1;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (k = Math.ceil(xlo / stepX); k * stepX <= xhi; k++) {
+      v = k * stepX;
+      ctx.strokeStyle = "#eef1f4";
+      ctx.beginPath(); ctx.moveTo(X(v), fy); ctx.lineTo(X(v), fy + fh);
+      ctx.stroke();
+      ctx.fillStyle = "#a6aeb6";
+      ctx.fillText(fmtTickVal(v, stepX), X(v), fy + fh + 6);
+    }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (k = Math.ceil(ylo / stepY); k * stepY <= yhi; k++) {
+      v = k * stepY;
+      ctx.strokeStyle = "#eef1f4";
+      ctx.beginPath(); ctx.moveTo(fx, Y(v)); ctx.lineTo(fx + fw, Y(v));
+      ctx.stroke();
+      ctx.fillStyle = "#a6aeb6";
+      ctx.fillText(fmtTickVal(v, stepY), fx - 7, Y(v));
+    }
+
     ctx.strokeStyle = D.colors.axis;
     ctx.lineWidth = 1;
     ctx.strokeRect(fx, fy, fw, fh);
 
     ctx.save();
     ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
-
-    // one-standard-deviation contour of the covariate distribution
-    ctx.beginPath();
-    for (var a = 0; a <= 140; a++) {
-      var th = (a / 140) * 2 * Math.PI, c = Math.cos(th), s = Math.sin(th);
-      var px = D.mean[0] + 1.6 * (D.L[0][0] * c + D.L[0][1] * s);
-      var py = D.mean[1] + 1.6 * (D.L[1][0] * c + D.L[1][1] * s);
-      if (a === 0) ctx.moveTo(X(px), Y(py)); else ctx.lineTo(X(px), Y(py));
-    }
-    ctx.closePath();
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = "#c3ccd4";
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-    ctx.setLineDash([]);
 
     var pairs = showOpt ? D.optimal : D.greedy.slice(0, step);
     var used = {};
@@ -122,7 +146,15 @@
 
     ctx.fillStyle = "#8a929a";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText(D.xlab, ox, PAD.t + ph + 5);
+    ctx.fillText(D.xlab, ox, fy + fh + 21);
+    ctx.save();
+    // beside the frame rather than at the canvas edge: equal aspect leaves the
+    // frame centred, so a fixed offset would strand the label
+    ctx.translate(Math.max(12, fx - 44), oy);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = "top";
+    ctx.fillText(D.ylab, 0, 0);
+    ctx.restore();
 
     // ---------- lower strip: pair distance, in the order chosen ----------
     var by = hTop + GAP, bh = hBot - 20;

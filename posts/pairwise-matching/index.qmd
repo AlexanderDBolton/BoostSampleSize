@@ -209,9 +209,8 @@ widget(
                     for i, j in po_d],
         "optWorst": float(max(d2d[i, j] for i, j in po_d)),
         "optTotal": float(sum(d2d[i, j] for i, j in po_d)),
-        "L": np.linalg.cholesky(S_d).tolist(),
-        "mean": Xd.mean(0).tolist(),
-        "xlab": "covariate 1 (the dashed circle is one standard deviation)",
+        "xlab": "covariate 1 (standard deviations)",
+        "ylab": "covariate 2",
         "colors": WIDGET_COLORS,
     },
     """
@@ -253,8 +252,8 @@ matters more than its total.
 
 This sample has been rescaled so that $S$ is the identity: equal variances, no
 correlation. The Mahalanobis distance is then the plain straight-line distance,
-so the lines above are exactly the quantity being minimised, and the dashed
-circle is one standard deviation in every direction. Greedy's final pair is
+so the lines above are exactly the quantity being minimised and the axes are
+marked in standard deviations. Greedy's final pair is
 `{python} f"{demo['last_len']:.2f}"` long against
 `{python} f"{demo['opt_worst_len']:.2f}"` for the worst pair the optimal
 matching settles for, and you can see that it is.
@@ -262,13 +261,14 @@ matching settles for, and you can see that it is.
 Rescaling this way changes none of the distances, because $D^2$ is unaffected
 by any linear transformation of the covariates. It changes only the drawing.
 
-Real covariates are rarely so obliging. Once they are correlated the circle
-becomes a tilted ellipse and screen length stops tracking distance. A gap along
-the long axis is cheap, because units separated that way are ordinary, while
-the same gap across the short axis is expensive, because that combination of
-values is rare. Judging a matching by eye becomes unreliable at that point,
-though nothing about the algorithm changes. The
-[Mahalanobis article](../mahalanobis-distance/) covers why.
+Real covariates are rarely so obliging. Once they are correlated, the set of
+points a fixed distance away stops being a circle and becomes a tilted ellipse,
+and screen length stops tracking distance. A gap along the long axis is cheap,
+because units separated that way are ordinary, while the same gap across the
+short axis is expensive, because that combination of values is rare. Judging a
+matching by eye becomes unreliable at that point, though nothing about the
+algorithm changes. The [Mahalanobis article](../mahalanobis-distance/) covers
+why.
 :::
 
 How much greedy costs depends on the sample. Forty units is a hard case for it,
