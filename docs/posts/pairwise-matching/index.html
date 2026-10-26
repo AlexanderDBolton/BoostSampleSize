@@ -225,7 +225,7 @@ window.Quarto = {
 <section id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem" class="level2">
 <h2 class="anchored" data-anchor-id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem">The pairing is an optimisation problem, not a sorting problem</h2>
 <p>The obvious way to form pairs is greedy. Take the two closest units anywhere in the sample, set them aside as a pair, then repeat on what is left. It is short to write and it does not produce the minimum.</p>
-<p>Drag the slider to watch it choose. The lower panel plots each pair’s distance in the order greedy picks them, on a log scale because the range is wide. That climb is the story. The early pairs are nearly free, and the final one costs 21.0 against 6.6 for the other nineteen put together.</p>
+<p>Drag the slider to watch it choose. The middle panel plots what each pair costs, on a log scale because the range is wide, and the bottom panel the running total. Both rank the pairs closest first, and both show the optimal matching alongside for comparison. The early pairs are nearly free, and the final one costs 21.0 against 6.6 for the other nineteen put together.</p>
 <div id="cell-greedy-widget" class="cell" data-execution_count="3">
 <div id="greedy-widget" class="cell-output cell-output-display">
 
@@ -279,7 +279,7 @@ window.Quarto = {
 
   var FONT = '12px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   var PAD = { l: 62, r: 14, t: 12, b: 38 };
-  var SPLIT = 0.64;
+  var SPLIT = 0.46;
   var GAP = 34;
   var showOpt = false;
 
@@ -289,6 +289,23 @@ window.Quarto = {
     var n = raw / mag;
     return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * mag;
   }
+  // a rotated axis title, stepped down or dropped when the panel is too short
+  function rotatedTitle(text, centreY, avail) {
+    var t = text;
+    if (ctx.measureText(t).width > avail) {
+      t = t.replace("pair distance ", "").replace("running total ", "total ");
+    }
+    if (ctx.measureText(t).width > avail) return;
+    ctx.save();
+    ctx.fillStyle = "#8a929a";
+    ctx.translate(12, centreY + ctx.measureText(t).width / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(t, 0, 0);
+    ctx.restore();
+  }
+
   function fmtTickVal(v, step) {
     var dp = Math.max(0, -Math.floor(Math.log10(step)));
     var t = v.toFixed(dp);
@@ -305,6 +322,14 @@ window.Quarto = {
   // the optimal matching has no intrinsic order, so rank it the same way
   var optSorted = D.optimal.map(function (g) { return g[2]; })
                            .sort(function (a, b) { return a - b; });
+
+  function runningTotal(vals) {
+    var out = [], t = 0;
+    for (var i = 0; i < vals.length; i++) { t += vals[i]; out.push(t); }
+    return out;
+  }
+  var greedyCum = runningTotal(D.greedy.map(function (g) { return g[2]; }));
+  var optCum = runningTotal(optSorted);
 
   // log extent of the strip, rounded out to whole decades
   var dmin = Infinity, dmax = -Infinity;
@@ -419,20 +444,32 @@ window.Quarto = {
     ctx.fillText(D.ylab, 0, 0);
     ctx.restore();
 
-    // ---------- lower strip: pair distance, in the order chosen ----------
-    var by = hTop + GAP, bh = hBot - 20;
-    var L = function (v) {
-      return by + bh - (Math.log10(v) - lo) / (hi - lo) * bh;
-    };
+    // ---------- two stacked panels, sharing one ranking axis ------------
+    // upper: what each pair costs. lower: what the matching has cost so far.
     var xAt = function (k) {
       return PAD.l + ((k + 0.5) / D.greedy.length) * pw;
     };
+    var AXIS = 30;                       // room under the pair for its ticks
+    var paneGap = 26;
+    var usable = hBot - AXIS - paneGap;
+    var h1 = Math.round(usable * 0.52), h2 = usable - h1;
+    var by = hTop + GAP;                 // top of the per-pair panel
+    var cy = by + h1 + paneGap;          // top of the cumulative panel
 
+    var L = function (v) {
+      return by + h1 - (Math.log10(v) - lo) / (hi - lo) * h1;
+    };
+    var cumMax = Math.max(greedyCum[greedyCum.length - 1],
+                          optCum[optCum.length - 1]);
+    var cstep = niceStep(cumMax, 4);
+    var ctop = Math.ceil(cumMax / cstep) * cstep;
+    var Cy = function (v) { return cy + h2 - (v / ctop) * h2; };
+
+    // ---- per-pair panel -------------------------------------------------
     ctx.textAlign = "right"; ctx.textBaseline = "middle";
     for (var e = lo; e <= hi; e++) {
       var yy = L(Math.pow(10, e));
-      ctx.strokeStyle = "#eef1f4";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#eef1f4"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PAD.l, yy); ctx.lineTo(PAD.l + pw, yy);
       ctx.stroke();
       ctx.fillStyle = "#a6aeb6";
@@ -440,80 +477,114 @@ window.Quarto = {
     }
     ctx.strokeStyle = D.colors.axis;
     ctx.beginPath();
-    ctx.moveTo(PAD.l, by); ctx.lineTo(PAD.l, by + bh);
-    ctx.moveTo(PAD.l, by + bh); ctx.lineTo(PAD.l + pw, by + bh);
+    ctx.moveTo(PAD.l, by); ctx.lineTo(PAD.l, by + h1);
+    ctx.moveTo(PAD.l, by + h1); ctx.lineTo(PAD.l + pw, by + h1);
     ctx.stroke();
 
-    // the optimal matching's own profile, sorted the same way. Greedy's pick
-    // order is already ascending, because removing the closest pair can only
-    // raise the next closest, so the two are directly comparable rank by rank.
-    ctx.strokeStyle = D.colors.green;
-    ctx.lineWidth = 1.8;
+    // The optimal matching has no running order, so it is ranked the same way
+    // greedy's picks already are: closest first.
+    var k;
+    ctx.strokeStyle = D.colors.green; ctx.lineWidth = 1.8;
     ctx.beginPath();
-    for (var k = 0; k < optSorted.length; k++) {
-      var ox2 = xAt(k), oy2 = L(optSorted[k]);
-      if (k === 0) ctx.moveTo(ox2, oy2); else ctx.lineTo(ox2, oy2);
+    for (k = 0; k < optSorted.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), L(optSorted[k]));
+      else ctx.lineTo(xAt(k), L(optSorted[k]));
     }
     ctx.stroke();
     ctx.fillStyle = D.colors.green;
     for (k = 0; k < optSorted.length; k++) {
-      ctx.beginPath();
-      ctx.arc(xAt(k), L(optSorted[k]), 2.4, 0, 2 * Math.PI);
+      ctx.beginPath(); ctx.arc(xAt(k), L(optSorted[k]), 2.4, 0, 2 * Math.PI);
       ctx.fill();
     }
 
-    // greedy's own profile
-    ctx.strokeStyle = "#cfd6dc";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#cfd6dc"; ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (k = 0; k < D.greedy.length; k++) {
-      var xx = xAt(k), yv = L(D.greedy[k][2]);
-      if (k === 0) ctx.moveTo(xx, yv); else ctx.lineTo(xx, yv);
+      if (k === 0) ctx.moveTo(xAt(k), L(D.greedy[k][2]));
+      else ctx.lineTo(xAt(k), L(D.greedy[k][2]));
     }
     ctx.stroke();
-
     for (k = 0; k < D.greedy.length; k++) {
-      var on = k < step;
       ctx.beginPath();
       ctx.arc(xAt(k), L(D.greedy[k][2]), (k === step - 1) ? 4.6 : 3.1,
               0, 2 * Math.PI);
       ctx.fillStyle = (k === step - 1) ? D.colors.red
-                    : on ? D.colors.blue : "#e2e7eb";
+                    : (k < step) ? D.colors.blue : "#e2e7eb";
       ctx.fill();
     }
 
-    // legend, in the empty top-left of the strip
     var lx = PAD.l + 10, ly = by + 10;
     [[D.colors.blue, "greedy"], [D.colors.green, "optimal"]].forEach(
       function (it, n) {
-        var yy = ly + n * 15;
-        ctx.strokeStyle = it[0];
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(lx, yy); ctx.lineTo(lx + 16, yy);
+        var yy2 = ly + n * 15;
+        ctx.strokeStyle = it[0]; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(lx, yy2); ctx.lineTo(lx + 16, yy2);
         ctx.stroke();
         ctx.fillStyle = "#6b747c";
         ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.fillText(it[1], lx + 22, yy);
+        ctx.fillText(it[1], lx + 22, yy2);
       });
 
-    ctx.fillStyle = "#8a929a";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("pair ordering (closest pair ranked first)",
-                 PAD.l + pw / 2, by + bh + 6);
-    // on a narrow screen the strip is shorter than the full title, so step
-    // down rather than letting it run into the panel above
-    var yTitle = "pair distance D² (log scale)";
-    if (ctx.measureText(yTitle).width > bh) yTitle = "D² (log scale)";
-    if (ctx.measureText(yTitle).width > bh) yTitle = "";
-    if (yTitle) {
-      ctx.save();
-      ctx.translate(12, by + bh / 2 + ctx.measureText(yTitle).width / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(yTitle, 0, 0);
-      ctx.restore();
+    rotatedTitle("pair distance D\u00b2 (log scale)", by + h1 / 2, h1);
+
+    // ---- cumulative panel -----------------------------------------------
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (var cv = 0; cv <= ctop + 1e-9; cv += cstep) {
+      var cyy = Cy(cv);
+      ctx.strokeStyle = "#eef1f4"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD.l, cyy); ctx.lineTo(PAD.l + pw, cyy);
+      ctx.stroke();
+      ctx.fillStyle = "#a6aeb6";
+      ctx.fillText(fmtTickVal(cv, cstep), PAD.l - 6, cyy);
     }
+    ctx.strokeStyle = D.colors.axis;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, cy); ctx.lineTo(PAD.l, cy + h2);
+    ctx.moveTo(PAD.l, cy + h2); ctx.lineTo(PAD.l + pw, cy + h2);
+    ctx.stroke();
+
+    ctx.strokeStyle = D.colors.green; ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (k = 0; k < optCum.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), Cy(optCum[k]));
+      else ctx.lineTo(xAt(k), Cy(optCum[k]));
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#cfd6dc"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (k = 0; k < greedyCum.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), Cy(greedyCum[k]));
+      else ctx.lineTo(xAt(k), Cy(greedyCum[k]));
+    }
+    ctx.stroke();
+    for (k = 0; k < greedyCum.length; k++) {
+      ctx.beginPath();
+      ctx.arc(xAt(k), Cy(greedyCum[k]), (k === step - 1) ? 4.6 : 3.1,
+              0, 2 * Math.PI);
+      ctx.fillStyle = (k === step - 1) ? D.colors.red
+                    : (k < step) ? D.colors.blue : "#e2e7eb";
+      ctx.fill();
+    }
+
+    rotatedTitle("running total D\u00b2", cy + h2 / 2, h2);
+
+    // ---- the shared ranking axis ----------------------------------------
+    ctx.fillStyle = "#a6aeb6";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    var tickEvery = D.greedy.length > 40 ? 10 : D.greedy.length > 8 ? 5 : 1;
+    for (k = 0; k < D.greedy.length; k++) {
+      var num = k + 1;
+      if (num !== 1 && num % tickEvery !== 0) continue;
+      ctx.strokeStyle = "#cdd5dc"; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xAt(k), cy + h2); ctx.lineTo(xAt(k), cy + h2 + 4);
+      ctx.stroke();
+      ctx.fillText(String(num), xAt(k), cy + h2 + 7);
+    }
+    ctx.fillStyle = "#8a929a";
+    ctx.fillText("pairs formed (closest pair first)",
+                 PAD.l + pw / 2, cy + h2 + 21);
 
     // ---------- readout --------------------------------------------------
     if (showOpt) {
@@ -555,7 +626,7 @@ window.Quarto = {
   function resize() {
     var w = canvas.clientWidth;
     if (!w) return;
-    var h = Math.round(Math.min(Math.max(w * 0.86, 360), 560));
+    var h = Math.round(Math.min(Math.max(w * 1.12, 460), 720));
     var dpr = window.devicePixelRatio || 1;
     var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
@@ -614,37 +685,37 @@ Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses s
 <style type="text/css">
 </style>
 
-<table id="T_9937f" class="cell caption-top table table-sm table-striped small">
+<table id="T_5546e" class="cell caption-top table table-sm table-striped small">
 <thead>
 <tr class="header">
-<th id="T_9937f_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
-<th id="T_9937f_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
-<th id="T_9937f_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
-<th id="T_9937f_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
-<th id="T_9937f_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
+<th id="T_5546e_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
+<th id="T_5546e_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
+<th id="T_5546e_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
+<th id="T_5546e_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
+<th id="T_5546e_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td id="T_9937f_row0_col0" class="data row0 col0">N = 100, k = 4</td>
-<td id="T_9937f_row0_col1" class="data row0 col1">63.0</td>
-<td id="T_9937f_row0_col2" class="data row0 col2">82.1 (+30%)</td>
-<td id="T_9937f_row0_col3" class="data row0 col3">5.47</td>
-<td id="T_9937f_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
+<td id="T_5546e_row0_col0" class="data row0 col0">N = 100, k = 4</td>
+<td id="T_5546e_row0_col1" class="data row0 col1">63.0</td>
+<td id="T_5546e_row0_col2" class="data row0 col2">82.1 (+30%)</td>
+<td id="T_5546e_row0_col3" class="data row0 col3">5.47</td>
+<td id="T_5546e_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
 </tr>
 <tr class="even">
-<td id="T_9937f_row1_col0" class="data row1 col0">N = 200, k = 4</td>
-<td id="T_9937f_row1_col1" class="data row1 col1">78.5</td>
-<td id="T_9937f_row1_col2" class="data row1 col2">113.2 (+44%)</td>
-<td id="T_9937f_row1_col3" class="data row1 col3">4.70</td>
-<td id="T_9937f_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
+<td id="T_5546e_row1_col0" class="data row1 col0">N = 200, k = 4</td>
+<td id="T_5546e_row1_col1" class="data row1 col1">78.5</td>
+<td id="T_5546e_row1_col2" class="data row1 col2">113.2 (+44%)</td>
+<td id="T_5546e_row1_col3" class="data row1 col3">4.70</td>
+<td id="T_5546e_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
 </tr>
 <tr class="odd">
-<td id="T_9937f_row2_col0" class="data row2 col0">N = 200, k = 8</td>
-<td id="T_9937f_row2_col1" class="data row2 col1">409.1</td>
-<td id="T_9937f_row2_col2" class="data row2 col2">505.0 (+23%)</td>
-<td id="T_9937f_row2_col3" class="data row2 col3">10.20</td>
-<td id="T_9937f_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
+<td id="T_5546e_row2_col0" class="data row2 col0">N = 200, k = 8</td>
+<td id="T_5546e_row2_col1" class="data row2 col1">409.1</td>
+<td id="T_5546e_row2_col2" class="data row2 col2">505.0 (+23%)</td>
+<td id="T_5546e_row2_col3" class="data row2 col3">10.20</td>
+<td id="T_5546e_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
 </tr>
 </tbody>
 </table>
@@ -750,7 +821,7 @@ Figure&nbsp;1: How much data each design is worth. A bar of two means the experi
 (function () {
   var root = document.getElementById("sk-demo");
   if (!root) return;
-  var D = {"pts": [[-0.0911, -0.6015], [-0.4188, 0.122], [-1.4702, -1.0021], [-1.0987, 0.5612], [-0.5339, 0.1196], [0.4792, 0.028], [-0.6636, 0.1425], [0.4457, 0.2838], [-0.2276, -1.5344], [-0.6238, -0.3738], [0.8317, -1.5537], [-0.3263, -1.1296], [0.9926, -0.7803], [-0.7276, 0.156], [0.6794, -0.1952], [-0.6435, 0.0267], [0.171, 0.8508], [-0.3005, -0.7518], [-0.1136, 0.2227], [-1.4093, -0.4583], [-0.0128, -0.9811], [1.1991, -0.8328], [-0.7472, -0.3576], [-0.5001, 1.0954], [-0.2181, 0.4575], [-1.3394, -0.5572], [-0.1043, 0.5867], [1.3365, -0.6999], [0.5602, 0.3027], [0.2677, -0.3245], [-0.6966, -0.5368], [-0.4634, 0.1026], [-0.6107, -0.228], [-0.4152, 0.8093], [0.4344, 0.2358], [0.0887, 1.6896], [1.4878, -0.2479], [-0.3693, 0.0476], [1.3082, 0.2694], [1.1168, -0.315], [2.8499, 3.1707], [-2.6232, 1.3199], [2.3447, -2.1123], [0.1554, 2.9732]], "states": [{"sinks": 0, "dropped": [], "pairs": [[43, 40, 7.299], [16, 35, 0.7104], [4, 15, 0.0206], [37, 18, 0.096], [11, 8, 0.1736], [0, 20, 0.1502], [9, 32, 0.0214], [31, 1, 0.0024], [24, 26, 0.0296], [21, 12, 0.0454], [10, 42, 2.601], [7, 28, 0.0135], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [6, 13, 0.0043], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [19, 22, 0.4485], [36, 38, 0.2999], [3, 41, 2.8997]], "worst": 7.298955022521012, "total": 15.750571077108093}, {"sinks": 2, "dropped": [40, 41], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [11, 8, 0.1736], [0, 20, 0.1502], [31, 4, 0.0053], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [42, 10, 2.601], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [26, 16, 0.1456], [43, 35, 1.6519], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [13, 3, 0.3019], [19, 22, 0.4485], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 2.6009785446027096, "total": 6.881183976415324}, {"sinks": 4, "dropped": [40, 41, 42, 43], "pairs": [[1, 31, 0.0024], [12, 10, 0.6241], [16, 35, 0.7104], [3, 13, 0.3019], [37, 18, 0.096], [11, 8, 0.1736], [32, 15, 0.0659], [0, 29, 0.2055], [24, 26, 0.0296], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [6, 4, 0.0173], [2, 25, 0.2151], [34, 5, 0.0452], [19, 22, 0.4485], [36, 38, 0.2999], [9, 30, 0.0319]], "worst": 0.7103739688748988, "total": 3.7475234307956335}, {"sinks": 6, "dropped": [2, 35, 40, 41, 42, 43], "pairs": [[1, 37, 0.008], [6, 15, 0.0138], [12, 10, 0.6241], [3, 13, 0.3019], [11, 8, 0.1736], [5, 34, 0.0452], [9, 32, 0.0214], [0, 29, 0.2055], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [26, 16, 0.1456], [22, 30, 0.0347], [4, 31, 0.0053], [19, 25, 0.0147], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 0.624085463615999, "total": 2.4398100109002105}, {"sinks": 8, "dropped": [2, 8, 10, 35, 40, 41, 42, 43], "pairs": [[1, 37, 0.008], [6, 15, 0.0138], [3, 13, 0.3019], [0, 17, 0.0664], [11, 20, 0.1203], [5, 34, 0.0452], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [23, 33, 0.0891], [27, 39, 0.1964], [26, 16, 0.1456], [38, 36, 0.2999], [22, 30, 0.0347], [4, 31, 0.0053], [14, 29, 0.1861], [19, 25, 0.0147], [24, 18, 0.066]], "worst": 0.30193829909503783, "total": 1.6737052917557507}], "xlab": "covariate 1", "colors": {"blue": "#2c6e9b", "dark": "#2c4a63", "red": "#b5483d", "green": "#4f8f63", "grey": "#9aa3ab", "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"}};
+  var D = {"pts": [[-0.0911, -0.6015], [-0.4188, 0.122], [-1.4702, -1.0021], [-1.0987, 0.5612], [-0.5339, 0.1196], [0.4792, 0.028], [-0.6636, 0.1425], [0.4457, 0.2838], [-0.2276, -1.5344], [-0.6238, -0.3738], [0.8317, -1.5537], [-0.3263, -1.1296], [0.9926, -0.7803], [-0.7276, 0.156], [0.6794, -0.1952], [-0.6435, 0.0267], [0.171, 0.8508], [-0.3005, -0.7518], [-0.1136, 0.2227], [-1.4093, -0.4583], [-0.0128, -0.9811], [1.1991, -0.8328], [-0.7472, -0.3576], [-0.5001, 1.0954], [-0.2181, 0.4575], [-1.3394, -0.5572], [-0.1043, 0.5867], [1.3365, -0.6999], [0.5602, 0.3027], [0.2677, -0.3245], [-0.6966, -0.5368], [-0.4634, 0.1026], [-0.6107, -0.228], [-0.4152, 0.8093], [0.4344, 0.2358], [0.0887, 1.6896], [1.4878, -0.2479], [-0.3693, 0.0476], [1.3082, 0.2694], [1.1168, -0.315], [2.8499, 3.1707], [-2.6232, 1.3199], [2.3447, -2.1123], [0.1554, 2.9732]], "states": [{"sinks": 0, "dropped": [], "pairs": [[43, 40, 7.299], [16, 35, 0.7104], [4, 15, 0.0206], [37, 18, 0.096], [11, 8, 0.1736], [0, 20, 0.1502], [9, 32, 0.0214], [31, 1, 0.0024], [24, 26, 0.0296], [21, 12, 0.0454], [10, 42, 2.601], [7, 28, 0.0135], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [6, 13, 0.0043], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [19, 22, 0.4485], [36, 38, 0.2999], [3, 41, 2.8997]], "worst": 7.298955022521012, "total": 15.750571077108093}, {"sinks": 2, "dropped": [40, 41], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [11, 8, 0.1736], [0, 20, 0.1502], [31, 4, 0.0053], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [42, 10, 2.601], [23, 33, 0.0891], [30, 17, 0.2031], [27, 39, 0.1964], [26, 16, 0.1456], [43, 35, 1.6519], [34, 5, 0.0452], [25, 2, 0.2151], [14, 29, 0.1861], [13, 3, 0.3019], [19, 22, 0.4485], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 2.6009785446027096, "total": 6.881183976415324}, {"sinks": 4, "dropped": [40, 41, 42, 43], "pairs": [[1, 31, 0.0024], [12, 10, 0.6241], [16, 35, 0.7104], [3, 13, 0.3019], [37, 18, 0.096], [11, 8, 0.1736], [32, 15, 0.0659], [0, 29, 0.2055], [24, 26, 0.0296], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [6, 4, 0.0173], [2, 25, 0.2151], [34, 5, 0.0452], [19, 22, 0.4485], [36, 38, 0.2999], [9, 30, 0.0319]], "worst": 0.7103739688748988, "total": 3.7475234307956335}, {"sinks": 6, "dropped": [2, 35, 40, 41, 42, 43], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [12, 10, 0.6241], [3, 13, 0.3019], [11, 8, 0.1736], [5, 34, 0.0452], [9, 32, 0.0214], [0, 29, 0.2055], [39, 14, 0.2057], [7, 28, 0.0135], [21, 27, 0.0365], [23, 33, 0.0891], [17, 20, 0.1353], [26, 16, 0.1456], [22, 30, 0.0347], [4, 31, 0.0053], [19, 25, 0.0147], [36, 38, 0.2999], [24, 18, 0.066]], "worst": 0.624085463615999, "total": 2.4398100109002105}, {"sinks": 8, "dropped": [2, 8, 10, 35, 40, 41, 42, 43], "pairs": [[6, 15, 0.0138], [1, 37, 0.008], [3, 13, 0.3019], [0, 17, 0.0664], [11, 20, 0.1203], [5, 34, 0.0452], [9, 32, 0.0214], [21, 12, 0.0454], [7, 28, 0.0135], [23, 33, 0.0891], [27, 39, 0.1964], [26, 16, 0.1456], [38, 36, 0.2999], [22, 30, 0.0347], [4, 31, 0.0053], [14, 29, 0.1861], [19, 25, 0.0147], [24, 18, 0.066]], "worst": 0.30193829909503783, "total": 1.6737052917557507}], "xlab": "covariate 1", "colors": {"blue": "#2c6e9b", "dark": "#2c4a63", "red": "#b5483d", "green": "#4f8f63", "grey": "#9aa3ab", "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"}};
 
   var canvas = root.querySelector("canvas");
   var ctx = canvas.getContext("2d");

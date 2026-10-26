@@ -24,7 +24,7 @@
 
   var FONT = '12px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   var PAD = { l: 62, r: 14, t: 12, b: 38 };
-  var SPLIT = 0.64;
+  var SPLIT = 0.46;
   var GAP = 34;
   var showOpt = false;
 
@@ -34,6 +34,23 @@
     var n = raw / mag;
     return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * mag;
   }
+  // a rotated axis title, stepped down or dropped when the panel is too short
+  function rotatedTitle(text, centreY, avail) {
+    var t = text;
+    if (ctx.measureText(t).width > avail) {
+      t = t.replace("pair distance ", "").replace("running total ", "total ");
+    }
+    if (ctx.measureText(t).width > avail) return;
+    ctx.save();
+    ctx.fillStyle = "#8a929a";
+    ctx.translate(12, centreY + ctx.measureText(t).width / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(t, 0, 0);
+    ctx.restore();
+  }
+
   function fmtTickVal(v, step) {
     var dp = Math.max(0, -Math.floor(Math.log10(step)));
     var t = v.toFixed(dp);
@@ -50,6 +67,14 @@
   // the optimal matching has no intrinsic order, so rank it the same way
   var optSorted = D.optimal.map(function (g) { return g[2]; })
                            .sort(function (a, b) { return a - b; });
+
+  function runningTotal(vals) {
+    var out = [], t = 0;
+    for (var i = 0; i < vals.length; i++) { t += vals[i]; out.push(t); }
+    return out;
+  }
+  var greedyCum = runningTotal(D.greedy.map(function (g) { return g[2]; }));
+  var optCum = runningTotal(optSorted);
 
   // log extent of the strip, rounded out to whole decades
   var dmin = Infinity, dmax = -Infinity;
@@ -164,20 +189,32 @@
     ctx.fillText(D.ylab, 0, 0);
     ctx.restore();
 
-    // ---------- lower strip: pair distance, in the order chosen ----------
-    var by = hTop + GAP, bh = hBot - 20;
-    var L = function (v) {
-      return by + bh - (Math.log10(v) - lo) / (hi - lo) * bh;
-    };
+    // ---------- two stacked panels, sharing one ranking axis ------------
+    // upper: what each pair costs. lower: what the matching has cost so far.
     var xAt = function (k) {
       return PAD.l + ((k + 0.5) / D.greedy.length) * pw;
     };
+    var AXIS = 30;                       // room under the pair for its ticks
+    var paneGap = 26;
+    var usable = hBot - AXIS - paneGap;
+    var h1 = Math.round(usable * 0.52), h2 = usable - h1;
+    var by = hTop + GAP;                 // top of the per-pair panel
+    var cy = by + h1 + paneGap;          // top of the cumulative panel
 
+    var L = function (v) {
+      return by + h1 - (Math.log10(v) - lo) / (hi - lo) * h1;
+    };
+    var cumMax = Math.max(greedyCum[greedyCum.length - 1],
+                          optCum[optCum.length - 1]);
+    var cstep = niceStep(cumMax, 4);
+    var ctop = Math.ceil(cumMax / cstep) * cstep;
+    var Cy = function (v) { return cy + h2 - (v / ctop) * h2; };
+
+    // ---- per-pair panel -------------------------------------------------
     ctx.textAlign = "right"; ctx.textBaseline = "middle";
     for (var e = lo; e <= hi; e++) {
       var yy = L(Math.pow(10, e));
-      ctx.strokeStyle = "#eef1f4";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#eef1f4"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PAD.l, yy); ctx.lineTo(PAD.l + pw, yy);
       ctx.stroke();
       ctx.fillStyle = "#a6aeb6";
@@ -185,80 +222,114 @@
     }
     ctx.strokeStyle = D.colors.axis;
     ctx.beginPath();
-    ctx.moveTo(PAD.l, by); ctx.lineTo(PAD.l, by + bh);
-    ctx.moveTo(PAD.l, by + bh); ctx.lineTo(PAD.l + pw, by + bh);
+    ctx.moveTo(PAD.l, by); ctx.lineTo(PAD.l, by + h1);
+    ctx.moveTo(PAD.l, by + h1); ctx.lineTo(PAD.l + pw, by + h1);
     ctx.stroke();
 
-    // the optimal matching's own profile, sorted the same way. Greedy's pick
-    // order is already ascending, because removing the closest pair can only
-    // raise the next closest, so the two are directly comparable rank by rank.
-    ctx.strokeStyle = D.colors.green;
-    ctx.lineWidth = 1.8;
+    // The optimal matching has no running order, so it is ranked the same way
+    // greedy's picks already are: closest first.
+    var k;
+    ctx.strokeStyle = D.colors.green; ctx.lineWidth = 1.8;
     ctx.beginPath();
-    for (var k = 0; k < optSorted.length; k++) {
-      var ox2 = xAt(k), oy2 = L(optSorted[k]);
-      if (k === 0) ctx.moveTo(ox2, oy2); else ctx.lineTo(ox2, oy2);
+    for (k = 0; k < optSorted.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), L(optSorted[k]));
+      else ctx.lineTo(xAt(k), L(optSorted[k]));
     }
     ctx.stroke();
     ctx.fillStyle = D.colors.green;
     for (k = 0; k < optSorted.length; k++) {
-      ctx.beginPath();
-      ctx.arc(xAt(k), L(optSorted[k]), 2.4, 0, 2 * Math.PI);
+      ctx.beginPath(); ctx.arc(xAt(k), L(optSorted[k]), 2.4, 0, 2 * Math.PI);
       ctx.fill();
     }
 
-    // greedy's own profile
-    ctx.strokeStyle = "#cfd6dc";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#cfd6dc"; ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (k = 0; k < D.greedy.length; k++) {
-      var xx = xAt(k), yv = L(D.greedy[k][2]);
-      if (k === 0) ctx.moveTo(xx, yv); else ctx.lineTo(xx, yv);
+      if (k === 0) ctx.moveTo(xAt(k), L(D.greedy[k][2]));
+      else ctx.lineTo(xAt(k), L(D.greedy[k][2]));
     }
     ctx.stroke();
-
     for (k = 0; k < D.greedy.length; k++) {
-      var on = k < step;
       ctx.beginPath();
       ctx.arc(xAt(k), L(D.greedy[k][2]), (k === step - 1) ? 4.6 : 3.1,
               0, 2 * Math.PI);
       ctx.fillStyle = (k === step - 1) ? D.colors.red
-                    : on ? D.colors.blue : "#e2e7eb";
+                    : (k < step) ? D.colors.blue : "#e2e7eb";
       ctx.fill();
     }
 
-    // legend, in the empty top-left of the strip
     var lx = PAD.l + 10, ly = by + 10;
     [[D.colors.blue, "greedy"], [D.colors.green, "optimal"]].forEach(
       function (it, n) {
-        var yy = ly + n * 15;
-        ctx.strokeStyle = it[0];
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(lx, yy); ctx.lineTo(lx + 16, yy);
+        var yy2 = ly + n * 15;
+        ctx.strokeStyle = it[0]; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(lx, yy2); ctx.lineTo(lx + 16, yy2);
         ctx.stroke();
         ctx.fillStyle = "#6b747c";
         ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.fillText(it[1], lx + 22, yy);
+        ctx.fillText(it[1], lx + 22, yy2);
       });
 
-    ctx.fillStyle = "#8a929a";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("pair ordering (closest pair ranked first)",
-                 PAD.l + pw / 2, by + bh + 6);
-    // on a narrow screen the strip is shorter than the full title, so step
-    // down rather than letting it run into the panel above
-    var yTitle = "pair distance D² (log scale)";
-    if (ctx.measureText(yTitle).width > bh) yTitle = "D² (log scale)";
-    if (ctx.measureText(yTitle).width > bh) yTitle = "";
-    if (yTitle) {
-      ctx.save();
-      ctx.translate(12, by + bh / 2 + ctx.measureText(yTitle).width / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(yTitle, 0, 0);
-      ctx.restore();
+    rotatedTitle("pair distance D\u00b2 (log scale)", by + h1 / 2, h1);
+
+    // ---- cumulative panel -----------------------------------------------
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (var cv = 0; cv <= ctop + 1e-9; cv += cstep) {
+      var cyy = Cy(cv);
+      ctx.strokeStyle = "#eef1f4"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD.l, cyy); ctx.lineTo(PAD.l + pw, cyy);
+      ctx.stroke();
+      ctx.fillStyle = "#a6aeb6";
+      ctx.fillText(fmtTickVal(cv, cstep), PAD.l - 6, cyy);
     }
+    ctx.strokeStyle = D.colors.axis;
+    ctx.beginPath();
+    ctx.moveTo(PAD.l, cy); ctx.lineTo(PAD.l, cy + h2);
+    ctx.moveTo(PAD.l, cy + h2); ctx.lineTo(PAD.l + pw, cy + h2);
+    ctx.stroke();
+
+    ctx.strokeStyle = D.colors.green; ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    for (k = 0; k < optCum.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), Cy(optCum[k]));
+      else ctx.lineTo(xAt(k), Cy(optCum[k]));
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#cfd6dc"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (k = 0; k < greedyCum.length; k++) {
+      if (k === 0) ctx.moveTo(xAt(k), Cy(greedyCum[k]));
+      else ctx.lineTo(xAt(k), Cy(greedyCum[k]));
+    }
+    ctx.stroke();
+    for (k = 0; k < greedyCum.length; k++) {
+      ctx.beginPath();
+      ctx.arc(xAt(k), Cy(greedyCum[k]), (k === step - 1) ? 4.6 : 3.1,
+              0, 2 * Math.PI);
+      ctx.fillStyle = (k === step - 1) ? D.colors.red
+                    : (k < step) ? D.colors.blue : "#e2e7eb";
+      ctx.fill();
+    }
+
+    rotatedTitle("running total D\u00b2", cy + h2 / 2, h2);
+
+    // ---- the shared ranking axis ----------------------------------------
+    ctx.fillStyle = "#a6aeb6";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    var tickEvery = D.greedy.length > 40 ? 10 : D.greedy.length > 8 ? 5 : 1;
+    for (k = 0; k < D.greedy.length; k++) {
+      var num = k + 1;
+      if (num !== 1 && num % tickEvery !== 0) continue;
+      ctx.strokeStyle = "#cdd5dc"; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xAt(k), cy + h2); ctx.lineTo(xAt(k), cy + h2 + 4);
+      ctx.stroke();
+      ctx.fillText(String(num), xAt(k), cy + h2 + 7);
+    }
+    ctx.fillStyle = "#8a929a";
+    ctx.fillText("pairs formed (closest pair first)",
+                 PAD.l + pw / 2, cy + h2 + 21);
 
     // ---------- readout --------------------------------------------------
     if (showOpt) {
@@ -300,7 +371,7 @@
   function resize() {
     var w = canvas.clientWidth;
     if (!w) return;
-    var h = Math.round(Math.min(Math.max(w * 0.86, 360), 560));
+    var h = Math.round(Math.min(Math.max(w * 1.12, 460), 720));
     var dpr = window.devicePixelRatio || 1;
     var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {

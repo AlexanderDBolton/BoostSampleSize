@@ -2,9 +2,11 @@
 title: "Covariate balance in experimental design"
 listing:
   contents: posts
-  type: default
+  type: grid
+  grid-columns: 2
   sort: "order asc"
-  fields: [title, description, date]
+  fields: [image, title, description]
+  image-height: "190px"
   sort-ui: false
   filter-ui: false
 page-layout: full

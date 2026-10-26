@@ -5,6 +5,7 @@ description: >
 date: 2026-08-24
 order: 4
 categories: [rerandomization, design, inference]
+image: thumbnail.png
 jupyter: python3
 code-tools: false
 ---

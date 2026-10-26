@@ -29,15 +29,27 @@ python -m venv .venv
 `.venv/` is gitignored. On macOS or Linux use `.venv/bin/python` throughout.
 
 `networkx` is used only by the pairwise-matching article, for the
-minimum-weight perfect matching. That page sets `freeze: auto` because the
-matching takes about 45 seconds at N = 400, so a whole-site render reuses the
-stored result instead of recomputing it. Editing the page invalidates the
-freeze and it runs again. Delete `_freeze/` to force a rerun.
+minimum-weight perfect matching. That page takes about 65 seconds to render,
+most of it the blossom algorithm at N = 400.
 
-One thing to watch: `_freeze/` keeps figures from earlier runs and does not
-prune them, so a renamed or deleted figure can keep reappearing in `docs/`
-after every site render. Deleting it from `docs/` alone will not stick. Remove
-that page's folder under `_freeze/` and render again.
+It deliberately does **not** set `freeze: auto`, and it should stay that way.
+Quarto's freeze hashes the `.qmd` and nothing else, so editing a widget's
+`.js` file leaves the frozen output in place and the site silently ships the
+previous version of the script. The frozen folder also keeps figures from
+earlier runs without pruning them, so a renamed figure reappears in `docs/`
+after every render and deleting it from `docs/` alone does not stick. Both
+cost more than the minute the freeze saves.
+
+## Home page thumbnails
+
+The cards on the home page use `posts/<slug>/thumbnail.png`. Each article's own
+centrepiece is an interactive canvas, which leaves nothing for a card to show,
+so the thumbnails are drawn separately by `make_thumbnails.py`. Regenerate and
+commit them when one needs changing:
+
+```bash
+.venv/Scripts/python.exe make_thumbnails.py
+```
 
 ## Building
 

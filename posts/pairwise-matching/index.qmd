@@ -6,13 +6,9 @@ description: >
 date: 2026-08-24
 order: 3
 categories: [matching, design, inference]
+image: thumbnail.png
 jupyter: python3
 code-tools: false
-
-# Optimal matching at N = 400 costs about 45 seconds of blossom algorithm.
-# Freezing keeps a whole-site render from paying that every time.
-execute:
-  freeze: auto
 ---
 
 ```{python}
@@ -198,10 +194,11 @@ The obvious way to form pairs is greedy. Take the two closest units anywhere in
 the sample, set them aside as a pair, then repeat on what is left. It is short
 to write and it does not produce the minimum.
 
-Drag the slider to watch it choose. The lower panel plots each pair's distance
-in the order greedy picks them, on a log scale because the range is wide. That
-climb is the story. The early pairs are nearly free, and the final one costs
-`{python} f"{demo['last']:.1f}"` against
+Drag the slider to watch it choose. The middle panel plots what each pair
+costs, on a log scale because the range is wide, and the bottom panel the
+running total. Both rank the pairs closest first, and both show the optimal
+matching alongside for comparison. The early pairs are nearly free, and the
+final one costs `{python} f"{demo['last']:.1f}"` against
 `{python} f"{demo['rest']:.1f}"` for the other nineteen put together.
 
 ```{python}

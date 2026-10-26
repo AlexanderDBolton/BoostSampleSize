@@ -7,6 +7,7 @@ date: 2026-08-24
 order: 2
 categories: [stratification, design]
 draft: true
+image: thumbnail.png
 jupyter: python3
 ---
 
