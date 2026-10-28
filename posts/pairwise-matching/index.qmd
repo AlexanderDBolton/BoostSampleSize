@@ -114,25 +114,19 @@ def widget(name, div_id, payload, html):
     display(HTML(html + "<script>" + js + "</script>"))
 ```
 
-You have a few hundred units and you want two halves that look alike.
+With a few hundred units, you want a control group and a treatment group that are as similar to each other as possible before the intervention begins.
 [Rerandomization](../rerandomization/) reaches that by discarding splits that
-come out badly balanced. Pairwise matching reaches it by construction. Pair
-every unit with its closest counterpart in covariate space, then flip a coin
-inside each pair. Each arm then holds exactly one unit from every pair, so the
-two halves are matched unit by unit rather than only on average.
+come out badly balanced. Pairwise matching reaches it by construction. Matching pairs units with similar characteristics, and within each pair a coin flip decides which unit receives treatment and which serves as its control. So the two groups are balanced pair by pair, not just on average.
 
-This article answers three questions. Does matching gain you more than
-rerandomization? Why does the pairing step have to be solved properly? And how
-do you analyse the experiment afterwards?
+This article asks whether matching beats rerandomization, why pairing needs solving properly, and how to analyse the experiment afterwards.
 
 ## What it does
 
 Closeness between two units is measured with the
-[Mahalanobis distance](../mahalanobis-distance/), which avoids double-counting
-correlated covariates. With $N$ units and $k$ covariates:
+[Mahalanobis distance](../mahalanobis-distance/). With (even) $N$ units and $k$ covariates:
 
 ::: {.keybox}
-1. Compute the covariate covariance matrix $S$ **once**, from all $N$ units.
+1. Compute the covariate covariance matrix $S$ once, from all $N$ units.
 2. For every pair of units $i$ and $j$, compute the squared distance between
    them:
    $$ D^2(i,j) \;=\; (x_i - x_j)^{\!\top} S^{-1} (x_i - x_j). $$
@@ -141,19 +135,9 @@ correlated covariates. With $N$ units and $k$ covariates:
 4. Inside each pair, flip a coin to decide which unit goes to treatment.
 :::
 
-Step 2 is the same quadratic form as in the Mahalanobis article, applied to the
-gap between two units instead of the gap between a unit and the mean.
-Everything from there carries over: affine invariance, correlated columns
-counted once, and the one-hot-with-a-baseline or pseudo-inverse treatment of
-categorical covariates.
+We will cover the case where $N$ is odd later in this article.
 
-Step 4 is what keeps this a randomised experiment. Each pair contributes one
-independent coin flip, so a sample of $N$ units has $2^{N/2}$ possible
-assignments. At $N = 400$ that is about $1.6 \times 10^{60}$. Assigning
-deterministically within pairs, say the higher-spending unit always to control,
-would leave a single possible split and no basis for a $p$-value.
-
-Step 3 is the part that goes wrong in practice.
+Step 2 is the same quadratic form as in the Mahalanobis article, applied two units instead of a unit and the mean.
 
 ## The pairing is an optimisation problem, not a sorting problem
 
@@ -190,14 +174,13 @@ demo["saved"] = float(sum(o - g for g, o in zip(g_rank, o_rank) if g < o))
 demo["lost"] = float(sum(g - o for g, o in zip(g_rank, o_rank) if g > o))
 ```
 
-The obvious way to form pairs is greedy. Take the two closest units anywhere in
-the sample, set them aside as a pair, then repeat on what is left. It is short
-to write and it does not produce the minimum.
+The obvious way to form pairs is the "greedy" approach: pair the two closest units anywhere in
+the sample, then repeat on what is left. It is easy to explain and implement,
+but it does not produce the minimum.
 
-Drag the slider to watch it choose. The middle panel plots what each pair
+Drag the slider to watch it choose. The middle plot shows what each pair
 costs, on a log scale because the range is wide, and the bottom panel the
-running total. Both rank the pairs closest first, and both show the optimal
-matching alongside for comparison. The early pairs are nearly free, and the
+running total. The early pairs are nearly free, and the
 final one costs `{python} f"{demo['last']:.1f}"` against
 `{python} f"{demo['rest']:.1f}"` for the other nineteen put together.
 
@@ -248,47 +231,29 @@ widget(
 """)
 ```
 
-The two profiles show what greedy is trading. It is the closer of the two at
+Greedy matching is the closer of the two at
 `{python} f"{demo['g_better']}"` of the
-`{python} f"{demo['n']}"` ranks, because taking the nearest available pair at
-every step harvests near-duplicates that the optimal matching is willing to
-give up. Those wins come to
+`{python} f"{demo['n']}"` ranks. Those wins come to
 `{python} f"{demo['saved']:.1f}"` in total. The ranks where it loses come to
 `{python} f"{demo['lost']:.1f}"`.
 
-That is the whole argument against greedy. It strands the units it leaves until
-last, and a stranded pair is a pair whose covariate gap the coin flip cannot
-undo. That gap goes into the variance of the treatment effect estimate, so the
+Greedy pairing strands the units it leaves until
+last. That gap goes into the variance of the treatment effect estimate, so the
 tail of the distance distribution matters more than its total.
 
 ::: {.callout-note collapse="true"}
 ## What the lengths mean here, and what they would mean on real data
 
-This sample has been rescaled so that $S$ is the identity: equal variances, no
-correlation. The Mahalanobis distance is then the plain straight-line distance,
-so the lines above are exactly the quantity being minimised. A line twice as
-long is a pair twice as far apart. Greedy's final pair is
-`{python} f"{demo['last_len']:.2f}"` long against
-`{python} f"{demo['opt_worst_len']:.2f}"` for the worst pair the optimal
-matching settles for, and you can see that it is.
+Here the sample is rescaled so that $S$ is the identity. The Mahalanobis distance is then the plain straight-line distance, so each line’s length is exactly what is being minimised.
 
-Rescaling this way changes none of the distances, because $D^2$ is unaffected
-by any linear transformation of the covariates. It changes only the drawing.
+Rescaling changes the picture, not the distances: $D^2$ is unchanged by linear transformations of the covariates.
 
-Real covariates are rarely so obliging. Once they are correlated, the set of
-points a fixed distance away stops being a circle and becomes a tilted ellipse,
-and screen length stops tracking distance. A gap along the long axis is cheap,
-because units separated that way are ordinary, while the same gap across the
-short axis is expensive, because that combination of values is rare. Judging a
-matching by eye becomes unreliable at that point, though nothing about the
-algorithm changes. The [Mahalanobis article](../mahalanobis-distance/) covers
-why.
+Real covariates are usually correlated. Then equal distances form tilted ellipses rather than circles, so screen length no longer tracks distance. A gap along the long axis is cheap because such differences are common, while the same gap across the short axis is expensive because that combination is rare.
 :::
 
-How much greedy costs depends on the sample. Forty units is a hard case for it,
-and it runs up `{python} f"{demo['mult']:.1f}"` times the total distance and
-`{python} f"{demo['worst']:.0f}"` times the worst pair. At a few hundred units
-the totals come much closer together, while the worst pair stays several times
+The cost of the greedy algorithm over the optimal algorithm depends on the sample. With 40 units,
+the greedy algorithm reaches `{python} f"{demo['mult']:.1f}"` times the optimal total distance and the cost of the worst pair is `{python} f"{demo['worst']:.0f}"` times greater. At a few hundred units
+the totals would be closer together, while the cost of the worst pair would be several times
 further apart.
 
 ```{python}
@@ -315,35 +280,17 @@ for N_, p_ in [(100, 4), (200, 4), (200, 8)]:
 pd.DataFrame(rows).style.hide(axis="index")
 ```
 
-The correct problem is a minimum-weight perfect matching on a general graph.
-Every unit is a vertex, every pair of units is an edge weighted by $D^2(i,j)$,
-and you want the cheapest set of edges that touches each vertex once. Edmonds'
-blossom algorithm solves it exactly in $O(N^3)$.
-
-Two points of confusion are worth clearing up. First, this is not the
-assignment problem, and the Hungarian algorithm does not apply. That algorithm
-matches one set to a different set, treated units to control units. Here there
-is a single pool and any unit may pair with any other, so the graph is not
-bipartite. Greevy et al. (2004) introduced the non-bipartite version for
-exactly this design. Second, the problem is solved rather than approximated, so
-there is no tuning to do and no reason to settle for greedy. In Python it is
-one call in `networkx`; in R it is the `nbpMatching` package.
-
-The button above shows the optimal matching for comparison. There is no
-equivalent step-by-step view of how the blossom algorithm gets there, and it
-would not help much if there were. Greedy is a sequence of decisions you can
-follow, each one locally sensible and collectively poor. Blossom works by
-maintaining a set of dual prices and contracting odd cycles, which is a
-procedure with no running picture of a partial matching to watch. The result is
-the part worth seeing.
+Edmonds’ blossom algorithm solves the problem exactly in $O(N^3)$. Because any unit may pair with any other, the graph is not bipartite and the Hungarian algorithm does not apply; Greevy et al. (2004) introduced this non-bipartite form for the design. In Python it is available in networkx and in R through the nbpMatching package. The button in the bottom right shows the optimal matching for comparison.
 
 ## Does it gain more than rerandomization?
 
 Both designs are aiming at the same thing, so the comparison is worth making
 directly. Below, one fixed sample of 400 units with four covariates is assigned
-4,000 times under each design. The gain is expressed as the sample you would
-need under plain randomisation to estimate the treatment effect just as
-precisely.
+4,000 times under each design, and every set of assignments is scored against
+two outcomes: one a linear function of the covariates predicts well, and one it
+does not. Both carry the same total signal. The gain is expressed as the sample
+you would need under plain randomisation to estimate the treatment effect just
+as precisely.
 
 ```{python}
 #| label: headtohead-setup

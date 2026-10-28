@@ -205,27 +205,26 @@ window.Quarto = {
 </header>
 
 
-<p>You have a few hundred units and you want two halves that look alike. <a href="../rerandomization/">Rerandomization</a> reaches that by discarding splits that come out badly balanced. Pairwise matching reaches it by construction. Pair every unit with its closest counterpart in covariate space, then flip a coin inside each pair. Each arm then holds exactly one unit from every pair, so the two halves are matched unit by unit rather than only on average.</p>
-<p>This article answers three questions. Does matching gain you more than rerandomization? Why does the pairing step have to be solved properly? And how do you analyse the experiment afterwards?</p>
+<p>With a few hundred units, you want a control group and a treatment group that are as similar to each other as possible before the intervention begins. <a href="../rerandomization/">Rerandomization</a> reaches that by discarding splits that come out badly balanced. Pairwise matching reaches it by construction. Matching pairs units with similar characteristics, and within each pair a coin flip decides which unit receives treatment and which serves as its control. So the two groups are balanced pair by pair, not just on average.</p>
+<p>This article asks whether matching beats rerandomization, why pairing needs solving properly, and how to analyse the experiment afterwards.</p>
 <section id="what-it-does" class="level2">
 <h2 class="anchored" data-anchor-id="what-it-does">What it does</h2>
-<p>Closeness between two units is measured with the <a href="../mahalanobis-distance/">Mahalanobis distance</a>, which avoids double-counting correlated covariates. With <span class="math inline">\(N\)</span> units and <span class="math inline">\(k\)</span> covariates:</p>
+<p>Closeness between two units is measured with the <a href="../mahalanobis-distance/">Mahalanobis distance</a>. With (even) <span class="math inline">\(N\)</span> units and <span class="math inline">\(k\)</span> covariates:</p>
 <div class="keybox">
 <ol type="1">
-<li>Compute the covariate covariance matrix <span class="math inline">\(S\)</span> <strong>once</strong>, from all <span class="math inline">\(N\)</span> units.</li>
+<li>Compute the covariate covariance matrix <span class="math inline">\(S\)</span> once, from all <span class="math inline">\(N\)</span> units.</li>
 <li>For every pair of units <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span>, compute the squared distance between them: <span class="math display">\[ D^2(i,j) \;=\; (x_i - x_j)^{\!\top} S^{-1} (x_i - x_j). \]</span></li>
 <li>Choose the <span class="math inline">\(N/2\)</span> pairs that <strong>minimise the total within-pair distance</strong>, subject to covering every unit exactly once.</li>
 <li>Inside each pair, flip a coin to decide which unit goes to treatment.</li>
 </ol>
 </div>
-<p>Step 2 is the same quadratic form as in the Mahalanobis article, applied to the gap between two units instead of the gap between a unit and the mean. Everything from there carries over: affine invariance, correlated columns counted once, and the one-hot-with-a-baseline or pseudo-inverse treatment of categorical covariates.</p>
-<p>Step 4 is what keeps this a randomised experiment. Each pair contributes one independent coin flip, so a sample of <span class="math inline">\(N\)</span> units has <span class="math inline">\(2^{N/2}\)</span> possible assignments. At <span class="math inline">\(N = 400\)</span> that is about <span class="math inline">\(1.6 \times 10^{60}\)</span>. Assigning deterministically within pairs, say the higher-spending unit always to control, would leave a single possible split and no basis for a <span class="math inline">\(p\)</span>-value.</p>
-<p>Step 3 is the part that goes wrong in practice.</p>
+<p>We will cover the case where <span class="math inline">\(N\)</span> is odd later in this article.</p>
+<p>Step 2 is the same quadratic form as in the Mahalanobis article, applied two units instead of a unit and the mean.</p>
 </section>
 <section id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem" class="level2">
 <h2 class="anchored" data-anchor-id="the-pairing-is-an-optimisation-problem-not-a-sorting-problem">The pairing is an optimisation problem, not a sorting problem</h2>
-<p>The obvious way to form pairs is greedy. Take the two closest units anywhere in the sample, set them aside as a pair, then repeat on what is left. It is short to write and it does not produce the minimum.</p>
-<p>Drag the slider to watch it choose. The middle panel plots what each pair costs, on a log scale because the range is wide, and the bottom panel the running total. Both rank the pairs closest first, and both show the optimal matching alongside for comparison. The early pairs are nearly free, and the final one costs 21.0 against 6.6 for the other nineteen put together.</p>
+<p>The obvious way to form pairs is the “greedy” approach: pair the two closest units anywhere in the sample, then repeat on what is left. It is easy to explain and implement, but it does not produce the minimum.</p>
+<p>Drag the slider to watch it choose. The middle plot shows what each pair costs, on a log scale because the range is wide, and the bottom panel the running total. The early pairs are nearly free, and the final one costs 21.0 against 6.6 for the other nineteen put together.</p>
 <div id="cell-greedy-widget" class="cell" data-execution_count="3">
 <div id="greedy-widget" class="cell-output cell-output-display">
 
@@ -653,8 +652,8 @@ window.Quarto = {
 </script>
 </div>
 </div>
-<p>The two profiles show what greedy is trading. It is the closer of the two at 12 of the 20 ranks, because taking the nearest available pair at every step harvests near-duplicates that the optimal matching is willing to give up. Those wins come to 0.8 in total. The ranks where it loses come to 20.5.</p>
-<p>That is the whole argument against greedy. It strands the units it leaves until last, and a stranded pair is a pair whose covariate gap the coin flip cannot undo. That gap goes into the variance of the treatment effect estimate, so the tail of the distance distribution matters more than its total.</p>
+<p>Greedy matching is the closer of the two at 12 of the 20 ranks. Those wins come to 0.8 in total. The ranks where it loses come to 20.5.</p>
+<p>Greedy pairing strands the units it leaves until last. That gap goes into the variance of the treatment effect estimate, so the tail of the distance distribution matters more than its total.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
@@ -667,13 +666,13 @@ window.Quarto = {
 </div>
 <div id="callout-1" class="callout-1-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<p>This sample has been rescaled so that <span class="math inline">\(S\)</span> is the identity: equal variances, no correlation. The Mahalanobis distance is then the plain straight-line distance, so the lines above are exactly the quantity being minimised. A line twice as long is a pair twice as far apart. Greedy’s final pair is 4.58 long against 1.38 for the worst pair the optimal matching settles for, and you can see that it is.</p>
-<p>Rescaling this way changes none of the distances, because <span class="math inline">\(D^2\)</span> is unaffected by any linear transformation of the covariates. It changes only the drawing.</p>
-<p>Real covariates are rarely so obliging. Once they are correlated, the set of points a fixed distance away stops being a circle and becomes a tilted ellipse, and screen length stops tracking distance. A gap along the long axis is cheap, because units separated that way are ordinary, while the same gap across the short axis is expensive, because that combination of values is rare. Judging a matching by eye becomes unreliable at that point, though nothing about the algorithm changes. The <a href="../mahalanobis-distance/">Mahalanobis article</a> covers why.</p>
+<p>Here the sample is rescaled so that <span class="math inline">\(S\)</span> is the identity. The Mahalanobis distance is then the plain straight-line distance, so each line’s length is exactly what is being minimised.</p>
+<p>Rescaling changes the picture, not the distances: <span class="math inline">\(D^2\)</span> is unchanged by linear transformations of the covariates.</p>
+<p>Real covariates are usually correlated. Then equal distances form tilted ellipses rather than circles, so screen length no longer tracks distance. A gap along the long axis is cheap because such differences are common, while the same gap across the short axis is expensive because that combination is rare.</p>
 </div>
 </div>
 </div>
-<p>How much greedy costs depends on the sample. Forty units is a hard case for it, and it runs up 3.5 times the total distance and 11 times the worst pair. At a few hundred units the totals come much closer together, while the worst pair stays several times further apart.</p>
+<p>The cost of the greedy algorithm over the optimal algorithm depends on the sample. With 40 units, the greedy algorithm reaches 3.5 times the optimal total distance and the cost of the worst pair is 11 times greater. At a few hundred units the totals would be closer together, while the cost of the worst pair would be several times further apart.</p>
 <div class="cell" data-execution_count="4">
 <div id="tbl-greedy" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="4">
 <figure class="quarto-float quarto-float-tbl figure">
@@ -685,37 +684,37 @@ Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses s
 <style type="text/css">
 </style>
 
-<table id="T_5546e" class="cell caption-top table table-sm table-striped small">
+<table id="T_057b9" class="cell caption-top table table-sm table-striped small">
 <thead>
 <tr class="header">
-<th id="T_5546e_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
-<th id="T_5546e_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
-<th id="T_5546e_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
-<th id="T_5546e_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
-<th id="T_5546e_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
+<th id="T_057b9_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
+<th id="T_057b9_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
+<th id="T_057b9_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
+<th id="T_057b9_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
+<th id="T_057b9_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td id="T_5546e_row0_col0" class="data row0 col0">N = 100, k = 4</td>
-<td id="T_5546e_row0_col1" class="data row0 col1">63.0</td>
-<td id="T_5546e_row0_col2" class="data row0 col2">82.1 (+30%)</td>
-<td id="T_5546e_row0_col3" class="data row0 col3">5.47</td>
-<td id="T_5546e_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
+<td id="T_057b9_row0_col0" class="data row0 col0">N = 100, k = 4</td>
+<td id="T_057b9_row0_col1" class="data row0 col1">63.0</td>
+<td id="T_057b9_row0_col2" class="data row0 col2">82.1 (+30%)</td>
+<td id="T_057b9_row0_col3" class="data row0 col3">5.47</td>
+<td id="T_057b9_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
 </tr>
 <tr class="even">
-<td id="T_5546e_row1_col0" class="data row1 col0">N = 200, k = 4</td>
-<td id="T_5546e_row1_col1" class="data row1 col1">78.5</td>
-<td id="T_5546e_row1_col2" class="data row1 col2">113.2 (+44%)</td>
-<td id="T_5546e_row1_col3" class="data row1 col3">4.70</td>
-<td id="T_5546e_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
+<td id="T_057b9_row1_col0" class="data row1 col0">N = 200, k = 4</td>
+<td id="T_057b9_row1_col1" class="data row1 col1">78.5</td>
+<td id="T_057b9_row1_col2" class="data row1 col2">113.2 (+44%)</td>
+<td id="T_057b9_row1_col3" class="data row1 col3">4.70</td>
+<td id="T_057b9_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
 </tr>
 <tr class="odd">
-<td id="T_5546e_row2_col0" class="data row2 col0">N = 200, k = 8</td>
-<td id="T_5546e_row2_col1" class="data row2 col1">409.1</td>
-<td id="T_5546e_row2_col2" class="data row2 col2">505.0 (+23%)</td>
-<td id="T_5546e_row2_col3" class="data row2 col3">10.20</td>
-<td id="T_5546e_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
+<td id="T_057b9_row2_col0" class="data row2 col0">N = 200, k = 8</td>
+<td id="T_057b9_row2_col1" class="data row2 col1">409.1</td>
+<td id="T_057b9_row2_col2" class="data row2 col2">505.0 (+23%)</td>
+<td id="T_057b9_row2_col3" class="data row2 col3">10.20</td>
+<td id="T_057b9_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
 </tr>
 </tbody>
 </table>
@@ -724,13 +723,11 @@ Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses s
 </figure>
 </div>
 </div>
-<p>The correct problem is a minimum-weight perfect matching on a general graph. Every unit is a vertex, every pair of units is an edge weighted by <span class="math inline">\(D^2(i,j)\)</span>, and you want the cheapest set of edges that touches each vertex once. Edmonds’ blossom algorithm solves it exactly in <span class="math inline">\(O(N^3)\)</span>.</p>
-<p>Two points of confusion are worth clearing up. First, this is not the assignment problem, and the Hungarian algorithm does not apply. That algorithm matches one set to a different set, treated units to control units. Here there is a single pool and any unit may pair with any other, so the graph is not bipartite. Greevy et al.&nbsp;(2004) introduced the non-bipartite version for exactly this design. Second, the problem is solved rather than approximated, so there is no tuning to do and no reason to settle for greedy. In Python it is one call in <code>networkx</code>; in R it is the <code>nbpMatching</code> package.</p>
-<p>The button above shows the optimal matching for comparison. There is no equivalent step-by-step view of how the blossom algorithm gets there, and it would not help much if there were. Greedy is a sequence of decisions you can follow, each one locally sensible and collectively poor. Blossom works by maintaining a set of dual prices and contracting odd cycles, which is a procedure with no running picture of a partial matching to watch. The result is the part worth seeing.</p>
+<p>Edmonds’ blossom algorithm solves the problem exactly in <span class="math inline">\(O(N^3)\)</span>. Because any unit may pair with any other, the graph is not bipartite and the Hungarian algorithm does not apply; Greevy et al.&nbsp;(2004) introduced this non-bipartite form for the design. In Python it is available in networkx and in R through the nbpMatching package. The button in the bottom right shows the optimal matching for comparison.</p>
 </section>
 <section id="does-it-gain-more-than-rerandomization" class="level2">
 <h2 class="anchored" data-anchor-id="does-it-gain-more-than-rerandomization">Does it gain more than rerandomization?</h2>
-<p>Both designs are aiming at the same thing, so the comparison is worth making directly. Below, one fixed sample of 400 units with four covariates is assigned 4,000 times under each design. The gain is expressed as the sample you would need under plain randomisation to estimate the treatment effect just as precisely.</p>
+<p>Both designs are aiming at the same thing, so the comparison is worth making directly. Below, one fixed sample of 400 units with four covariates is assigned 4,000 times under each design, and every set of assignments is scored against two outcomes: one a linear function of the covariates predicts well, and one it does not. Both carry the same total signal. The gain is expressed as the sample you would need under plain randomisation to estimate the treatment effect just as precisely.</p>
 <div id="cell-fig-headtohead" class="cell" data-execution_count="6">
 <div class="cell-output cell-output-display">
 <div id="fig-headtohead" class="quarto-float quarto-figure quarto-figure-center anchored">
