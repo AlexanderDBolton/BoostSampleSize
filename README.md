@@ -7,12 +7,17 @@ Published at <https://alexanderdbolton.github.io/BoostSampleSize>.
 
 ## Contents
 
-| Article | Status | Source |
-|---|---|---|
-| The Mahalanobis distance | published | [`posts/mahalanobis-distance/`](posts/mahalanobis-distance/index.qmd) |
-| Stratification | outline only (`draft: true`) | [`posts/stratification/`](posts/stratification/index.qmd) |
-| Pairwise matching | outline only (`draft: true`) | [`posts/pairwise-matching/`](posts/pairwise-matching/index.qmd) |
-| Rerandomization | outline only (`draft: true`) | [`posts/rerandomization/`](posts/rerandomization/index.qmd) |
+Listed in `order:` order, which is how the home page sorts them.
+
+| # | Article | Status | Source |
+|---|---|---|---|
+| 1 | Pairwise matching | published | [`posts/pairwise-matching/`](posts/pairwise-matching/index.qmd) |
+| 2 | Rerandomization | published | [`posts/rerandomization/`](posts/rerandomization/index.qmd) |
+| 3 | The Mahalanobis distance | published | [`posts/mahalanobis-distance/`](posts/mahalanobis-distance/index.qmd) |
+| 4 | Stratification | outline only (`draft: true`) | [`posts/stratification/`](posts/stratification/index.qmd) |
+
+The two methods come first and the distance they share comes third, because a
+reader arriving for more precision wants the method, not the prerequisite.
 
 Drafts render but are excluded from the listing and navigation. Remove
 `draft: true` from a post's front matter to publish it.

@@ -4,7 +4,7 @@ description: >
   Pairing units before you randomise: when it beats rerandomization, why the
   pairing has to be solved properly, and how to analyse the result.
 date: 2026-08-24
-order: 3
+order: 1
 categories: [matching, design, inference]
 image: thumbnail.png
 jupyter: python3

@@ -15,7 +15,6 @@ listing:
 page-layout: full
 title-block-banner: false
 toc: false
-jupyter: python3
 code-tools: false
 ---
 
@@ -23,91 +22,41 @@ Three ways to get a more precise treatment effect out of a sample you cannot
 grow. All of them work by choosing *which* random split you end up with,
 rather than by collecting more units.
 
-How much they are worth depends on one number: the share of outcome variance
-your covariates explain, $R^2$. That number sets a ceiling, and the ceiling is
-steep.
+<!-- Every figure below is computed in the articles. If the datasets or seeds
+     change, re-check these three claims:
+       3x and 2%  -> posts/pairwise-matching, "What it is worth on two real
+                     datasets" (Project STAR and National Supported Work)
+       40% / less powerful
+                  -> posts/pairwise-matching, "Analysing a matched
+                     experiment" and "A conservative interval is not always a
+                     safe one" -->
 
-```{python}
-#| label: fig-headline
-#| echo: false
-#| fig-cap: "What balancing is worth, as a multiple of your sample size. The ceiling is what a perfect split achieves; rerandomization reaches part of it, depending on how strict the acceptance threshold is. All three curves assume the balanced covariates are used in the analysis."
+::: {.keybox}
+**Choosing the split well can be worth three times the sample.** Take 400
+pupils from Project STAR, pair them on last year's test scores, then flip a
+coin inside each pair. That gives the precision of 1,200 pupils split by a
+plain coin flip.
+:::
 
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from scipy import stats
+::: {.keybox}
+**On other data the same method is worth 2%.** Run it on the units of
+LaLonde's job-training experiment and it buys almost nothing, because those
+covariates barely predict earnings. The method is not what varies here. The
+data is, and you can measure which case you are in before you commit.
+:::
 
-mpl.rcParams.update({"figure.dpi": 150, "savefig.dpi": 150,
-                     "font.size": 9.5})
-C = {"blue": "#2c6e9b", "orange": "#d1743a", "green": "#4f8f63",
-     "red": "#b5483d", "grey": "#9aa3ab", "dark": "#2c4a63"}
+::: {.keybox}
+**Analysed the obvious way, a matched experiment can be worse than no
+matching at all.** The gain lives in the pairing, and a standard two-sample
+test cannot see it: the confidence interval comes out 40% too wide, and
+against small effects it rejects *less* often than if you had never bothered
+matching.
+:::
 
-r2 = np.linspace(0, 0.93, 300)
-k = 5
-
-
-def v_a(p_a, k):
-    """Morgan and Rubin's shrinkage factor at acceptance rate p_a."""
-    a = stats.chi2.ppf(p_a, k)
-    return stats.chi2.cdf(a, k + 2) / stats.chi2.cdf(a, k)
-
-
-fig, ax = plt.subplots(figsize=(7.0, 3.8))
-
-ax.plot(r2, 1 / (1 - r2), color=C["dark"], lw=2.6,
-        label="a perfectly balanced split (the ceiling)", zorder=4)
-for p_a, col, ls in [(0.001, C["blue"], "--"), (0.01, C["green"], "-."),
-                     (0.25, C["orange"], ":")]:
-    v = v_a(p_a, k)
-    ax.plot(r2, 1 / (1 - (1 - v) * r2), color=col, lw=2.0, ls=ls,
-            label=f"rerandomization, accept 1 in {round(1 / p_a):,}", zorder=3)
-
-for x, txt, off in [(0.5, "$R^2$ = 0.5\ndouble the sample", (-12, 10)),
-                    (0.9, "$R^2$ = 0.9\nten times", (-14, -30))]:
-    ax.plot([x], [1 / (1 - x)], "o", color=C["dark"], ms=7, zorder=5,
-            markeredgecolor="white", markeredgewidth=1.5)
-    ax.annotate(txt, (x, 1 / (1 - x)), textcoords="offset points",
-                xytext=off, ha="right", fontsize=8.6,
-                color=C["dark"], fontweight="bold")
-
-# Two real datasets, one at each end of the range. Both points are measured,
-# not chosen, and both are computed in the pairwise-matching article.
-for x, yv, txt, tx, ty in [
-    (0.041, 1.018, "LaLonde job-training data:\n$R^2$ = 0.04, worth 1.02x",
-     0.115, 4.6),
-    (0.654, 3.049, "Project STAR, grade 3 on grade 2:\n$R^2$ = 0.65, worth 3.0x",
-     0.30, 7.3),
-]:
-    ax.plot([x], [yv], "o", color=C["red"], ms=6, zorder=6,
-            markeredgecolor="white", markeredgewidth=1.4)
-    ax.annotate(txt, (x, yv), xytext=(tx, ty), fontsize=8.4,
-                color=C["red"], va="center", ha="left",
-                arrowprops=dict(arrowstyle="-", color=C["red"], lw=1,
-                                shrinkA=0, shrinkB=4))
-
-ax.axhline(1, color=C["grey"], lw=1, ls=":", zorder=1)
-ax.set_xlabel("$R^2$: share of outcome variance the covariates explain")
-ax.set_ylabel("equivalent sample size")
-ax.set_yticks([1, 2, 4, 6, 8, 10])
-ax.set_yticklabels(["1x", "2x", "4x", "6x", "8x", "10x"])
-ax.set_xlim(-0.01, 1.0)
-ax.set_ylim(0.8, 11)
-ax.legend(loc="upper left", frameon=False, fontsize=8.4)
-ax.grid(color="#eef1f4", zorder=0)
-ax.set_axisbelow(True)
-fig.tight_layout()
-plt.show()
-```
-
-Read it as a promise and a warning. The two red points are real datasets, with
-$R^2$ measured rather than chosen. Pairing a few hundred Project STAR pupils
-on their previous year's test scores is worth three times the sample. Pairing
-the units of LaLonde's job-training experiment is worth 2%, because the
-covariates there barely predict earnings. The first thing to do is measure
-$R^2$, not choose a method.
-
-The three articles cover the distance that all of this is built on, and the
-two classical ways of using it.
+Pairwise matching and rerandomization are the two methods. The Mahalanobis
+distance is the measure of "alike" that both are built on, and is worth
+reading when you want to know why correlated covariates are counted once, or
+what makes the distance fail quietly.
 
 All the code is Python, every figure is reproducible from the source, and the
 whole thing lives in
@@ -116,6 +65,6 @@ whole thing lives in
 ::: {.callout-note collapse="true"}
 ## Series status
 
-*The Mahalanobis distance*, *Pairwise matching* and *Rerandomization* are
+*Pairwise matching*, *Rerandomization* and *The Mahalanobis distance* are
 written. *Stratification* exists as an outline and is not yet published.
 :::

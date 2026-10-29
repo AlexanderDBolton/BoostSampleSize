@@ -4,7 +4,7 @@ description: >
   Blocking on covariates before randomising: how to choose strata, what
   happens to the variance, and where it stops working.
 date: 2026-08-24
-order: 2
+order: 4
 categories: [stratification, design]
 draft: true
 image: thumbnail.png

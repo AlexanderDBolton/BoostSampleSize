@@ -5,7 +5,7 @@ description: >
   counted once, how to handle categorical features, and where it fails
   silently.
 date: 2026-08-24
-order: 1
+order: 3
 categories: [distance, covariance]
 image: thumbnail.png
 jupyter: python3

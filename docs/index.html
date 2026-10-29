@@ -206,23 +206,24 @@ window.Quarto = {
 
 
 <p>Three ways to get a more precise treatment effect out of a sample you cannot grow. All of them work by choosing <em>which</em> random split you end up with, rather than by collecting more units.</p>
-<p>How much they are worth depends on one number: the share of outcome variance your covariates explain, <span class="math inline">\(R^2\)</span>. That number sets a ceiling, and the ceiling is steep.</p>
-<div id="cell-fig-headline" class="cell" data-execution_count="1">
-<div class="cell-output cell-output-display">
-<div id="fig-headline" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-headline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="index_files/figure-html/fig-headline-output-1.png" width="1036" height="556" class="figure-img">
+<!-- Every figure below is computed in the articles. If the datasets or seeds
+     change, re-check these three claims:
+       3x and 2%  -> posts/pairwise-matching, "What it is worth on two real
+                     datasets" (Project STAR and National Supported Work)
+       40% / less powerful
+                  -> posts/pairwise-matching, "Analysing a matched
+                     experiment" and "A conservative interval is not always a
+                     safe one" -->
+<div class="keybox">
+<p><strong>Choosing the split well can be worth three times the sample.</strong> Take 400 pupils from Project STAR, pair them on last year’s test scores, then flip a coin inside each pair. That gives the precision of 1,200 pupils split by a plain coin flip.</p>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-headline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: What balancing is worth, as a multiple of your sample size. The ceiling is what a perfect split achieves; rerandomization reaches part of it, depending on how strict the acceptance threshold is. All three curves assume the balanced covariates are used in the analysis.
-</figcaption>
-</figure>
+<div class="keybox">
+<p><strong>On other data the same method is worth 2%.</strong> Run it on the units of LaLonde’s job-training experiment and it buys almost nothing, because those covariates barely predict earnings. The method is not what varies here. The data is, and you can measure which case you are in before you commit.</p>
 </div>
+<div class="keybox">
+<p><strong>Analysed the obvious way, a matched experiment can be worse than no matching at all.</strong> The gain lives in the pairing, and a standard two-sample test cannot see it: the confidence interval comes out 40% too wide, and against small effects it rejects <em>less</em> often than if you had never bothered matching.</p>
 </div>
-</div>
-<p>Read it as a promise and a warning. The two red points are real datasets, with <span class="math inline">\(R^2\)</span> measured rather than chosen. Pairing a few hundred Project STAR pupils on their previous year’s test scores is worth three times the sample. Pairing the units of LaLonde’s job-training experiment is worth 2%, because the covariates there barely predict earnings. The first thing to do is measure <span class="math inline">\(R^2\)</span>, not choose a method.</p>
-<p>The three articles cover the distance that all of this is built on, and the two classical ways of using it.</p>
+<p>Pairwise matching and rerandomization are the two methods. The Mahalanobis distance is the measure of “alike” that both are built on, and is worth reading when you want to know why correlated covariates are counted once, or what makes the distance fail quietly.</p>
 <p>All the code is Python, every figure is reproducible from the source, and the whole thing lives in <a href="https://github.com/AlexanderDBolton/BoostSampleSize">the repository</a>.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
@@ -236,7 +237,7 @@ Figure&nbsp;1: What balancing is worth, as a multiple of your sample size. The c
 </div>
 <div id="callout-1" class="callout-1-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<p><em>The Mahalanobis distance</em>, <em>Pairwise matching</em> and <em>Rerandomization</em> are written. <em>Stratification</em> exists as an outline and is not yet published.</p>
+<p><em>Pairwise matching</em>, <em>Rerandomization</em> and <em>The Mahalanobis distance</em> are written. <em>Stratification</em> exists as an outline and is not yet published.</p>
 </div>
 </div>
 </div>
@@ -246,23 +247,7 @@ Figure&nbsp;1: What balancing is worth, as a multiple of your sample size. The c
 
 <div class="quarto-listing quarto-listing-container-grid" id="listing-listing">
 <div class="list grid quarto-listing-cols-2">
-<div class="g-col-1" data-index="0" data-categories="ZGlzdGFuY2UlMkNjb3ZhcmlhbmNl" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793262176942" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="20" data-listing-word-count-sort="3989">
-<a href="./posts/mahalanobis-distance/index.html" class="quarto-grid-link">
-<div class="quarto-grid-item card h-100 card-left">
-<p class="card-img-top">
-<img loading="lazy" src="./posts/mahalanobis-distance/thumbnail.png" class="thumbnail-image card-img" style="height: 190px;">
-</p>
-<div class="card-body post-contents">
-<h5 class="no-anchor card-title listing-title">
-The Mahalanobis distance
-</h5>
-<div class="card-text listing-description delink">
-<p>The distance the other two methods are built on: why correlated columns are counted once, how to handle categorical features, and where it fails silently.</p>
-</div>
-</div>
-</div></a>
-</div>
-<div class="g-col-1" data-index="1" data-categories="bWF0Y2hpbmclMkNkZXNpZ24lMkNpbmZlcmVuY2U=" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793267467833" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="32" data-listing-word-count-sort="6363">
+<div class="g-col-1" data-index="0" data-categories="bWF0Y2hpbmclMkNkZXNpZ24lMkNpbmZlcmVuY2U=" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793284485423" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="32" data-listing-word-count-sort="6363">
 <a href="./posts/pairwise-matching/index.html" class="quarto-grid-link">
 <div class="quarto-grid-item card h-100 card-left">
 <p class="card-img-top">
@@ -278,7 +263,7 @@ Pairwise matching
 </div>
 </div></a>
 </div>
-<div class="g-col-1" data-index="2" data-categories="cmVyYW5kb21pemF0aW9uJTJDZGVzaWduJTJDaW5mZXJlbmNl" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793262082384" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="14" data-listing-word-count-sort="2730">
+<div class="g-col-1" data-index="1" data-categories="cmVyYW5kb21pemF0aW9uJTJDZGVzaWduJTJDaW5mZXJlbmNl" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793284485510" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="14" data-listing-word-count-sort="2730">
 <a href="./posts/rerandomization/index.html" class="quarto-grid-link">
 <div class="quarto-grid-item card h-100 card-left">
 <p class="card-img-top">
@@ -290,6 +275,22 @@ Rerandomization
 </h5>
 <div class="card-text listing-description delink">
 <p>How much precision a stricter acceptance threshold buys, how to run it on a fixed budget, and how to analyse the experiment afterwards.</p>
+</div>
+</div>
+</div></a>
+</div>
+<div class="g-col-1" data-index="2" data-categories="ZGlzdGFuY2UlMkNjb3ZhcmlhbmNl" data-listing-date-sort="1787526000000" data-listing-file-modified-sort="1793284485595" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="20" data-listing-word-count-sort="3989">
+<a href="./posts/mahalanobis-distance/index.html" class="quarto-grid-link">
+<div class="quarto-grid-item card h-100 card-left">
+<p class="card-img-top">
+<img loading="lazy" src="./posts/mahalanobis-distance/thumbnail.png" class="thumbnail-image card-img" style="height: 190px;">
+</p>
+<div class="card-body post-contents">
+<h5 class="no-anchor card-title listing-title">
+The Mahalanobis distance
+</h5>
+<div class="card-text listing-description delink">
+<p>The distance the other two methods are built on: why correlated columns are counted once, how to handle categorical features, and where it fails silently.</p>
 </div>
 </div>
 </div></a>

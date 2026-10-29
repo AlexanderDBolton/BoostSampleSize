@@ -4,7 +4,7 @@ description: >
   How much precision a stricter acceptance threshold buys, how to run it on a
   fixed budget, and how to analyse the experiment afterwards.
 date: 2026-08-24
-order: 4
+order: 2
 categories: [rerandomization, design, inference]
 image: thumbnail.png
 jupyter: python3
