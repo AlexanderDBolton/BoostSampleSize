@@ -18,11 +18,22 @@ toc: false
 code-tools: false
 ---
 
-Three ways to get a more precise treatment effect out of a sample you cannot
-grow. All of them work by choosing *which* random split you end up with,
-rather than by collecting more units.
+Here are two facts that changed how I think about small experiments.
 
-<!-- Both claims below are computed in the articles. If the datasets or seeds
+The first is how much is on the table. Take 400 pupils and pair them up on
+last year's test scores, then flip a coin inside each pair rather than once
+across the whole group. The experiment that comes out is as precise as one
+run on 1,200 pupils split by a plain coin flip. Nothing was added to the
+sample. The only thing that changed was *which* random split came out of the
+process.
+
+The second is how easily that is thrown away. A matched experiment analysed
+the standard way can be worse than one that was never matched at all. The
+precision lives in the pairs, and an ordinary two-sample test cannot see the
+pairs, so it reports an interval too wide and misses effects it should have
+caught.
+
+<!-- Both figures above are computed in the articles. If the datasets or seeds
      change, re-check them:
        400 -> 1,200  -> posts/pairwise-matching, "What it is worth on two real
                         datasets" (the Project STAR sample)
@@ -30,20 +41,14 @@ rather than by collecting more units.
                         experiment" and "A conservative interval is not always
                         a safe one" -->
 
-::: {.keybox}
-**Pair 400 pupils on last year's test scores, then flip the coin inside each
-pair: as precise as 1,200 pupils.**
-:::
-
-::: {.keybox}
-**Match your sample, then analyse it the standard way, and you can end up
-worse off than not matching.**
-:::
-
-Pairwise matching and rerandomization are the two methods. The Mahalanobis
-distance is the measure of "alike" that both are built on, and is worth
-reading when you want to know why correlated covariates are counted once, or
-what makes the distance fail quietly.
+There are two methods here, and one measurement they both rest on.
+**Pairwise matching** splits the sample into pairs that are as alike as
+possible and flips a coin inside each one. **Rerandomization** draws a plain
+random split, scores how balanced it came out, and draws again until the
+score passes a threshold set in advance. **The Mahalanobis distance** is the
+distance metric both of them use to decide how alike two units are, and it is
+worth reading when you want to know why correlated covariates are counted
+once rather than several times, or what makes the distance fail quietly.
 
 All the code is Python, every figure is reproducible from the source, and the
 whole thing lives in
