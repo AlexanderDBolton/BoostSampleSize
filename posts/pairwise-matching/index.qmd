@@ -470,11 +470,13 @@ of pairs that are close but not identical.
 
 The two designs also differ in what you can do about a disappointing number.
 Tightening the threshold drives $v_a$ towards zero, so rerandomization has a
-dial. Matching has none, because the within-pair distances are a property of
-the sample: once the matching is optimal there is nothing further to spend.
-What limits it is covariate density, which is why matching improves as $N$
-grows and degrades as $k$ grows.
+dial to turn.
 :::
+
+Matching has nothing to adjust. The within-pair distances are a property of
+the sample, and once the matching is optimal the design is finished. What
+limits the result is covariate density, which is why matching improves as $N$
+grows and degrades as $k$ grows.
 
 ::: {.callout-tip}
 ## Which to reach for
