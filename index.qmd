@@ -70,16 +70,20 @@ for x, txt, off in [(0.5, "$R^2$ = 0.5\ndouble the sample", (-12, 10)),
                 xytext=off, ha="right", fontsize=8.6,
                 color=C["dark"], fontweight="bold")
 
-# The honest anchor: a real dataset where the covariates barely predict. The
-# point sits on the 1x line with curves running through it, so the label goes
-# in the empty band above and is joined by a leader.
-ax.plot([0.041], [1.018], "o", color=C["red"], ms=6, zorder=6,
-        markeredgecolor="white", markeredgewidth=1.4)
-ax.annotate("LaLonde's job-training data:\nmeasured $R^2$ = 0.04, worth 1.02x",
-            (0.041, 1.018), xytext=(0.115, 4.6), fontsize=8.4,
-            color=C["red"], va="center", ha="left",
-            arrowprops=dict(arrowstyle="-", color=C["red"], lw=1,
-                            shrinkA=0, shrinkB=4))
+# Two real datasets, one at each end of the range. Both points are measured,
+# not chosen, and both are computed in the pairwise-matching article.
+for x, yv, txt, tx, ty in [
+    (0.041, 1.018, "LaLonde job-training data:\n$R^2$ = 0.04, worth 1.02x",
+     0.115, 4.6),
+    (0.654, 3.049, "Project STAR, grade 3 on grade 2:\n$R^2$ = 0.65, worth 3.0x",
+     0.30, 7.3),
+]:
+    ax.plot([x], [yv], "o", color=C["red"], ms=6, zorder=6,
+            markeredgecolor="white", markeredgewidth=1.4)
+    ax.annotate(txt, (x, yv), xytext=(tx, ty), fontsize=8.4,
+                color=C["red"], va="center", ha="left",
+                arrowprops=dict(arrowstyle="-", color=C["red"], lw=1,
+                                shrinkA=0, shrinkB=4))
 
 ax.axhline(1, color=C["grey"], lw=1, ls=":", zorder=1)
 ax.set_xlabel("$R^2$: share of outcome variance the covariates explain")
@@ -95,11 +99,12 @@ fig.tight_layout()
 plt.show()
 ```
 
-Read it as a promise and a warning. If your covariates explain half the
-outcome variance, balancing them is worth about as much as doubling the
-sample. If they explain almost nothing, it is worth almost nothing, and the
-red point is a real dataset where that is the case. The first thing to do is
-measure $R^2$, not choose a method.
+Read it as a promise and a warning. The two red points are real datasets, with
+$R^2$ measured rather than chosen. Pairing a few hundred Project STAR pupils
+on their previous year's test scores is worth three times the sample. Pairing
+the units of LaLonde's job-training experiment is worth 2%, because the
+covariates there barely predict earnings. The first thing to do is measure
+$R^2$, not choose a method.
 
 The three articles cover the distance that all of this is built on, and the
 two classical ways of using it.

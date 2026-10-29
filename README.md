@@ -101,3 +101,21 @@ from `main` / `docs`, configured under *Settings → Pages → Build and deploym
 - `docs/.nojekyll` is generated from the empty `.nojekyll` file in the repo root
   (declared under `project: resources:` in `_quarto.yml`). It stops GitHub Pages
   running Jekyll, which would otherwise drop the `_files` asset directories.
+
+## Vendored datasets
+
+`data/` holds two small public datasets, committed so that renders never
+depend on the network:
+
+- `lalonde-nsw.csv` — the NSW job-training experiment in Dehejia and Wahba's
+  version, from <https://users.nber.org/~rdehejia/data/nsw_dw.dta>. Covariates
+  and 1978 earnings only. Measured R² is 0.04, the low end of what balancing
+  is worth.
+- `star-grade3.csv` — a fixed 400-pupil sample of Project STAR records with
+  complete grade-two and grade-three scores, via
+  <https://vincentarelbundock.github.io/Rdatasets/csv/AER/STAR.csv>. Measured
+  R² is 0.65, the high end.
+
+Neither article uses the original treatment assignment. What these supply is a
+real covariate structure and a real outcome, so R² is measured rather than
+chosen.

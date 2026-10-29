@@ -289,66 +289,89 @@ same value on each side of the coin flip, whether that function is linear or
 not. Both outcome models leave the same share of variance unexplained once any
 function is allowed, which is why matching holds up across both rows.
 
-### Is that $R^2$ a fair number?
+### What it is worth on two real datasets
 
 ```{python}
-#| label: lalonde
+#| label: realdata
 #| include: false
 
-d_ll = pd.read_csv("../../data/lalonde-nsw.csv")
-COVS_LL = ["age", "education", "black", "hispanic", "married", "nodegree",
-           "re74", "re75"]
-X_ll = d_ll[COVS_LL].to_numpy(float)
-y_ll = d_ll["re78"].to_numpy(float)
-N_ll = len(X_ll) - len(X_ll) % 2
-X_ll, y_ll = X_ll[:N_ll], y_ll[:N_ll]
-k_ll = X_ll.shape[1]
 
-Xi_ll = np.column_stack([np.ones(N_ll), X_ll])
-r2_ll = (Xi_ll @ np.linalg.lstsq(Xi_ll, y_ll, rcond=None)[0]).var() / y_ll.var()
+def real_gain(X, y):
+    """Exact equivalent sample size for an optimal matching on real data.
 
-Xc_ll = X_ll - X_ll.mean(0)
-Si_ll = np.linalg.pinv(np.cov(Xc_ll, rowvar=False, bias=True))
-dif = Xc_ll[:, None, :] - Xc_ll[None, :, :]
-d2_ll = np.einsum("ijk,kl,ijl->ij", dif, Si_ll, dif)
-p_ll = optimal_pairs(d2_ll)
+    No simulation: under pair randomisation the difference in means is a
+    weighted sum of independent within-pair signs, so its variance is
+    sum((y_i - y_j)^2) / (N/2)^2 exactly, and under complete randomisation it
+    is 4 s_y^2 / N. A 4,000-run simulation of the same quantity came out 8%
+    away from this purely as noise.
+    """
+    N = len(X) - len(X) % 2
+    X, y = X[:N], y[:N]
+    Xi = np.column_stack([np.ones(N), X])
+    r2 = (Xi @ np.linalg.lstsq(Xi, y, rcond=None)[0]).var() / y.var()
+    Xc = X - X.mean(0)
+    Si = np.linalg.pinv(np.cov(Xc, rowvar=False, bias=True))
+    dif = Xc[:, None, :] - Xc[None, :, :]
+    pr = optimal_pairs(np.einsum("ijk,kl,ijl->ij", dif, Si, dif))
+    a, b = y[pr[:, 0]], y[pr[:, 1]]
+    eq = (4 * y.var(ddof=1) / N) / (((a - b) ** 2).sum() / (N // 2) ** 2)
+    return {"N": N, "k": X.shape[1], "r2": r2, "eq": eq,
+            "rho": np.corrcoef(a, b)[0, 1]}
 
-# Exact design variances, so there is no Monte Carlo error to argue about.
-# Pair randomisation: the difference in means is a weighted sum of
-# independent within-pair signs. Complete randomisation: 4 s_y^2 / N.
-gap_ll = y_ll[p_ll[:, 0]] - y_ll[p_ll[:, 1]]
-var_pm_ll = (gap_ll ** 2).sum() / (N_ll // 2) ** 2
-var_cr_ll = 4 * y_ll.var(ddof=1) / N_ll
-eq_ll = var_cr_ll / var_pm_ll
-rho_ll = np.corrcoef(y_ll[p_ll[:, 0]], y_ll[p_ll[:, 1]])[0, 1]
+
+_ll = pd.read_csv("../../data/lalonde-nsw.csv")
+LL = real_gain(_ll[["age", "education", "black", "hispanic", "married",
+                    "nodegree", "re74", "re75"]].to_numpy(float),
+               _ll["re78"].to_numpy(float))
+
+_st = pd.read_csv("../../data/star-grade3.csv")
+ST = real_gain(_st[["read2", "math2"]].to_numpy(float),
+               _st["read3"].to_numpy(float))
 ```
 
-It is at the optimistic end, and it was chosen rather than measured, so it is
-worth running the same design on real covariates and a real outcome. The
-sample here is LaLonde's job-training experiment in Dehejia and Wahba's
-version: `{python} f"{N_ll}"` people, `{python} f"{k_ll}"` pre-treatment
-covariates, and 1978 earnings as the outcome.
+Every number above comes from covariates I generated and an outcome I wrote,
+which makes $R^2$ an input rather than a measurement. Two real datasets put a
+range on it, and the range is most of the story.
 
-The measured $R^2$ is `{python} f"{r2_ll:.3f}"`. That caps the whole exercise
-at `{python} f"{1 / (1 - r2_ll):.2f}"` times the sample, and the optimal
-matching delivers `{python} f"{eq_ll:.3f}"` times, about
-`{python} f"{100 * (eq_ll - 1) / (1 / (1 - r2_ll) - 1):.0f}"`% of what was
-available. On the most studied dataset in the matching literature, pairing
-these units is worth roughly
-`{python} f"{100 * (eq_ll - 1):.0f}"`% more data.
+With LaLonde's NSW job-training data, `{python} f"{LL['N']}"` people and
+`{python} f"{LL['k']}"` pre-treatment covariates against 1978 earnings, the
+measured $R^2$ is only `{python} f"{LL['r2']:.2f}"`. There is little point
+spending effort on either design here: the optimal matching is worth
+`{python} f"{100 * (LL['eq'] - 1):.0f}"`% more data. With a slice of Project
+STAR, `{python} f"{ST['N']}"` pupils whose grade-three reading score is
+predicted by their grade-two reading and maths scores, the measured $R^2$ is
+`{python} f"{ST['r2']:.2f}"` and the same matching is worth
+`{python} f"{ST['eq']:.1f}"` times the sample.
 
-That is not a failure of the method. It is what the method is worth when the
-covariates barely predict the outcome, and age, education and two years of
-prior earnings predict 1978 earnings badly. The mechanism is visible in one
-number: the within-pair correlation of the outcome is
-`{python} f"{rho_ll:+.3f}"`, and pair randomisation only beats complete
-randomisation to the extent that correlation is positive. Matching makes pairs
-alike in covariates, not in outcomes, and here the two come apart.
+One quantity explains both, and it is not $R^2$. The equivalent sample size
+under pair randomisation is exactly $1/(1-\rho)$, where $\rho$ is the
+within-pair correlation of the *outcome*. LaLonde gives
+$\rho =$ `{python} f"{LL['rho']:+.2f}"` and STAR
+`{python} f"{ST['rho']:+.2f}"`. Matching makes pairs alike in covariates; it
+earns its keep only when that makes them alike in outcomes too, and $R^2$ is
+the usual way to guess whether it will.
 
-The lesson is the ordering. Measure $R^2$ on your own covariates and outcome
-first, because it decides whether any of this is worth doing. A design
-question that looks like "matching or rerandomization?" is usually settled
-before either is reached.
+::: {.callout-note collapse="true"}
+## Why LaLonde, if there is nothing to gain?
+
+Because it is the standard benchmark for a different question. LaLonde (1986)
+asked whether non-experimental estimators could recover a known experimental
+answer, and Dehejia and Wahba (1999) made the dataset famous by matching its
+treated units against comparison pools drawn from survey data. That is
+matching for *bias removal* under selection on observables, where what you
+need is covariates that predict selection into treatment. This article is
+about matching for *variance reduction* before randomisation, where what you
+need is covariates that predict the outcome. The two share a word and little
+else, so a low outcome $R^2$ is no mark against the dataset. It is a warning
+against assuming the other literature's famous example is a good guide to
+this one.
+:::
+
+Note also that STAR's matching beats the
+`{python} f"{1 / (1 - ST['r2']):.1f}"`$\times$ that $1 - R^2$ would allow.
+$R^2$ measures the *linear* share, and the pairs constrain any function of the
+covariates, which is the same asymmetry the two rows of the figure above are
+built on.
 
 ::: {.callout-note collapse="true"}
 ## Checking both numbers against theory
@@ -858,8 +881,18 @@ freedom and returns nothing.
 - Bruhn, M. and McKenzie, D. (2009). In pursuit of balance: randomization in
   practice in development field experiments. *American Economic Journal:
   Applied Economics*, 1(4), 200–232.
+- Dehejia, R. H. and Wahba, S. (1999). Causal effects in nonexperimental
+  studies: reevaluating the evaluation of training programs. *Journal of the
+  American Statistical Association*, 94(448), 1053–1062. Source of the NSW
+  sample used here.
 - Edmonds, J. (1965). Paths, trees, and flowers. *Canadian Journal of
   Mathematics*, 17, 449–467.
+- Krueger, A. B. (1999). Experimental estimates of education production
+  functions. *The Quarterly Journal of Economics*, 114(2), 497–532. Project
+  STAR, the source of the grade-three sample used here.
+- LaLonde, R. J. (1986). Evaluating the econometric evaluations of training
+  programs with experimental data. *The American Economic Review*, 76(4),
+  604–620.
 - Greevy, R., Lu, B., Silber, J. H. and Rosenbaum, P. (2004). Optimal
   multivariate matching before randomization. *Biostatistics*, 5(2), 263–275.
 - Lu, B., Greevy, R., Xu, X. and Beck, C. (2011). Optimal nonbipartite matching

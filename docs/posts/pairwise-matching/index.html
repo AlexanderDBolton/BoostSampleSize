@@ -158,7 +158,7 @@ window.Quarto = {
   <li><a href="#what-it-does" id="toc-what-it-does" class="nav-link active" data-scroll-target="#what-it-does">What it does</a></li>
   <li><a href="#does-it-gain-more-than-rerandomization" id="toc-does-it-gain-more-than-rerandomization" class="nav-link" data-scroll-target="#does-it-gain-more-than-rerandomization">Does it gain more than rerandomization?</a>
   <ul class="collapse">
-  <li><a href="#is-that-r2-a-fair-number" id="toc-is-that-r2-a-fair-number" class="nav-link" data-scroll-target="#is-that-r2-a-fair-number">Is that <span class="math inline">\(R^2\)</span> a fair number?</a></li>
+  <li><a href="#what-it-is-worth-on-two-real-datasets" id="toc-what-it-is-worth-on-two-real-datasets" class="nav-link" data-scroll-target="#what-it-is-worth-on-two-real-datasets">What it is worth on two real datasets</a></li>
   </ul></li>
   <li><a href="#the-pairing-is-an-optimisation-problem-not-a-sorting-problem" id="toc-the-pairing-is-an-optimisation-problem-not-a-sorting-problem" class="nav-link" data-scroll-target="#the-pairing-is-an-optimisation-problem-not-a-sorting-problem">The pairing is an optimisation problem, not a sorting problem</a></li>
   <li><a href="#odd-numbers-and-units-with-nothing-close-to-them" id="toc-odd-numbers-and-units-with-nothing-close-to-them" class="nav-link" data-scroll-target="#odd-numbers-and-units-with-nothing-close-to-them">Odd numbers, and units with nothing close to them</a></li>
@@ -244,14 +244,30 @@ Figure&nbsp;1: How much data each design is worth. A bar of two means the experi
 </div>
 <p>The two designs behave the same way on a linear outcome and come apart completely on a non-linear one. The reason is that they are limited by different quantities. A threshold on <span class="math inline">\(M\)</span> constrains the difference in covariate <em>means</em>, which pins down the linear part of the response and leaves the rest untouched, so rerandomization is limited by how much of the outcome is linear in the covariates. That falls from 0.64 to 0.06 between the two rows, and the bar collapses with it.</p>
 <p>Matching is limited by the other quantity. The two units in a pair sit close together in covariate space, so any function of the covariates takes nearly the same value on each side of the coin flip, whether that function is linear or not. Both outcome models leave the same share of variance unexplained once any function is allowed, which is why matching holds up across both rows.</p>
-<section id="is-that-r2-a-fair-number" class="level3">
-<h3 class="anchored" data-anchor-id="is-that-r2-a-fair-number">Is that <span class="math inline">\(R^2\)</span> a fair number?</h3>
-<p>It is at the optimistic end, and it was chosen rather than measured, so it is worth running the same design on real covariates and a real outcome. The sample here is LaLonde’s job-training experiment in Dehejia and Wahba’s version: 444 people, 8 pre-treatment covariates, and 1978 earnings as the outcome.</p>
-<p>The measured <span class="math inline">\(R^2\)</span> is 0.041. That caps the whole exercise at 1.04 times the sample, and the optimal matching delivers 1.018 times, about 43% of what was available. On the most studied dataset in the matching literature, pairing these units is worth roughly 2% more data.</p>
-<p>That is not a failure of the method. It is what the method is worth when the covariates barely predict the outcome, and age, education and two years of prior earnings predict 1978 earnings badly. The mechanism is visible in one number: the within-pair correlation of the outcome is +0.017, and pair randomisation only beats complete randomisation to the extent that correlation is positive. Matching makes pairs alike in covariates, not in outcomes, and here the two come apart.</p>
-<p>The lesson is the ordering. Measure <span class="math inline">\(R^2\)</span> on your own covariates and outcome first, because it decides whether any of this is worth doing. A design question that looks like “matching or rerandomization?” is usually settled before either is reached.</p>
+<section id="what-it-is-worth-on-two-real-datasets" class="level3">
+<h3 class="anchored" data-anchor-id="what-it-is-worth-on-two-real-datasets">What it is worth on two real datasets</h3>
+<p>Every number above comes from covariates I generated and an outcome I wrote, which makes <span class="math inline">\(R^2\)</span> an input rather than a measurement. Two real datasets put a range on it, and the range is most of the story.</p>
+<p>With LaLonde’s NSW job-training data, 444 people and 8 pre-treatment covariates against 1978 earnings, the measured <span class="math inline">\(R^2\)</span> is only 0.04. There is little point spending effort on either design here: the optimal matching is worth 2% more data. With a slice of Project STAR, 400 pupils whose grade-three reading score is predicted by their grade-two reading and maths scores, the measured <span class="math inline">\(R^2\)</span> is 0.65 and the same matching is worth 3.0 times the sample.</p>
+<p>One quantity explains both, and it is not <span class="math inline">\(R^2\)</span>. The equivalent sample size under pair randomisation is exactly <span class="math inline">\(1/(1-\rho)\)</span>, where <span class="math inline">\(\rho\)</span> is the within-pair correlation of the <em>outcome</em>. LaLonde gives <span class="math inline">\(\rho =\)</span> +0.02 and STAR +0.67. Matching makes pairs alike in covariates; it earns its keep only when that makes them alike in outcomes too, and <span class="math inline">\(R^2\)</span> is the usual way to guess whether it will.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Why LaLonde, if there is nothing to gain?
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Because it is the standard benchmark for a different question. LaLonde (1986) asked whether non-experimental estimators could recover a known experimental answer, and Dehejia and Wahba (1999) made the dataset famous by matching its treated units against comparison pools drawn from survey data. That is matching for <em>bias removal</em> under selection on observables, where what you need is covariates that predict selection into treatment. This article is about matching for <em>variance reduction</em> before randomisation, where what you need is covariates that predict the outcome. The two share a word and little else, so a low outcome <span class="math inline">\(R^2\)</span> is no mark against the dataset. It is a warning against assuming the other literature’s famous example is a good guide to this one.</p>
+</div>
+</div>
+</div>
+<p>Note also that STAR’s matching beats the 2.9<span class="math inline">\(\times\)</span> that <span class="math inline">\(1 - R^2\)</span> would allow. <span class="math inline">\(R^2\)</span> measures the <em>linear</em> share, and the pairs constrain any function of the covariates, which is the same asymmetry the two rows of the figure above are built on.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
@@ -260,7 +276,7 @@ Figure&nbsp;1: How much data each design is worth. A bar of two means the experi
 </div>
 <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
-<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>The variance ratio under rerandomization is <span class="math inline">\(1 - (1 - v_a)R^2\)</span>, with <span class="math inline">\(v_a\)</span> the shrinkage factor from the <a href="../rerandomization/">rerandomization article</a> and <span class="math inline">\(R^2\)</span> the linear one. At <span class="math inline">\(k =\)</span> 4 and <span class="math inline">\(p_a = 1\%\)</span>, <span class="math inline">\(v_a =\)</span> 0.049, so the formula predicts a variance ratio of 0.39 for the linear model against 0.38 measured, and 0.94 for the non-linear model against 0.95 measured. Splitting the outcome into its linear fit and the residual shows the mechanism directly: under rerandomization the variance of the fitted part shrinks by a factor of about <span class="math inline">\(v_a\)</span>, and the variance of the residual part does not move.</p>
 <p>For matching, a perfectly matched sample would reduce the variance to <span class="math inline">\(1 - R^2 =\)</span> 0.36 here against 0.51 achieved. The shortfall is the price of pairs that are close but not identical.</p>
@@ -719,7 +735,7 @@ Figure&nbsp;1: How much data each design is worth. A bar of two means the experi
 <p>Greedy matching is closer than the optimal matching on 12 of the 20 ranks, because taking the nearest available pair at every step collects near-duplicates that the optimal matching gives up. Those wins come to 0.8 in total, against 20.5 at the ranks where it loses.</p>
 <p>Greedy pairing strands the units it leaves until last. The gap for those last pairs goes into the variance of the treatment effect estimate, so the tail of the distance distribution matters more than its total.</p>
 <div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
@@ -728,7 +744,7 @@ Figure&nbsp;1: How much data each design is worth. A bar of two means the experi
 </div>
 <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
-<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>Here the sample is rescaled so that <span class="math inline">\(S\)</span> is the identity. The Mahalanobis distance is then the plain straight-line distance, so each line’s length is exactly what is being minimised.</p>
 <p>Rescaling changes the picture, not the distances: <span class="math inline">\(D^2\)</span> is unchanged by linear transformations of the covariates.</p>
@@ -748,37 +764,37 @@ Table&nbsp;1: Optimal against greedy pairing on the same samples. Greedy loses s
 <style type="text/css">
 </style>
 
-<table id="T_4e3a0" class="cell caption-top table table-sm table-striped small">
+<table id="T_9cb6d" class="cell caption-top table table-sm table-striped small">
 <thead>
 <tr class="header">
-<th id="T_4e3a0_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
-<th id="T_4e3a0_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
-<th id="T_4e3a0_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
-<th id="T_4e3a0_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
-<th id="T_4e3a0_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
+<th id="T_9cb6d_level0_col0" class="col_heading level0 col0" data-quarto-table-cell-role="th">Sample</th>
+<th id="T_9cb6d_level0_col1" class="col_heading level0 col1" data-quarto-table-cell-role="th">Total D<sup>2</sup>, optimal</th>
+<th id="T_9cb6d_level0_col2" class="col_heading level0 col2" data-quarto-table-cell-role="th">Total D<sup>2</sup>, greedy</th>
+<th id="T_9cb6d_level0_col3" class="col_heading level0 col3" data-quarto-table-cell-role="th">Worst pair, optimal</th>
+<th id="T_9cb6d_level0_col4" class="col_heading level0 col4" data-quarto-table-cell-role="th">Worst pair, greedy</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td id="T_4e3a0_row0_col0" class="data row0 col0">N = 100, k = 4</td>
-<td id="T_4e3a0_row0_col1" class="data row0 col1">63.0</td>
-<td id="T_4e3a0_row0_col2" class="data row0 col2">82.1 (+30%)</td>
-<td id="T_4e3a0_row0_col3" class="data row0 col3">5.47</td>
-<td id="T_4e3a0_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
+<td id="T_9cb6d_row0_col0" class="data row0 col0">N = 100, k = 4</td>
+<td id="T_9cb6d_row0_col1" class="data row0 col1">63.0</td>
+<td id="T_9cb6d_row0_col2" class="data row0 col2">82.1 (+30%)</td>
+<td id="T_9cb6d_row0_col3" class="data row0 col3">5.47</td>
+<td id="T_9cb6d_row0_col4" class="data row0 col4">10.41 (1.9×)</td>
 </tr>
 <tr class="even">
-<td id="T_4e3a0_row1_col0" class="data row1 col0">N = 200, k = 4</td>
-<td id="T_4e3a0_row1_col1" class="data row1 col1">78.5</td>
-<td id="T_4e3a0_row1_col2" class="data row1 col2">113.2 (+44%)</td>
-<td id="T_4e3a0_row1_col3" class="data row1 col3">4.70</td>
-<td id="T_4e3a0_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
+<td id="T_9cb6d_row1_col0" class="data row1 col0">N = 200, k = 4</td>
+<td id="T_9cb6d_row1_col1" class="data row1 col1">78.5</td>
+<td id="T_9cb6d_row1_col2" class="data row1 col2">113.2 (+44%)</td>
+<td id="T_9cb6d_row1_col3" class="data row1 col3">4.70</td>
+<td id="T_9cb6d_row1_col4" class="data row1 col4">14.80 (3.1×)</td>
 </tr>
 <tr class="odd">
-<td id="T_4e3a0_row2_col0" class="data row2 col0">N = 200, k = 8</td>
-<td id="T_4e3a0_row2_col1" class="data row2 col1">409.1</td>
-<td id="T_4e3a0_row2_col2" class="data row2 col2">505.0 (+23%)</td>
-<td id="T_4e3a0_row2_col3" class="data row2 col3">10.20</td>
-<td id="T_4e3a0_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
+<td id="T_9cb6d_row2_col0" class="data row2 col0">N = 200, k = 8</td>
+<td id="T_9cb6d_row2_col1" class="data row2 col1">409.1</td>
+<td id="T_9cb6d_row2_col2" class="data row2 col2">505.0 (+23%)</td>
+<td id="T_9cb6d_row2_col3" class="data row2 col3">10.20</td>
+<td id="T_9cb6d_row2_col4" class="data row2 col4">54.08 (5.3×)</td>
 </tr>
 </tbody>
 </table>
@@ -1050,7 +1066,10 @@ Figure&nbsp;2: Rejection rate of a two-sided 5% test against the size of the tru
 <h2 class="anchored" data-anchor-id="references">References</h2>
 <ul>
 <li>Bruhn, M. and McKenzie, D. (2009). In pursuit of balance: randomization in practice in development field experiments. <em>American Economic Journal: Applied Economics</em>, 1(4), 200–232.</li>
+<li>Dehejia, R. H. and Wahba, S. (1999). Causal effects in nonexperimental studies: reevaluating the evaluation of training programs. <em>Journal of the American Statistical Association</em>, 94(448), 1053–1062. Source of the NSW sample used here.</li>
 <li>Edmonds, J. (1965). Paths, trees, and flowers. <em>Canadian Journal of Mathematics</em>, 17, 449–467.</li>
+<li>Krueger, A. B. (1999). Experimental estimates of education production functions. <em>The Quarterly Journal of Economics</em>, 114(2), 497–532. Project STAR, the source of the grade-three sample used here.</li>
+<li>LaLonde, R. J. (1986). Evaluating the econometric evaluations of training programs with experimental data. <em>The American Economic Review</em>, 76(4), 604–620.</li>
 <li>Greevy, R., Lu, B., Silber, J. H. and Rosenbaum, P. (2004). Optimal multivariate matching before randomization. <em>Biostatistics</em>, 5(2), 263–275.</li>
 <li>Lu, B., Greevy, R., Xu, X. and Beck, C. (2011). Optimal nonbipartite matching and its statistical applications. <em>The American Statistician</em>, 65(1), 21–30.</li>
 <li>Morgan, K. L. and Rubin, D. B. (2012). Rerandomization to improve covariate balance in experiments. <em>The Annals of Statistics</em>, 40(2), 1263–1282.</li>
