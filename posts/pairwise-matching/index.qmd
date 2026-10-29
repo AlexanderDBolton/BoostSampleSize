@@ -137,7 +137,13 @@ Closeness between two units is measured with the
 
 We will cover the case where $N$ is odd later in this article.
 
-Step 2 is the same quadratic form as in the Mahalanobis article, applied two units instead of a unit and the mean.
+Step 2 is the same quadratic form as in the Mahalanobis article, applied to
+the gap between two units instead of the gap between a unit and the mean.
+
+Step 4 is what keeps this a randomised experiment. Assigning deterministically
+inside pairs, say the higher-spending unit always to control, would leave a
+single possible split and no basis for a $p$-value, where the coin flips leave
+$2^{N/2}$, about $1.6 \times 10^{60}$ at $N = 400$.
 
 ## The pairing is an optimisation problem, not a sorting problem
 
@@ -180,7 +186,8 @@ but it does not produce the minimum.
 
 Drag the slider to watch it choose. The middle plot shows what each pair
 costs, on a log scale because the range is wide, and the bottom panel the
-running total. The early pairs are nearly free, and the
+running total. Each plots the optimal matching alongside, both ranked closest
+pair first. The early pairs are nearly free, and the
 final one costs `{python} f"{demo['last']:.1f}"` against
 `{python} f"{demo['rest']:.1f}"` for the other nineteen put together.
 
@@ -231,14 +238,15 @@ widget(
 """)
 ```
 
-Greedy matching is the closer of the two at
+Greedy matching is closer than the optimal matching on
 `{python} f"{demo['g_better']}"` of the
-`{python} f"{demo['n']}"` ranks. Those wins come to
-`{python} f"{demo['saved']:.1f}"` in total. The ranks where it loses come to
-`{python} f"{demo['lost']:.1f}"`.
+`{python} f"{demo['n']}"` ranks, because taking the nearest available pair at
+every step collects near-duplicates that the optimal matching gives up. Those
+wins come to `{python} f"{demo['saved']:.1f}"` in total, against
+`{python} f"{demo['lost']:.1f}"` at the ranks where it loses.
 
 Greedy pairing strands the units it leaves until
-last. That gap goes into the variance of the treatment effect estimate, so the
+last. The gap for those last pairs goes into the variance of the treatment effect estimate, so the
 tail of the distance distribution matters more than its total.
 
 ::: {.callout-note collapse="true"}
@@ -285,12 +293,14 @@ Edmonds’ blossom algorithm solves the problem exactly in $O(N^3)$. Because any
 ## Does it gain more than rerandomization?
 
 Both designs are aiming at the same thing, so the comparison is worth making
-directly. Below, one fixed sample of 400 units with four covariates is assigned
-4,000 times under each design, and every set of assignments is scored against
-two outcomes: one a linear function of the covariates predicts well, and one it
-does not. Both carry the same total signal. The gain is expressed as the sample
-you would need under plain randomisation to estimate the treatment effect just
-as precisely.
+directly. The covariates are held fixed throughout: 400 units with four of
+them. Two outcomes are built on those covariates, carrying the same total
+signal and differing only in how much of it a linear function can reach. Each
+design is then run 4,000 times against each outcome. Matching solves the
+pairing once and then flips a fresh coin inside every pair, so its 4,000
+assignments are all different. The gain is expressed as the sample you would
+need under plain randomisation to estimate the treatment effect just as
+precisely.
 
 ```{python}
 #| label: headtohead-setup
@@ -434,19 +444,18 @@ outcome into its linear fit and the residual shows the mechanism directly:
 under rerandomization the variance of the fitted part shrinks by a factor of
 about $v_a$, and the variance of the residual part does not move.
 
-For matching, a perfectly matched sample would reduce the variance to the share
-of outcome variance the covariates do not explain, which is
+For matching, a perfectly matched sample would reduce the variance to
 $1 - R^2 =$ `{python} f"{1 - R2['nonlinear']['tot']:.2f}"` here against
 `{python} f"{R2['nonlinear']['pm']:.2f}"` achieved. The shortfall is the price
 of pairs that are close but not identical.
+:::
 
-The two designs differ in what you can do about a disappointing number.
+The two designs also differ in what you can do about a disappointing number.
 Tightening the threshold drives $v_a$ towards zero, so rerandomization has a
-dial. Matching has none: the within-pair distances are a property of the
-sample, and once the matching is optimal there is nothing further to spend.
+dial. Matching has none, because the within-pair distances are a property of
+the sample: once the matching is optimal there is nothing further to spend.
 What limits it is covariate density, which is why matching improves as $N$
 grows and degrades as $k$ grows.
-:::
 
 ::: {.callout-tip}
 ## Which to reach for
@@ -455,13 +464,12 @@ Matching is the safer default when you cannot describe the outcome as roughly
 linear in the covariates, and when the sample is small enough that a few
 awkward units could land on one side. Rerandomization is the better fit when
 the covariates enter the response roughly linearly, when you want a dial you
-can tighten, and when the pairing cannot survive to the analysis stage. The
-last section covers that condition, which is easy to overlook.
+can tighten, and when the pairing cannot survive to the analysis stage.
 :::
 
 ## Odd numbers, and units with nothing close to them
 
-Two awkward cases have one mechanism between them. A perfect matching needs an
+One mechanism solves two awkward cases. A perfect matching needs an
 even $N$, so an odd sample leaves a unit over. Separately, a sample may contain
 units that sit far from everything else, and forcing them into pairs produces
 exactly the stranded pairs the previous section warned about.
@@ -579,8 +587,6 @@ differences and taking the plain difference in group means are the same
 arithmetic, because every pair puts one unit in each arm. There is no way to
 forget the matching when forming the estimate.
 
-The standard error is a different matter.
-
 ```{python}
 #| label: se-setup
 #| include: false
@@ -635,8 +641,8 @@ of what a perfect matching would have removed.
 
 ### A conservative interval is not always a safe one
 
-Calling the two-sample interval conservative is accurate but incomplete. It
-does not follow that the only consequence is lost precision.
+Conservative is accurate but incomplete: lost precision is not the only
+consequence.
 
 ```{python}
 #| label: fig-power
@@ -700,9 +706,9 @@ ax.annotate("", xy=(0.008, 99), xytext=(cross, 99),
             arrowprops=dict(arrowstyle="->", color="#6b747c", lw=1.3,
                             shrinkA=0, shrinkB=0))
 ax.text(0.015, 94.5,
-        "left of this line, a matched design\n"
-        "analysed with a two-sample SE rejects\n"
-        "less often than not matching at all",
+        "between zero and this line, a matched\n"
+        "design analysed with a two-sample SE\n"
+        "rejects less often than not matching",
         fontsize=8.2, color="#6b747c", va="top", ha="left")
 
 ax.set_xlabel("true treatment effect")
@@ -716,12 +722,14 @@ fig.tight_layout()
 plt.show()
 ```
 
-Read the dashed red line against the grey one. At small effect sizes the
-matched design analysed with a two-sample standard error rejects less often
-than plain randomisation does, and the ordering only reverses once the effect
-is large enough. A test statistic that is both smaller in spread and centred
-below the critical value crosses that value less often, so the tighter estimate
-works against you until the effect is big enough to clear the bar on its own.
+Read the dashed red line against the grey one. The matched design analysed
+with a two-sample standard error rejects less often than plain randomisation
+does. At a true effect of zero that is what you want, because the rejection
+rate there is the false positive rate. Above zero it is lost power, until the
+ordering reverses once the effect is large enough. A test statistic that is
+both smaller in spread and centred below the critical value crosses that value
+less often, so the tighter estimate works against you until the effect clears
+the bar on its own.
 Bruhn and McKenzie report the same effect: failing to account for the
 randomisation method gives tests of the wrong size, and can give less power
 than a plain random draw would have.
