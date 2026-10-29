@@ -333,9 +333,9 @@ Every number above comes from covariates I generated and an outcome I wrote,
 which makes $R^2$ an input rather than a measurement. Two real datasets put a
 range on it, and the range is most of the story.
 
-With LaLonde's NSW job-training data, `{python} f"{LL['N']}"` people and
-`{python} f"{LL['k']}"` pre-treatment covariates against 1978 earnings, the
-measured $R^2$ is only `{python} f"{LL['r2']:.2f}"`. There is little point
+With LaLonde's National Supported Work data, `{python} f"{LL['N']}"` people
+and `{python} f"{LL['k']}"` pre-treatment covariates against 1978 earnings,
+the measured $R^2$ is only `{python} f"{LL['r2']:.2f}"`. There is little point
 spending effort on either design here: the optimal matching is worth
 `{python} f"{100 * (LL['eq'] - 1):.0f}"`% more data. With a slice of Project
 STAR, `{python} f"{ST['N']}"` pupils whose grade-three reading score is
@@ -883,8 +883,8 @@ freedom and returns nothing.
   Applied Economics*, 1(4), 200–232.
 - Dehejia, R. H. and Wahba, S. (1999). Causal effects in nonexperimental
   studies: reevaluating the evaluation of training programs. *Journal of the
-  American Statistical Association*, 94(448), 1053–1062. Source of the NSW
-  sample used here.
+  American Statistical Association*, 94(448), 1053–1062. Source of the
+  National Supported Work sample used here.
 - Edmonds, J. (1965). Paths, trees, and flowers. *Canadian Journal of
   Mathematics*, 17, 449–467.
 - Krueger, A. B. (1999). Experimental estimates of education production

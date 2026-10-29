@@ -107,7 +107,8 @@ from `main` / `docs`, configured under *Settings → Pages → Build and deploym
 `data/` holds two small public datasets, committed so that renders never
 depend on the network:
 
-- `lalonde-nsw.csv` — the NSW job-training experiment in Dehejia and Wahba's
+- `lalonde-nsw.csv` — the National Supported Work job-training experiment
+  (LaLonde's "NSW") in Dehejia and Wahba's
   version, from <https://users.nber.org/~rdehejia/data/nsw_dw.dta>. Covariates
   and 1978 earnings only. Measured R² is 0.04, the low end of what balancing
   is worth.
