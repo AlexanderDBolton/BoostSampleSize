@@ -40,8 +40,8 @@ This article is a stub. Remove `draft: true` from the front matter to publish it
    This is the motivation for the propensity score and for matching.
 
 6. **Connection to [the Mahalanobis distance](../mahalanobis-distance/).**
-   Stratifying on a one-dimensional summary — a propensity score or a
-   Mahalanobis distance from a reference point — as a way out of the
+   Stratifying on a one-dimensional summary, a propensity score or a
+   Mahalanobis distance from a reference point, as a way out of the
    dimensionality problem.
 
 ## References

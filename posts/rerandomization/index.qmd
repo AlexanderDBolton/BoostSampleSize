@@ -1,7 +1,8 @@
 ---
 title: "Rerandomization"
 description: >
-  Is it worth the trouble, and how do you analyse the experiment afterwards?
+  How much precision a stricter acceptance threshold buys, how to run it on a
+  fixed budget, and how to analyse the experiment afterwards.
 date: 2026-08-24
 order: 4
 categories: [rerandomization, design, inference]
@@ -44,6 +45,13 @@ this. You draw a split, measure how unbalanced it is, and if it's bad, draw
 another. The result is still a random assignment,
 drawn from a smaller pool of good ones. A small cost in computing time buys a
 better baseline table and a more precise estimate of the treatment effect.
+
+How much more precise is worth stating up front, because it is the only reason
+to bother. An 18% reduction in the standard error is equivalent to having 50%
+more data, and with strongly predictive covariates you can do considerably
+better than that. With covariates that predict nothing you get the tidier
+baseline table and no precision at all. The next section gives the formula and
+a calculator for your own $k$ and $R^2$.
 
 But is it worth doing? How do you run rerandomization? And how do you analyse
 the experiment afterwards? This article answers those questions.
@@ -113,12 +121,10 @@ for k_ in (5, 20, 50):
 pd.DataFrame(rows).set_index("covariates balanced")
 ```
 
-At $R^2 = 0.01$ rerandomization
-buys a tidier baseline table and no precision at all. But at $R^2 = 0.99$ it's
-worth more than any sample size you could realistically afford. Bear in mind
-that, for example, an 18% reduction in the standard error would be equivalent to
-having 50% more data, so rerandomization can be a powerful tool if your
-covariates are predictive.
+At $R^2 = 0.01$ rerandomization buys nothing but the baseline table. At
+$R^2 = 0.99$ it is worth more than any sample size you could realistically
+afford. The covariate count matters far less than whether the covariates
+predict the response.
 
 ### Try your own numbers
 

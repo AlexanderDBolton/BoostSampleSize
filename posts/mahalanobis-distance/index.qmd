@@ -1,8 +1,9 @@
 ---
 title: "The Mahalanobis distance"
 description: >
-  A definition, an explanation of how it handles correlated columns, and how to
-  handle categorical features.
+  The distance the other two methods are built on: why correlated columns are
+  counted once, how to handle categorical features, and where it fails
+  silently.
 date: 2026-08-24
 order: 1
 categories: [distance, covariance]
@@ -60,6 +61,17 @@ The Mahalanobis distance centres, rescales, and removes correlation. We will
 use it extensively to create balanced treatment and control groups with the
 [Rerandomization](../rerandomization/) and
 [Pairwise Matching](../pairwise-matching/) techniques.
+
+It is worth knowing what the choice buys before working through it. Balancing
+on covariate *means* only constrains the part of the outcome that is linear in
+the covariates, while matching on this distance constrains any function of
+them. In the [pairwise matching](../pairwise-matching/) article that difference
+is the whole result: on an outcome the covariates predict well both designs are
+worth about the same, and on one they predict just as strongly but non-linearly
+the mean-based criterion collapses while matching holds its gain. The two
+failure modes at the end of this article, a near-singular $\Sigma$ and a rare
+categorical level, are the two ways that distance quietly stops measuring what
+you think it measures.
 
 For a point $x$, a mean vector $\mu$ and a covariance
 matrix $\Sigma$, the **squared Mahalanobis distance** is
@@ -155,7 +167,7 @@ Side by side:
 | appears in the density as| $\exp(-\tfrac12 z^2)$               | $\exp(-\tfrac12 D^2)$                    |
 
 So the Mahalanobis distance is the squared z-score, generalised to several
-variables at once — and the generalisation is forced, not chosen: it is
+variables at once, and the generalisation is forced, not chosen: it is
 whatever has to sit in the exponent of the multivariate normal.
 :::
 
@@ -210,7 +222,7 @@ payload = {
     "Linv":  np.linalg.inv(L).tolist(),
     "Dval":  float(np.sqrt(d_raw @ np.linalg.solve(Sig_demo, d_raw))),
     # The grid and its labels carry the first half of the slider on their own
-    # — centring only changes the numbers — so they are drawn stronger here
+    # (centring only changes the numbers) so they are drawn stronger here
     # than in the static figures, where they are just background.
     "colors": {"grey": C["grey"], "red": C["red"], "dark": C["dark"],
                "grid": "#ccd4db", "axis": "#9aa4ad", "tick": "#3f4850"},
@@ -277,8 +289,8 @@ S_inv = np.linalg.inv(S_x)
 Now consider two people, both aged 50 (exactly average, so age contributes
 nothing) and both exactly one standard deviation above average in height:
 
-- **A** is also one SD *above* average weight: `(50, 180, 90)` — tall and heavy.
-- **B** is one SD *below* average weight: `(50, 180, 60)` — tall and light.
+- **A** is also one SD *above* average weight: `(50, 180, 90)`, tall and heavy.
+- **B** is one SD *below* average weight: `(50, 180, 60)`, tall and light.
 
 In raw units both are $(0, +10, \pm 15)$ away from the mean, so their Euclidean
 distances are identical. After standardising, both are at $\sqrt{2} = 1.414$.
@@ -334,7 +346,7 @@ the cloud by the Mahalanobis distance and A is not.
 
 ```{python}
 #| label: fig-correlation-ellipse
-#| fig-cap: "The height–weight plane with contours of constant Mahalanobis distance (solid, tilted). The dotted orange curve is the contour of constant *standardised* Euclidean distance through A and B — it is axis-aligned, and it passes through both points, because standardising alone cannot tell them apart. The tilt is the entire contribution of Σ⁻¹."
+#| fig-cap: "The height–weight plane with contours of constant Mahalanobis distance (solid, tilted). The dotted orange curve is the contour of constant *standardised* Euclidean distance through A and B. It is axis-aligned, and it passes through both points, because standardising alone cannot tell them apart. The tilt is the entire contribution of Σ⁻¹."
 #| fig-height: 4.8
 
 S_hw = S_x[1:, 1:]
@@ -391,6 +403,35 @@ Standardised Euclidean distance treats each copy as fresh evidence and lets
 records that the copies are redundant, and the squared distance is unchanged
 no matter how many of them you add.
 
+That is the metric's main advantage over the obvious alternative, so here it is
+measured rather than asserted. Each extra column is a second scale recording
+exactly the same weight.
+
+```{python}
+#| label: tbl-redundant
+#| tbl-cap: 'Adding duplicate weight columns. Standardised Euclidean distance climbs with every copy; $D^2$ does not move. Exact copies make $\Sigma$ singular, so this uses the pseudo-inverse.'
+
+rows = []
+for m in range(4):
+    sel = [0, 1] + [2] * (m + 1)
+    S_m = S_x[np.ix_(sel, sel)]
+    Si_m = np.linalg.pinv(S_m)
+    dA = (A_person - mu_x)[sel]
+    dB = (B_person - mu_x)[sel]
+    rows.append({
+        "weight columns": m + 1,
+        "Euclidean (standardised), A": f"{np.linalg.norm(dA / sd_x[sel]):.3f}",
+        "D<sup>2</sup>, A": f"{dA @ Si_m @ dA:.3f}",
+        "D<sup>2</sup>, B": f"{dB @ Si_m @ dB:.3f}",
+    })
+pd.DataFrame(rows).style.hide(axis="index")
+```
+
+A and B keep the $D^2$ values they had with one weight column, while the
+standardised Euclidean distance to A grows by a factor of
+`{python} f"{np.sqrt(4 / 2):.2f}"` across the four rows purely because the
+same measurement was recorded four times.
+
 ## Categorical features
 
 Everything so far assumed continuous covariates. Categorical ones need one extra
@@ -437,7 +478,7 @@ Since all the centred data already lives in that row space, nothing is lost.
 
 ::: {.keybox}
 **Fixes A and B are not two approximations to trade off. They give exactly the
-same $D^2$ — and it does not matter which level you drop.**
+same $D^2$, and it does not matter which level you drop.**
 :::
 
 The reason: the two encodings hold identical information in different
@@ -456,7 +497,7 @@ rerandomization loop. This is the default I would reach for.
 you are handling several categoricals programmatically, or if $S$ may be
 singular for other reasons anyway: more covariates than units, an all-constant
 column, a covariate that is an exact linear combination of others. Just set
-`rcond` explicitly — see [Practical notes](#practical-notes-and-failure-modes).
+`rcond` explicitly. See [Practical notes](#practical-notes-and-failure-modes).
 
 Both methods, end to end, for a unit from `west`:
 
@@ -561,12 +602,12 @@ print(f"matrix_rank, tol=1e-10   : {np.linalg.matrix_rank(S_full, tol=TOL)} of 4
 ```
 
 Whether it bites depends on exactly where that eigenvalue lands, which varies
-with the data — on this particular matrix `pinv` happens to be fine, but
+with the data. On this particular matrix `pinv` happens to be fine, but
 `matrix_rank` already reports a singular matrix as full rank. The failure mode
 for `pinv` is worse than for `matrix_rank`, because it is silent: you get a
 plausible number that is quietly wrong rather than an obviously wrong integer.
 Pass `np.linalg.pinv(S, rcond=1e-10)` and `matrix_rank(S, tol=1e-10)` as a
-matter of habit — or sidestep both by dropping a baseline.
+matter of habit, or sidestep both by dropping a baseline.
 
 **Rare categorical levels dominate the metric.** Assuming that the categorical
 block is uncorrelated with every other column, a single unit's squared distance

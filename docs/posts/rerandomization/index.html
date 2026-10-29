@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="dcterms.date" content="2026-08-24">
-<meta name="description" content="Is it worth the trouble, and how do you analyse the experiment afterwards?">
+<meta name="description" content="How much precision a stricter acceptance threshold buys, how to run it on a fixed budget, and how to analyse the experiment afterwards.">
 
 <title>Rerandomization – BoostSampleSize</title>
 <style>
@@ -182,7 +182,7 @@ window.Quarto = {
 
 <div>
   <div class="description">
-    <p>Is it worth the trouble, and how do you analyse the experiment afterwards?</p>
+    <p>How much precision a stricter acceptance threshold buys, how to run it on a fixed budget, and how to analyse the experiment afterwards.</p>
   </div>
 </div>
 
@@ -206,6 +206,7 @@ window.Quarto = {
 
 
 <p>You randomise a few hundred people into two arms, but the treatment and control groups might differ in some important way. Rerandomization is a solution to this. You draw a split, measure how unbalanced it is, and if it’s bad, draw another. The result is still a random assignment, drawn from a smaller pool of good ones. A small cost in computing time buys a better baseline table and a more precise estimate of the treatment effect.</p>
+<p>How much more precise is worth stating up front, because it is the only reason to bother. An 18% reduction in the standard error is equivalent to having 50% more data, and with strongly predictive covariates you can do considerably better than that. With covariates that predict nothing you get the tidier baseline table and no precision at all. The next section gives the formula and a calculator for your own <span class="math inline">\(k\)</span> and <span class="math inline">\(R^2\)</span>.</p>
 <p>But is it worth doing? How do you run rerandomization? And how do you analyse the experiment afterwards? This article answers those questions.</p>
 <section id="what-it-does" class="level2">
 <h2 class="anchored" data-anchor-id="what-it-does">What it does</h2>
@@ -289,7 +290,7 @@ Table&nbsp;1: How much smaller the standard error of the difference in means get
 </figure>
 </div>
 </div>
-<p>At <span class="math inline">\(R^2 = 0.01\)</span> rerandomization buys a tidier baseline table and no precision at all. But at <span class="math inline">\(R^2 = 0.99\)</span> it’s worth more than any sample size you could realistically afford. Bear in mind that, for example, an 18% reduction in the standard error would be equivalent to having 50% more data, so rerandomization can be a powerful tool if your covariates are predictive.</p>
+<p>At <span class="math inline">\(R^2 = 0.01\)</span> rerandomization buys nothing but the baseline table. At <span class="math inline">\(R^2 = 0.99\)</span> it is worth more than any sample size you could realistically afford. The covariate count matters far less than whether the covariates predict the response.</p>
 <section id="try-your-own-numbers" class="level3">
 <h3 class="anchored" data-anchor-id="try-your-own-numbers">Try your own numbers</h3>
 <div id="cell-gain-calculator" class="cell" data-execution_count="3">

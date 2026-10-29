@@ -150,165 +150,6 @@ inside pairs, say the higher-spending unit always to control, would leave a
 single possible split and no basis for a $p$-value, where the coin flips leave
 $2^{N/2}$, about $1.6 \times 10^{60}$ at $N = 400$.
 
-## The pairing is an optimisation problem, not a sorting problem
-
-```{python}
-#| label: greedy-data
-#| include: false
-
-# Whitened to S = I, so the distance being minimised is the length of the line
-# on the screen. Whitening changes no distance, only the drawing.
-Xd = whiten(np.random.default_rng(11).multivariate_normal(
-    np.zeros(2), np.array([[1.0, 0.82], [0.82, 1.0]]), size=40))
-d2d, Si_d, S_d = pair_distances(Xd)
-assert np.allclose(S_d, np.eye(2), atol=1e-12)
-po_d, pg_d = optimal_pairs(d2d), greedy_pairs(d2d)
-
-demo = {
-    "mult": (sum(d2d[i, j] for i, j in pg_d)
-             / sum(d2d[i, j] for i, j in po_d)),
-    "worst": (max(d2d[i, j] for i, j in pg_d)
-              / max(d2d[i, j] for i, j in po_d)),
-    "last": float(d2d[pg_d[-1][0], pg_d[-1][1]]),
-    "rest": float(sum(d2d[i, j] for i, j in pg_d[:-1])),
-    "last_len": float(np.sqrt(d2d[pg_d[-1][0], pg_d[-1][1]])),
-    "opt_worst_len": float(np.sqrt(max(d2d[i, j] for i, j in po_d))),
-}
-
-# Greedy takes the closest available pair every time, so its pick order is
-# already ascending and the two matchings can be compared rank by rank.
-g_rank = sorted(d2d[i, j] for i, j in pg_d)
-o_rank = sorted(d2d[i, j] for i, j in po_d)
-demo["n"] = len(g_rank)
-demo["g_better"] = int(sum(g < o for g, o in zip(g_rank, o_rank)))
-demo["saved"] = float(sum(o - g for g, o in zip(g_rank, o_rank) if g < o))
-demo["lost"] = float(sum(g - o for g, o in zip(g_rank, o_rank) if g > o))
-```
-
-The obvious way to form pairs is the "greedy" approach: pair the two closest
-units anywhere in the sample, then repeat on what is left. It is easy to
-explain and implement, but it does not produce the minimum.
-
-Drag the slider to watch it choose. The middle plot shows what each pair
-costs, on a log scale because the range is wide, and the bottom panel the
-running total. Each plots the optimal matching alongside, both ranked closest
-pair first. The early pairs are nearly free, and the
-final one costs `{python} f"{demo['last']:.1f}"` against
-`{python} f"{demo['rest']:.1f}"` for the other nineteen put together.
-
-```{python}
-#| label: greedy-widget
-#| echo: false
-
-widget(
-    "greedy-steps.js", "gs-demo",
-    {
-        "pts": np.round(Xd, 4).tolist(),
-        "greedy": [[int(i), int(j), round(float(d2d[i, j]), 4)]
-                   for i, j in pg_d],
-        "optimal": [[int(i), int(j), round(float(d2d[i, j]), 4)]
-                    for i, j in po_d],
-        "optWorst": float(max(d2d[i, j] for i, j in po_d)),
-        "optTotal": float(sum(d2d[i, j] for i, j in po_d)),
-        "xlab": "X",
-        "ylab": "Y",
-        "colors": WIDGET_COLORS,
-    },
-    """
-<style>
-.gs-wrap { margin: 1.2rem 0 1.6rem; }
-.gs-wrap canvas { display:block; width:100%; touch-action:manipulation; }
-.gs-wrap .gs-readout { font-size:.82rem; color:#5b6570; text-align:center;
-  margin:.35rem 0 .6rem; }
-.gs-wrap .gs-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
-.gs-wrap .gs-sep { margin:0 .55rem; opacity:.45; }
-.gs-wrap input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
-.gs-wrap .gs-foot { display:flex; justify-content:space-between;
-  align-items:center; margin-top:.45rem; font-size:.82rem; color:#8a929a; }
-.gs-wrap .gs-opt { font:inherit; font-size:.8rem; color:#2c4a63;
-  background:#f1f4f7; border:1px solid #cfd018; border-color:#cdd5dc;
-  border-radius:4px; padding:.25rem .6rem; cursor:pointer; }
-.gs-wrap .gs-opt:hover { background:#e7ecf1; }
-</style>
-<div class="gs-wrap" id="gs-demo">
-  <canvas></canvas>
-  <div class="gs-readout"></div>
-  <input type="range" min="0" max="20" step="1" value="0"
-         aria-label="Number of pairs greedy has formed">
-  <div class="gs-foot">
-    <span>drag to add pairs</span>
-    <button class="gs-opt" type="button" aria-pressed="false">Show optimal matching</button>
-  </div>
-</div>
-""")
-```
-
-Greedy matching is closer than the optimal matching on
-`{python} f"{demo['g_better']}"` of the
-`{python} f"{demo['n']}"` ranks, because taking the nearest available pair at
-every step collects near-duplicates that the optimal matching gives up. Those
-wins come to `{python} f"{demo['saved']:.1f}"` in total, against
-`{python} f"{demo['lost']:.1f}"` at the ranks where it loses.
-
-Greedy pairing strands the units it leaves until last. The gap for those last
-pairs goes into the variance of the treatment effect estimate, so the tail of
-the distance distribution matters more than its total.
-
-::: {.callout-note collapse="true"}
-## What the lengths mean here, and what they would mean on real data
-
-Here the sample is rescaled so that $S$ is the identity. The Mahalanobis
-distance is then the plain straight-line distance, so each line’s length is
-exactly what is being minimised.
-
-Rescaling changes the picture, not the distances: $D^2$ is unchanged by linear
-transformations of the covariates.
-
-Real covariates are usually correlated. Then equal distances form tilted
-ellipses rather than circles, so screen length no longer tracks distance. A
-gap along the long axis is cheap because such differences are common, while
-the same gap across the short axis is expensive because that combination is
-rare.
-:::
-
-The cost of the greedy algorithm over the optimal algorithm depends on the
-sample. With 40 units, the greedy algorithm reaches
-`{python} f"{demo['mult']:.1f}"` times the optimal total distance and the cost
-of the worst pair is `{python} f"{demo['worst']:.0f}"` times greater. At a few
-hundred units the totals would be closer together, while the cost of the worst
-pair would be several times further apart.
-
-```{python}
-#| label: tbl-greedy
-#| echo: false
-#| tbl-cap: 'Optimal against greedy pairing on the same samples. Greedy loses some of the total, and much more of the worst case.'
-
-rows = []
-for N_, p_ in [(100, 4), (200, 4), (200, 8)]:
-    Xg = correlated_X(N_, p_, np.random.default_rng(100 + N_ + p_))
-    d2g, _, _ = pair_distances(Xg)
-    po, pg = optimal_pairs(d2g), greedy_pairs(d2g)
-    to = sum(d2g[i, j] for i, j in po)
-    tg = sum(d2g[i, j] for i, j in pg)
-    mo = max(d2g[i, j] for i, j in po)
-    mg = max(d2g[i, j] for i, j in pg)
-    rows.append({
-        "Sample": f"N = {N_}, k = {p_}",
-        "Total D<sup>2</sup>, optimal": f"{to:.1f}",
-        "Total D<sup>2</sup>, greedy": f"{tg:.1f} (+{100 * (tg / to - 1):.0f}%)",
-        "Worst pair, optimal": f"{mo:.2f}",
-        "Worst pair, greedy": f"{mg:.2f} ({mg / mo:.1f}×)",
-    })
-pd.DataFrame(rows).style.hide(axis="index")
-```
-
-Edmonds’ blossom algorithm solves the problem exactly in $O(N^3)$. Because any
-unit may pair with any other, the graph is not bipartite and the Hungarian
-algorithm does not apply; Greevy et al. (2004) introduced this non-bipartite
-form for the design. In Python it is available in networkx and in R through
-the nbpMatching package. The button in the bottom right shows the optimal
-matching for comparison.
-
 ## Does it gain more than rerandomization?
 
 Both designs are aiming at the same thing, so the comparison is worth making
@@ -448,6 +289,67 @@ same value on each side of the coin flip, whether that function is linear or
 not. Both outcome models leave the same share of variance unexplained once any
 function is allowed, which is why matching holds up across both rows.
 
+### Is that $R^2$ a fair number?
+
+```{python}
+#| label: lalonde
+#| include: false
+
+d_ll = pd.read_csv("../../data/lalonde-nsw.csv")
+COVS_LL = ["age", "education", "black", "hispanic", "married", "nodegree",
+           "re74", "re75"]
+X_ll = d_ll[COVS_LL].to_numpy(float)
+y_ll = d_ll["re78"].to_numpy(float)
+N_ll = len(X_ll) - len(X_ll) % 2
+X_ll, y_ll = X_ll[:N_ll], y_ll[:N_ll]
+k_ll = X_ll.shape[1]
+
+Xi_ll = np.column_stack([np.ones(N_ll), X_ll])
+r2_ll = (Xi_ll @ np.linalg.lstsq(Xi_ll, y_ll, rcond=None)[0]).var() / y_ll.var()
+
+Xc_ll = X_ll - X_ll.mean(0)
+Si_ll = np.linalg.pinv(np.cov(Xc_ll, rowvar=False, bias=True))
+dif = Xc_ll[:, None, :] - Xc_ll[None, :, :]
+d2_ll = np.einsum("ijk,kl,ijl->ij", dif, Si_ll, dif)
+p_ll = optimal_pairs(d2_ll)
+
+# Exact design variances, so there is no Monte Carlo error to argue about.
+# Pair randomisation: the difference in means is a weighted sum of
+# independent within-pair signs. Complete randomisation: 4 s_y^2 / N.
+gap_ll = y_ll[p_ll[:, 0]] - y_ll[p_ll[:, 1]]
+var_pm_ll = (gap_ll ** 2).sum() / (N_ll // 2) ** 2
+var_cr_ll = 4 * y_ll.var(ddof=1) / N_ll
+eq_ll = var_cr_ll / var_pm_ll
+rho_ll = np.corrcoef(y_ll[p_ll[:, 0]], y_ll[p_ll[:, 1]])[0, 1]
+```
+
+It is at the optimistic end, and it was chosen rather than measured, so it is
+worth running the same design on real covariates and a real outcome. The
+sample here is LaLonde's job-training experiment in Dehejia and Wahba's
+version: `{python} f"{N_ll}"` people, `{python} f"{k_ll}"` pre-treatment
+covariates, and 1978 earnings as the outcome.
+
+The measured $R^2$ is `{python} f"{r2_ll:.3f}"`. That caps the whole exercise
+at `{python} f"{1 / (1 - r2_ll):.2f}"` times the sample, and the optimal
+matching delivers `{python} f"{eq_ll:.3f}"` times, about
+`{python} f"{100 * (eq_ll - 1) / (1 / (1 - r2_ll) - 1):.0f}"`% of what was
+available. On the most studied dataset in the matching literature, pairing
+these units is worth roughly
+`{python} f"{100 * (eq_ll - 1):.0f}"`% more data.
+
+That is not a failure of the method. It is what the method is worth when the
+covariates barely predict the outcome, and age, education and two years of
+prior earnings predict 1978 earnings badly. The mechanism is visible in one
+number: the within-pair correlation of the outcome is
+`{python} f"{rho_ll:+.3f}"`, and pair randomisation only beats complete
+randomisation to the extent that correlation is positive. Matching makes pairs
+alike in covariates, not in outcomes, and here the two come apart.
+
+The lesson is the ordering. Measure $R^2$ on your own covariates and outcome
+first, because it decides whether any of this is worth doing. A design
+question that looks like "matching or rerandomization?" is usually settled
+before either is reached.
+
 ::: {.callout-note collapse="true"}
 ## Checking both numbers against theory
 
@@ -487,6 +389,179 @@ awkward units could land on one side. Rerandomization is the better fit when
 the covariates enter the response roughly linearly, when you want a dial you
 can tighten, and when the pairing cannot survive to the analysis stage.
 :::
+
+## The pairing is an optimisation problem, not a sorting problem
+
+The gain above assumes the pairing is solved properly. This is the step that
+goes wrong in practice, and getting it wrong costs most of what the previous
+section just measured.
+
+```{python}
+#| label: greedy-data
+#| include: false
+
+# Whitened to S = I, so the distance being minimised is the length of the line
+# on the screen. Whitening changes no distance, only the drawing.
+Xd = whiten(np.random.default_rng(11).multivariate_normal(
+    np.zeros(2), np.array([[1.0, 0.82], [0.82, 1.0]]), size=40))
+d2d, Si_d, S_d = pair_distances(Xd)
+assert np.allclose(S_d, np.eye(2), atol=1e-12)
+po_d, pg_d = optimal_pairs(d2d), greedy_pairs(d2d)
+
+demo = {
+    "mult": (sum(d2d[i, j] for i, j in pg_d)
+             / sum(d2d[i, j] for i, j in po_d)),
+    "worst": (max(d2d[i, j] for i, j in pg_d)
+              / max(d2d[i, j] for i, j in po_d)),
+    "last": float(d2d[pg_d[-1][0], pg_d[-1][1]]),
+    "rest": float(sum(d2d[i, j] for i, j in pg_d[:-1])),
+    "last_len": float(np.sqrt(d2d[pg_d[-1][0], pg_d[-1][1]])),
+    "opt_worst_len": float(np.sqrt(max(d2d[i, j] for i, j in po_d))),
+}
+
+# Greedy takes the closest available pair every time, so its pick order is
+# already ascending and the two matchings can be compared rank by rank.
+g_rank = sorted(d2d[i, j] for i, j in pg_d)
+o_rank = sorted(d2d[i, j] for i, j in po_d)
+demo["n"] = len(g_rank)
+demo["g_better"] = int(sum(g < o for g, o in zip(g_rank, o_rank)))
+demo["saved"] = float(sum(o - g for g, o in zip(g_rank, o_rank) if g < o))
+demo["lost"] = float(sum(g - o for g, o in zip(g_rank, o_rank) if g > o))
+```
+
+The obvious way to form pairs is the "greedy" approach: pair the two closest
+units anywhere in the sample, then repeat on what is left. It is easy to
+explain and implement, but it does not produce the minimum.
+
+Drag the slider to watch it choose. The middle plot shows what each pair
+costs, on a log scale because the range is wide, and the bottom panel the
+running total. Each plots the optimal matching alongside, both ranked closest
+pair first. The early pairs are nearly free, and the
+final one costs `{python} f"{demo['last']:.1f}"` against
+`{python} f"{demo['rest']:.1f}"` for the other nineteen put together.
+
+```{python}
+#| label: greedy-widget
+#| echo: false
+
+widget(
+    "greedy-steps.js", "gs-demo",
+    {
+        "pts": np.round(Xd, 4).tolist(),
+        "greedy": [[int(i), int(j), round(float(d2d[i, j]), 4)]
+                   for i, j in pg_d],
+        "optimal": [[int(i), int(j), round(float(d2d[i, j]), 4)]
+                    for i, j in po_d],
+        "optWorst": float(max(d2d[i, j] for i, j in po_d)),
+        "optTotal": float(sum(d2d[i, j] for i, j in po_d)),
+        "xlab": "X",
+        "ylab": "Y",
+        "colors": WIDGET_COLORS,
+    },
+    """
+<style>
+.gs-wrap { margin: 1.2rem 0 1.6rem; }
+.gs-wrap canvas { display:block; width:100%; touch-action:manipulation; }
+.gs-wrap .gs-readout { font-size:.82rem; color:#5b6570; text-align:center;
+  margin:.35rem 0 .6rem; }
+.gs-wrap .gs-readout b { color:#21252b; font-variant-numeric:tabular-nums; }
+.gs-wrap .gs-sep { margin:0 .55rem; opacity:.45; }
+.gs-wrap input[type=range] { width:100%; margin:0; accent-color:#2c6e9b; }
+.gs-wrap .gs-foot { display:flex; justify-content:space-between;
+  align-items:center; margin-top:.45rem; font-size:.82rem; color:#8a929a; }
+.gs-wrap .gs-opt { font:inherit; font-size:.8rem; color:#2c4a63;
+  background:#f1f4f7; border:1px solid #cfd018; border-color:#cdd5dc;
+  border-radius:4px; padding:.25rem .6rem; cursor:pointer; }
+.gs-wrap .gs-opt:hover { background:#e7ecf1; }
+</style>
+<div class="gs-wrap" id="gs-demo">
+  <canvas></canvas>
+  <div class="gs-readout"></div>
+  <input type="range" min="0" max="20" step="1" value="0"
+         aria-label="Number of pairs greedy has formed">
+  <div class="gs-foot">
+    <span>drag to add pairs</span>
+    <button class="gs-opt" type="button" aria-pressed="false">Show optimal matching</button>
+  </div>
+</div>
+""")
+```
+
+Greedy matching is closer than the optimal matching on
+`{python} f"{demo['g_better']}"` of the
+`{python} f"{demo['n']}"` ranks, because taking the nearest available pair at
+every step collects near-duplicates that the optimal matching gives up. Those
+wins come to `{python} f"{demo['saved']:.1f}"` in total, against
+`{python} f"{demo['lost']:.1f}"` at the ranks where it loses.
+
+Greedy pairing strands the units it leaves until last. The gap for those last
+pairs goes into the variance of the treatment effect estimate, so the tail of
+the distance distribution matters more than its total.
+
+::: {.callout-note collapse="true"}
+## What the lengths mean here, and what they would mean on real data
+
+Here the sample is rescaled so that $S$ is the identity. The Mahalanobis
+distance is then the plain straight-line distance, so each line’s length is
+exactly what is being minimised.
+
+Rescaling changes the picture, not the distances: $D^2$ is unchanged by linear
+transformations of the covariates.
+
+Real covariates are usually correlated. Then equal distances form tilted
+ellipses rather than circles, so screen length no longer tracks distance. A
+gap along the long axis is cheap because such differences are common, while
+the same gap across the short axis is expensive because that combination is
+rare.
+:::
+
+The cost of the greedy algorithm over the optimal algorithm depends on the
+sample. With 40 units, the greedy algorithm reaches
+`{python} f"{demo['mult']:.1f}"` times the optimal total distance and the cost
+of the worst pair is `{python} f"{demo['worst']:.0f}"` times greater. Forty
+units is a hard case for it, so the table below runs the same comparison at a
+few hundred, which is the size this design is usually for.
+
+```{python}
+#| label: tbl-greedy
+#| echo: false
+#| tbl-cap: 'Optimal against greedy pairing on the same samples. Greedy loses some of the total, and much more of the worst case.'
+
+rows, gt = [], {}
+for N_, p_ in [(100, 4), (200, 4), (200, 8)]:
+    Xg = correlated_X(N_, p_, np.random.default_rng(100 + N_ + p_))
+    d2g, _, _ = pair_distances(Xg)
+    po, pg = optimal_pairs(d2g), greedy_pairs(d2g)
+    to = sum(d2g[i, j] for i, j in po)
+    tg = sum(d2g[i, j] for i, j in pg)
+    mo = max(d2g[i, j] for i, j in po)
+    mg = max(d2g[i, j] for i, j in pg)
+    rows.append({
+        "Sample": f"N = {N_}, k = {p_}",
+        "Total D<sup>2</sup>, optimal": f"{to:.1f}",
+        "Total D<sup>2</sup>, greedy": f"{tg:.1f} (+{100 * (tg / to - 1):.0f}%)",
+        "Worst pair, optimal": f"{mo:.2f}",
+        "Worst pair, greedy": f"{mg:.2f} ({mg / mo:.1f}×)",
+    })
+    gt[(N_, p_)] = {"total": 100 * (tg / to - 1), "worst": mg / mo}
+pd.DataFrame(rows).style.hide(axis="index")
+```
+
+The two columns move in opposite directions as the sample grows. At
+$N = 200$ with four covariates greedy's total is only
+`{python} f"{gt[(200, 4)]['total']:.0f}"`% above optimal, against
+`{python} f"{100 * (demo['mult'] - 1):.0f}"`% at forty units, so the totals
+converge. Its worst pair still costs
+`{python} f"{gt[(200, 4)]['worst']:.1f}"` times more, and at eight covariates
+`{python} f"{gt[(200, 8)]['worst']:.1f}"` times more. The total becomes a
+worse and worse guide to the thing that matters.
+
+Edmonds’ blossom algorithm solves the problem exactly in $O(N^3)$. Because any
+unit may pair with any other, the graph is not bipartite and the Hungarian
+algorithm does not apply; Greevy et al. (2004) introduced this non-bipartite
+form for the design. In Python it is available in networkx and in R through
+the nbpMatching package. The button in the bottom right shows the optimal
+matching for comparison.
 
 ## Odd numbers, and units with nothing close to them
 
