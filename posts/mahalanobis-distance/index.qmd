@@ -108,7 +108,7 @@ f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}
 $$
 
 The only place $x$ appears at all is inside $z^2$. So the measure of how unusual
-a point is depeds only on $z^2$.
+a point is depends only on $z^2$.
 
 **Several variables.** Now each observation is a list of numbers, say
 $x = (\text{age},\ \text{height},\ \text{weight})$, so $x$ and $\mu$ are

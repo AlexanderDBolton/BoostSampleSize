@@ -281,7 +281,7 @@ f(x) = \frac{1}{\sqrt{2\pi\sigma^2}}
      = \underbrace{\frac{1}{\sqrt{2\pi\sigma^2}}}_{\text{a constant}}
        \exp\!\left(-\tfrac{1}{2} z^2\right).
 \]</span></p>
-<p>The only place <span class="math inline">\(x\)</span> appears at all is inside <span class="math inline">\(z^2\)</span>. So the measure of how unusual a point is depeds only on <span class="math inline">\(z^2\)</span>.</p>
+<p>The only place <span class="math inline">\(x\)</span> appears at all is inside <span class="math inline">\(z^2\)</span>. So the measure of how unusual a point is depends only on <span class="math inline">\(z^2\)</span>.</p>
 <p><strong>Several variables.</strong> Now each observation is a list of numbers, say <span class="math inline">\(x = (\text{age},\ \text{height},\ \text{weight})\)</span>, so <span class="math inline">\(x\)</span> and <span class="math inline">\(\mu\)</span> are vectors with <span class="math inline">\(p = 3\)</span> entries.</p>
 <p>The single variance <span class="math inline">\(\sigma^2\)</span> has to become something richer, because there are now two kinds of information: how much each variable varies on its own, and whether variables move together. It becomes the <strong>covariance matrix</strong> <span class="math inline">\(\Sigma\)</span>, a <span class="math inline">\(p \times p\)</span> matrix whose diagonal entry <span class="math inline">\(\Sigma_{jj}\)</span> is the variance of variable <span class="math inline">\(j\)</span>, and whose off-diagonal entry <span class="math inline">\(\Sigma_{jk}\)</span> is the covariance between variables <span class="math inline">\(j\)</span> and <span class="math inline">\(k\)</span>. The covariance is positive if they tend to be large together, zero if they are unrelated.</p>
 <p>We don’t divide by a matrix, but multiply by its inverse. Now <span class="math inline">\(\Sigma^{-1}\)</span> is the matrix that plays the role <span class="math inline">\(1/\sigma^2\)</span> played before. (Note that for one variable, <span class="math inline">\(\Sigma\)</span> is the <span class="math inline">\(1\times1\)</span> matrix <span class="math inline">\([\sigma^2]\)</span> and <span class="math inline">\(\Sigma^{-1}\)</span> is <span class="math inline">\([1/\sigma^2]\)</span>, so the one-variable case really is the general case with <span class="math inline">\(p = 1\)</span>.)</p>
@@ -1599,7 +1599,7 @@ D^2 = \frac{1 - p_k}{p_k},
 <span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a>The only place $x$ appears at all is inside $z^2$. So the measure of how unusual</span>
-<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a>a point is depeds only on $z^2$.</span>
+<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a>a point is depends only on $z^2$.</span>
 <span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a>**Several variables.** Now each observation is a list of numbers, say</span>
 <span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>$x = (\text{age},\ \text{height},\ \text{weight})$, so $x$ and $\mu$ are</span>
