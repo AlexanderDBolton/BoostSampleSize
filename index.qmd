@@ -22,35 +22,22 @@ Three ways to get a more precise treatment effect out of a sample you cannot
 grow. All of them work by choosing *which* random split you end up with,
 rather than by collecting more units.
 
-<!-- Every figure below is computed in the articles. If the datasets or seeds
-     change, re-check these three claims:
-       3x and 2%  -> posts/pairwise-matching, "What it is worth on two real
-                     datasets" (Project STAR and National Supported Work)
-       40% / less powerful
-                  -> posts/pairwise-matching, "Analysing a matched
-                     experiment" and "A conservative interval is not always a
-                     safe one" -->
+<!-- Both claims below are computed in the articles. If the datasets or seeds
+     change, re-check them:
+       400 -> 1,200  -> posts/pairwise-matching, "What it is worth on two real
+                        datasets" (the Project STAR sample)
+       worse off     -> posts/pairwise-matching, "Analysing a matched
+                        experiment" and "A conservative interval is not always
+                        a safe one" -->
 
 ::: {.keybox}
-**Choosing the split well can be worth three times the sample.** Take 400
-pupils from Project STAR, pair them on last year's test scores, then flip a
-coin inside each pair. That gives the precision of 1,200 pupils split by a
-plain coin flip.
+**Pair 400 pupils on last year's test scores, then flip the coin inside each
+pair: as precise as 1,200 pupils.**
 :::
 
 ::: {.keybox}
-**On other data the same method is worth 2%.** Run it on the units of
-LaLonde's job-training experiment and it buys almost nothing, because those
-covariates barely predict earnings. The method is not what varies here. The
-data is, and you can measure which case you are in before you commit.
-:::
-
-::: {.keybox}
-**Analysed the obvious way, a matched experiment can be worse than no
-matching at all.** The gain lives in the pairing, and a standard two-sample
-test cannot see it: the confidence interval comes out 40% too wide, and
-against small effects it rejects *less* often than if you had never bothered
-matching.
+**Match your sample, then analyse it the standard way, and you can end up
+worse off than not matching.**
 :::
 
 Pairwise matching and rerandomization are the two methods. The Mahalanobis
