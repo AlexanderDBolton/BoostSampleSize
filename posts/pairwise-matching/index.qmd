@@ -114,16 +114,17 @@ def widget(name, div_id, payload, html):
     display(HTML(html + "<script>" + js + "</script>"))
 ```
 
-With a few hundred units, you want a control group and a treatment group that
-are as similar to each other as possible before the intervention begins.
-[Rerandomization](../rerandomization/) reaches that by discarding splits that
-come out badly balanced. Pairwise matching reaches it by construction.
-Matching pairs units with similar characteristics, and within each pair a coin
-flip decides which unit receives treatment and which serves as its control. So
+Consider running an experiment with a few hundred participants. Before the
+intervention begins, you'd like to split them into a control group and a
+treatment group that are as similar to each other as possible.
+[Rerandomization](../rerandomization/) reaches that by trying ordinary random
+splits and keeping only the most balanced one. Pairwise matching works by
+pairing units with similar characteristics, and within each pair, randomly
+deciding which unit receives treatment and which serves as its control. So
 the two groups are balanced pair by pair, not just on average.
 
-This article asks whether matching beats rerandomization, why pairing needs
-solving properly, and how to analyse the experiment afterwards.
+This article asks whether matching beats rerandomization, how to pair the units,
+and how to analyse the experiment afterwards.
 
 ## What it does
 
@@ -131,13 +132,13 @@ Closeness between two units is measured with the [Mahalanobis
 distance](../mahalanobis-distance/). With (even) $N$ units and $k$ covariates:
 
 ::: {.keybox}
-1. Compute the covariate covariance matrix $S$ once, from all $N$ units.
+1. Compute the covariate covariance matrix $S$ **once**, from all $N$ units.
 2. For every pair of units $i$ and $j$, compute the squared distance between
    them:
    $$ D^2(i,j) \;=\; (x_i - x_j)^{\!\top} S^{-1} (x_i - x_j). $$
 3. Choose the $N/2$ pairs that **minimise the total within-pair distance**,
    subject to covering every unit exactly once.
-4. Inside each pair, flip a coin to decide which unit goes to treatment.
+4. Inside each pair, randomly assign one unit to treatment and one to control.
 :::
 
 We will cover the case where $N$ is odd later in this article.
@@ -145,22 +146,22 @@ We will cover the case where $N$ is odd later in this article.
 Step 2 is the same quadratic form as in the Mahalanobis article, applied to
 the gap between two units instead of the gap between a unit and the mean.
 
-Step 4 is what keeps this a randomised experiment. Assigning deterministically
-inside pairs, say the higher-spending unit always to control, would leave a
-single possible split and no basis for a $p$-value, where the coin flips leave
-$2^{N/2}$, about $1.6 \times 10^{60}$ at $N = 400$.
+Step 4 is what keeps this a randomised experiment. If we assigned
+deterministically inside pairs, e.g. the higher-spending unit always becomes the
+control, there would be a single possible split and no basis for a $p$-value,
+whereas the random assignments leave $2^{N/2}$ possible splits, about
+$1.6 \times 10^{60}$ at $N = 400$.
 
 ## Does it gain more than rerandomization?
 
-Both designs are aiming at the same thing, so the comparison is worth making
-directly. The covariates are held fixed throughout: 400 units with four of
-them. Two outcomes are built on those covariates, carrying the same total
-signal and differing only in how much of it a linear function can reach. Each
-design is then run 4,000 times against each outcome. Matching solves the
-pairing once and then flips a fresh coin inside every pair, so its 4,000
-assignments are all different. The gain is expressed as the sample you would
-need under plain randomisation to estimate the treatment effect just as
-precisely.
+The plot below shows the results for an experiment with 400 units and four
+covariates. These "X" predictor values are kept fixed, but two "y" outcomes are
+built on X, differing in how much of the outcome a linear function can predict.
+Pairwise matching and rerandomisation are then run 4,000 times against each
+outcome. Matching solves the optimal pairing once and then randomly assigns
+treatment within each pair, so its 4,000 assignments are all different. The gain
+is expressed as the sample you would need under plain randomization to estimate
+the treatment effect just as precisely.
 
 ```{python}
 #| label: headtohead-setup
@@ -262,7 +263,7 @@ ax.text(1.0, -0.70, "plain randomisation", fontsize=8, color="#6b747c",
         va="bottom", ha="center")
 ax.set_yticks(ypos)
 ax.set_yticklabels([g for g, _ in groups])
-ax.set_xlabel("equivalent sample size, relative to plain randomisation")
+ax.set_xlabel("equivalent sample size, relative to plain randomization")
 ax.set_xlim(0, max(1 / R2[k][m] for _, k in groups for m in ("rr", "pm")) + 0.5)
 ax.invert_yaxis()
 ax.set_ylim(len(groups) - 0.52, -0.84)      # headroom for the label above
@@ -273,21 +274,19 @@ fig.tight_layout()
 plt.show()
 ```
 
-The two designs behave the same way on a linear outcome and come apart
-completely on a non-linear one. The reason is that they are limited by
-different quantities. A threshold on $M$ constrains the difference in covariate
-*means*, which pins down the linear part of the response and leaves the rest
-untouched, so rerandomization is limited by how much of the outcome is linear
-in the covariates. That falls from
-`{python} f"{R2['linear']['lin']:.2f}"` to
+The two designs behave similarly on a linear outcome and differently on a
+non-linear one. Rerandomization will keep the difference in covariate *means*
+low, but is limited by how much of the outcome is linear in the covariates. That
+falls from `{python} f"{R2['linear']['lin']:.2f}"` to
 `{python} f"{R2['nonlinear']['lin']:.2f}"` between the two rows, and the bar
 collapses with it.
 
-Matching is limited by the other quantity. The two units in a pair sit close
-together in covariate space, so any function of the covariates takes nearly the
-same value on each side of the coin flip, whether that function is linear or
-not. Both outcome models leave the same share of variance unexplained once any
-function is allowed, which is why matching holds up across both rows.
+Matching is limited by the relationship between the covariates and the outcome.
+If two units in a pair sit close together in covariate space, and this makes it
+more likely that their outcomes will be similar, then it doesn't matter if the
+relationship is linear or not, the pairing will be effective. But if there is no
+relationship then matching will deliver no gain. The two rows of the figure
+above assume that there is a relationship.
 
 ### What it is worth on two real datasets
 
@@ -329,49 +328,23 @@ ST = real_gain(_st[["read2", "math2"]].to_numpy(float),
                _st["read3"].to_numpy(float))
 ```
 
-Every number above comes from covariates I generated and an outcome I wrote,
-which makes $R^2$ an input rather than a measurement. Two real datasets put a
-range on it, and the range is most of the story.
+Every number above comes from generated covariates and outcomes. I'll now look
+at two real datasets.
 
-With LaLonde's National Supported Work data, `{python} f"{LL['N']}"` people
-and `{python} f"{LL['k']}"` pre-treatment covariates against 1978 earnings,
-the measured $R^2$ is only `{python} f"{LL['r2']:.2f}"`. There is little point
-spending effort on either design here: the optimal matching is worth
-`{python} f"{100 * (LL['eq'] - 1):.0f}"`% more data. With a slice of Project
-STAR, `{python} f"{ST['N']}"` pupils whose grade-three reading score is
-predicted by their grade-two reading and maths scores, the measured $R^2$ is
-`{python} f"{ST['r2']:.2f}"` and the same matching is worth
-`{python} f"{ST['eq']:.1f}"` times the sample.
+With LaLonde's National Supported Work data, the measured $R^2$ is only
+`{python} f"{LL['r2']:.2f}"`. So there's no point spending effort on the design
+here: the optimal matching is worth `{python} f"{100 * (LL['eq'] - 1):.0f}"`%
+more data. So pairwise matching is not a magic bullet that can make sample sizes
+sufficiently large. For Project STAR (Student/Teacher Achievement Ratio) data,
+pupils' grade-two reading and maths scores could be used to predict their
+grade-three reading scores, with $R^2$ equal to `{python} f"{ST['r2']:.2f}"`. In
+this setting, the pairwise matching would be worth `{python} f"{ST['eq']:.1f}"`
+times the sample.
 
-One quantity explains both, and it is not $R^2$. The equivalent sample size
-under pair randomisation is exactly $1/(1-\rho)$, where $\rho$ is the
-within-pair correlation of the *outcome*. LaLonde gives
-$\rho =$ `{python} f"{LL['rho']:+.2f}"` and STAR
-`{python} f"{ST['rho']:+.2f}"`. Matching makes pairs alike in covariates; it
-earns its keep only when that makes them alike in outcomes too, and $R^2$ is
-the usual way to guess whether it will.
-
-::: {.callout-note collapse="true"}
-## Why LaLonde, if there is nothing to gain?
-
-Because it is the standard benchmark for a different question. LaLonde (1986)
-asked whether non-experimental estimators could recover a known experimental
-answer, and Dehejia and Wahba (1999) made the dataset famous by matching its
-treated units against comparison pools drawn from survey data. That is
-matching for *bias removal* under selection on observables, where what you
-need is covariates that predict selection into treatment. This article is
-about matching for *variance reduction* before randomisation, where what you
-need is covariates that predict the outcome. The two share a word and little
-else, so a low outcome $R^2$ is no mark against the dataset. It is a warning
-against assuming the other literature's famous example is a good guide to
-this one.
-:::
-
-Note also that STAR's matching beats the
-`{python} f"{1 / (1 - ST['r2']):.1f}"`$\times$ that $1 - R^2$ would allow.
-$R^2$ measures the *linear* share, and the pairs constrain any function of the
-covariates, which is the same asymmetry the two rows of the figure above are
-built on.
+Technically, the equivalent sample size under pair randomization is
+$1/(1-\rho)$, where $\rho$ is the within-pair correlation of the *outcome*.
+STAR's matching beats the `{python} f"{1 / (1 - ST['r2']):.1f}"`$\times$ that
+$1 - R^2$ would allow. $R^2$ measures the *linear* share.
 
 ::: {.callout-note collapse="true"}
 ## Checking both numbers against theory
@@ -398,26 +371,18 @@ Tightening the threshold drives $v_a$ towards zero, so rerandomization has a
 dial to turn.
 :::
 
-Matching has nothing to adjust. The within-pair distances are a property of
-the sample, and once the matching is optimal the design is finished. What
-limits the result is covariate density, which is why matching improves as $N$
-grows and degrades as $k$ grows.
-
 ::: {.callout-tip}
 ## Which to reach for
 
-Matching is the safer default when you cannot describe the outcome as roughly
-linear in the covariates, and when the sample is small enough that a few
-awkward units could land on one side. Rerandomization is the better fit when
-the covariates enter the response roughly linearly, when you want a dial you
-can tighten, and when the pairing cannot survive to the analysis stage.
+Matching is the safer default because it works even when the relationship
+between covariates and outcome is complex. Rerandomization is easier from an
+administrative perspective because you don't have to keep track of the pairing,
+which sometimes cannot survive to the analysis stage.
 :::
 
 ## The pairing is an optimisation problem, not a sorting problem
 
-The gain above assumes the pairing is solved properly. This is the step that
-goes wrong in practice, and getting it wrong costs most of what the previous
-section just measured.
+The gain above assumes the pairing is solved optimally.
 
 ```{python}
 #| label: greedy-data
@@ -454,10 +419,10 @@ demo["lost"] = float(sum(g - o for g, o in zip(g_rank, o_rank) if g > o))
 
 The obvious way to form pairs is the "greedy" approach: pair the two closest
 units anywhere in the sample, then repeat on what is left. It is easy to
-explain and implement, but it does not produce the minimum.
+explain and implement, but it does not produce the optimal pairing.
 
-Drag the slider to watch it choose. The middle plot shows what each pair
-costs, on a log scale because the range is wide, and the bottom panel the
+You can drag the slider to watch it choose. The middle plot shows what each pair
+costs, on a log scale because the range is wide, and the bottom panel shows the
 running total. Each plots the optimal matching alongside, both ranked closest
 pair first. The early pairs are nearly free, and the
 final one costs `{python} f"{demo['last']:.1f}"` against
@@ -526,24 +491,18 @@ the distance distribution matters more than its total.
 
 Here the sample is rescaled so that $S$ is the identity. The Mahalanobis
 distance is then the plain straight-line distance, so each line’s length is
-exactly what is being minimised.
-
-Rescaling changes the picture, not the distances: $D^2$ is unchanged by linear
-transformations of the covariates.
-
-Real covariates are usually correlated. Then equal distances form tilted
-ellipses rather than circles, so screen length no longer tracks distance. A
-gap along the long axis is cheap because such differences are common, while
-the same gap across the short axis is expensive because that combination is
-rare.
+exactly what is being minimised. Real covariates are usually correlated. Then
+equal distances form tilted ellipses rather than circles, so screen length no
+longer tracks distance. The Mahalanobis distance makes a gap along the long axis
+cheap, while the same gap across the short axis is expensive because that
+combination is rare.
 :::
 
-The cost of the greedy algorithm over the optimal algorithm depends on the
-sample. With 40 units, the greedy algorithm reaches
+In the 40-unit example above, the greedy algorithm reaches
 `{python} f"{demo['mult']:.1f}"` times the optimal total distance and the cost
-of the worst pair is `{python} f"{demo['worst']:.0f}"` times greater. Forty
-units is a hard case for it, so the table below runs the same comparison at a
-few hundred, which is the size this design is usually for.
+of the worst pair is `{python} f"{demo['worst']:.0f}"` times greater. The table
+below runs the same comparison for different sample sizes and numbers of
+covariates.
 
 ```{python}
 #| label: tbl-greedy
@@ -573,9 +532,9 @@ pd.DataFrame(rows).style.hide(axis="index")
 The two columns move in opposite directions as the sample grows. At
 $N = 200$ with four covariates greedy's total is only
 `{python} f"{gt[(200, 4)]['total']:.0f}"`% above optimal, against
-`{python} f"{100 * (demo['mult'] - 1):.0f}"`% at forty units, so the totals
+`{python} f"{100 * (demo['mult'] - 1):.0f}"`% at 40 units, so the totals
 converge. Its worst pair still costs
-`{python} f"{gt[(200, 4)]['worst']:.1f}"` times more, and at eight covariates
+`{python} f"{gt[(200, 4)]['worst']:.1f}"` times more, and at 8 covariates
 `{python} f"{gt[(200, 8)]['worst']:.1f}"` times more. The total becomes a
 worse and worse guide to the thing that matters.
 
@@ -588,10 +547,10 @@ matching for comparison.
 
 ## Odd numbers, and units with nothing close to them
 
-One mechanism solves two awkward cases. A perfect matching needs an
+One mechanism can actually solve two awkward cases. A perfect matching needs an
 even $N$, so an odd sample leaves a unit over. Separately, a sample may contain
 units that sit far from everything else, and forcing them into pairs produces
-exactly the stranded pairs the previous section warned about.
+high-variance assignments.
 
 Both are solved by adding **sinks**. A sink is a phantom unit placed at
 distance zero from every real unit, with no edge to another sink. Because a
@@ -599,7 +558,7 @@ sink has to be matched and cannot take another sink, it takes a real unit out
 of the experiment. Pairing with a sink is free, so the solver spends its sinks
 on whichever units were most expensive to pair.
 
-One sink absorbs the odd unit in an odd sample. Beyond that, sinks come in
+One sink absorbs the outlier unit in an odd sample. Beyond that, sinks come in
 pairs: each one removes a real unit, so you need an even number of them to
 leave an even number of units behind. Adding two sinks excludes the two units
 whose matches would have been worst, four excludes the worst four, and so on.
@@ -692,19 +651,10 @@ pair falls by `{python} f"{sink_drop:.0f}"`%. Two more remove the rest of the
 awkward group. After that the returns shrink, and every further sink costs real
 sample size.
 
-A **caliper** sets a maximum acceptable within-pair distance. Implementing one
-by raising the weight of long edges can leave a problem with no feasible
-solution, so the usual route is a caliper enforced through sinks: make a sink
-cheaper than any pairing beyond the cap, and units with no acceptable partner
-drop out by themselves. Every unit you exclude narrows what the experiment
-covers, so record how many and which ones.
-
 ## Analysing a matched experiment
 
-The point estimate needs no special treatment. Averaging the within-pair
-differences and taking the plain difference in group means are the same
-arithmetic, because every pair puts one unit in each arm. There is no way to
-forget the matching when forming the estimate.
+The point estimate of the gap between the treatment and control groups is the
+same whether you use a two-sample t-test or analyse the within-pair differences.
 
 ```{python}
 #| label: se-setup
@@ -730,38 +680,24 @@ cov_pr = (np.abs(est_pm) <= tc_pr * se_paired).mean()
 sd_true = est_pm.std(ddof=1)
 ```
 
-A two-sample $t$-test computes the standard error from the within-arm
-variances. Under this design each arm contains one unit from every pair, so
-each arm spans the full covariate range and its variance is close to the
-variance of the whole sample. That calculation returns roughly the value it
-would have returned under plain randomisation, while the estimate itself now
-moves around far less. The interval comes out
+If you treat the control and treatment groups as independent, a two-sample
+$t$-test would compute the standard error from the within-arm variances. The
+interval comes out
 `{python} f"{100 * (se_unpaired.mean() / sd_true - 1):.0f}"`% too wide, and
 covers the true effect
 `{python} f"{100 * cov_un:.1f}"`% of the time instead of 95%.
 
 Differencing within pairs fixes it. The within-pair difference is the unit of
 analysis, and its spread already reflects how closely the pairs were matched,
-so the interval lands at `{python} f"{100 * cov_pr:.1f}"`% coverage. A
-regression of the outcome on treatment plus a fixed effect for each pair is the
-same calculation and gives the same standard error. The cost is degrees of
-freedom, $N/2 - 1$ rather than $N - 2$, which is minor at a few hundred units.
-
-The upper bound on what this is worth is set by the covariates. For a perfectly
-matched sample the variance of the estimate falls to the share of outcome
-variance the covariates do not explain, so the naive variance is too large by
-at most $1/(1 - R^2)$ and the naive standard error by at most
-$1/\sqrt{1 - R^2}$. Here $R^2$ is `{python} f"{r2_nl:.2f}"`, giving a ceiling
-of `{python} f"{1 / np.sqrt(1 - r2_nl):.2f}"` on the standard error against the
-`{python} f"{se_unpaired.mean() / sd_true:.2f}"` realised, so the matching
-captured
-`{python} f"{100 * (1 - sd_true ** 2 / se_unpaired.mean() ** 2) / r2_nl:.0f}"`%
-of what a perfect matching would have removed.
+so the interval lands at `{python} f"{100 * cov_pr:.1f}"`% coverage.
+Equivalently, a regression of the outcome on treatment plus a fixed effect for
+each pair is the same calculation, and gives the same standard error. The cost
+is degrees of freedom, $N/2 - 1$ rather than $N - 2$.
 
 ### A conservative interval is not always a safe one
 
-Conservative is accurate but incomplete: lost precision is not the only
-consequence.
+Lost precision is not the only consequence of using an interval that is too
+wide.
 
 ```{python}
 #| label: fig-power
@@ -841,31 +777,20 @@ fig.tight_layout()
 plt.show()
 ```
 
-Read the dashed red line against the grey one. The matched design analysed
-with a two-sample standard error rejects less often than plain randomisation
-does. At a true effect of zero that is what you want, because the rejection
-rate there is the false positive rate. Above zero it is lost power, until the
-ordering reverses once the effect is large enough. A test statistic that is
-both smaller in spread and centred below the critical value crosses that value
-less often, so the tighter estimate works against you until the effect clears
-the bar on its own.
-Bruhn and McKenzie report the same effect: failing to account for the
-randomisation method gives tests of the wrong size, and can give less power
-than a plain random draw would have.
-
-The blue line is what the design was for.
+The matched design analysed with a two-sample standard error (dashed red line)
+rejects less often than plain randomisation (grey line) does for small effect
+sizes. At a true effect of zero the test is miscalibrated in the safe direction:
+you tolerate a 5% false positive rate and get
+`{python} f"{100 * (1 - cov_un):.1f}"`%. And when the effect is greater than
+zero it is lost power. Bruhn and McKenzie report that failing to account for the
+randomisation method gives tests of the wrong size, and can give less power than
+a plain random draw would have. The matched, within-pair SE method (blue line)
+is what the design was for.
 
 ::: {.callout-warning}
 ## The pairing has to survive to the analysis
-Matching moves its gain into the analysis stage, where it needs the pair labels
-to claim it. If the data reaches you aggregated, say a count and a sum per arm
-per day, the pair structure is gone and the only standard error you can compute
-is the conservative one. Store the pair identifier alongside the assignment at
-the point you randomise, and carry it through every table that follows.
-
-Rerandomization does not share this exposure, because a strict threshold banks
-most of its gain at the design stage. If you know the analysis will run on
-aggregates, that is a point in favour of a threshold over pairs.
+You need to make use of the pair labels in the analysis stage to fully gain from
+the matching.
 :::
 
 ::: {.callout-tip}
